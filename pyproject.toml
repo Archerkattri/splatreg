@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "splatreg"
+version = "0.0.1"
+description = "Composable geometry-first SE(3)/Sim(3) registration for 3D Gaussian Splatting — the inverse of gsplat."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Krishi Attri" }]
+keywords = ["gaussian-splatting", "3dgs", "registration", "pose-estimation", "se3", "sim3", "gsplat"]
+dependencies = ["torch", "numpy"]
+
+[project.optional-dependencies]
+render = ["gsplat>=1.4"]          # the Photometric residual + splatreg.render
+pypose = ["pypose"]               # solver backend
+theseus = ["theseus-ai"]          # differentiable solver backend
+gtsam = ["gtsam"]                 # factor-graph backend (needs analytic Jacobians)
+dev = ["pytest", "pytest-xdist", "ruff", "hypothesis"]
+docs = ["sphinx", "furo", "myst-nb"]
+all = ["gsplat>=1.4", "pypose", "theseus-ai"]
+
+[tool.setuptools.packages.find]
+include = ["splatreg*"]
+
+[tool.ruff]
+line-length = 110
