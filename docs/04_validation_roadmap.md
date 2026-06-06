@@ -55,9 +55,9 @@ splatreg's state, and prioritised. Goal: be as rigorous as these, or more.
   verified correct. This is exactly the win the study predicted.
 - **P1 — formalise the pytest suite.** `tests/conftest.py` (seed + device fixtures, an
   `assert_success_rate` helper); a reusable `splatreg/testing.py::assert_residual_jacobian`
-  (the `EXPECT_CORRECT_FACTOR_JACOBIANS` equivalent, run for every residual class); promote
-  `validate_recovery` / `robustness_bench` / `_verify_sim3` to `tests/test_solver.py`,
-  `tests/test_robustness.py`, `tests/test_lie.py`.
+  (the `EXPECT_CORRECT_FACTOR_JACOBIANS` equivalent, run for every residual class); the manifold
+  + solver checks now live in `tests/test_solver.py` and `tests/test_lie.py` (the standalone
+  verify scripts have been folded in).
 - **P2 — complete the manifold + solver tests.** Group invariants, retract/local, hat/vee,
   near-π stability; the SymForce 10k-random-sample Jacobian sweep; batch-consistency;
   CheckLinearError in the LM loop; singular-system handling.

@@ -24,10 +24,9 @@ jobs:
       - name: Install CPU PyTorch + package + dev deps
         run: |
           python -m pip install --upgrade pip
-          # CPU-only torch wheel (avoids the 5 GB CUDA download on CI runners)
-          pip install torch numpy scipy \
-            --index-url https://download.pytorch.org/whl/cpu
-          # Install the package itself plus the dev extra (black, mypy, flake8, isort, pytest)
+          # CPU-only torch wheel from the torch index (avoids the 5 GB CUDA download on CI runners)
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          # Everything else (numpy + the dev extra: black, mypy, flake8, isort, pytest) from PyPI
           pip install -e ".[test]"
 
       - name: black --check (formatting)
