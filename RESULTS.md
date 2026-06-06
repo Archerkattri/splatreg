@@ -36,15 +36,18 @@ Jacobian against a tangent-space numerical one. `tests/test_jacobians.py` (float
 |---|---|
 | ICP point-to-point | ✅ correct, max\|Δ\| ~3e-9 |
 | ICP point-to-plane | ✅ correct, max\|Δ\| ~4e-11 |
-| **SDF** | ❌→✅ **found wrong (max\|Δ\|=10.8), fixed** (see below), now 1e-7 |
-| SE(3)/Sim(3) exp/log, group invariants, `so3_project` | ✅ all correct (`tests/test_lie.py`, 7/7) |
+| **SDF** | ❌→✅ **found wrong (max\|Δ\|=10.8), fixed** — now an exact **closed-form** gradient, ~1e-8 |
+| SE(3)/Sim(3) exp·log, invariants, near-π, `so3_project`, LM solver | ✅ all correct (`tests/test_lie.py` + `test_solver.py`) |
 
 **The SDF bug (found + fixed):** the Gaussian-SDF returned the surface *normal* `n~` as its
 gradient, but the true gradient of `d(p)=(p−q~(p))·n~(p)` includes a **first-order** `∂q~/∂p`
 term (the kernel-weighted centroid moves with `p`) that `n~` drops. A docstring had wrongly
-called this "exact to first order." Fixed `residuals/sdf.py` to use the exact autodiff field
-gradient; re-audited (1e-7) and re-validated recovery (still 36/36). A wrong registration
-gradient silently yields a wrong pose, so this is the highest-value catch the audit could make.
+called this "exact to first order." Fixed `residuals/sdf.py` to use the exact **closed-form**
+field gradient (`gaussian_sdf_grad` — no autograd graph on the SE(3) path); re-audited (8/8,
+~1e-8) and re-validated recovery (still 36/36). A second audit-adjacent fix: the **near-π SO(3)
+log** lost the rotation axis at θ=π (the antisymmetric part vanishes); now robust (symmetric-part
+axis + atan2), roundtrip exact to ~1e-13. A wrong registration gradient silently yields a wrong
+pose, so these are the highest-value catches the audit could make.
 
 ## 3. vs. plain ICP + residual ablation
 
@@ -69,12 +72,12 @@ is scale + implicit-field robustness, and it costs ~80× in SE(3) (see limitatio
 |---|---|
 | **Noise** (sensor jitter 0.5–2%) | **9/9 = 100%** (rot_err < 0.72°) |
 | **Outliers** (+10–50% clutter) | **9/9 = 100%** (ignores clutter, rot_err ≈ 0°) |
-| Symmetric (sphere, no lobe) | 7/9 = 78% (rotation ambiguous by design; 2 local-minimum misses) |
+| Symmetric (sphere) | **9/9 = 100%** with `init="features"` (8/9 with global init) |
 | **Partial overlap** (20–60% removed) | **0/9** — see limitations (a real + partly *inherent* gap) |
 
 ## 5. Test suite + CI (library-bar rigor)
 
-`pytest tests/` → **9 passing** (Jacobian audit + Lie ops). `tests/conftest.py` (deterministic
+`pytest tests/` → **30 passing** (Jacobian audit + Lie ops + LM solver). `tests/conftest.py` (deterministic
 seed fixture), `splatreg/testing.py` (a shippable `assert_residual_jacobian` so every future
 residual gets the numerical audit — the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS` equivalent),
 `.github/workflows/test.yml` (CI across Python 3.10–3.12). Roadmap to full parity:
@@ -89,9 +92,10 @@ residual gets the numerical audit — the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS
   feature → unrecoverable by **any** method). The credible fix is a feature-based robust aligner
   (FPFH + TEASER/RANSAC) + honest "ambiguous" reporting — scoped as the next major feature, not
   a quick patch. **`merge` is reliable for high-overlap captures; large partial overlap is WIP.**
-- **SE(3) speed.** ~33 s/cell vs ICP's 0.03 s, dominated by the SDF field evaluation (and now
-  the exact autodiff gradient). A closed-form SDF gradient + SDF truncation (`trunc_sigmas`,
-  N×k instead of N×M) are the planned ~order-of-magnitude speed-ups.
+- **SE(3) speed.** Dominated by the SDF field evaluation. The **closed-form gradient is now
+  landed** (no autograd graph + no second forward on the SE(3) path — the correctness half of the
+  speed work); the wall-time benchmark vs the GaussianFeels tracker + SDF truncation
+  (`trunc_sigmas`, N×k instead of N×M) are the GPU follow-up.
 - **Real-scan data.** Validation so far is synthetic-known-transform + robustness corruptions;
   a real-scan benchmark (GaussReg's ScanNet-GSReg protocol — RRE/RTE/RSE/success/time) is the
   next external anchor (`docs/04` P4).
