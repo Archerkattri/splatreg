@@ -287,10 +287,10 @@ def test_near_pi_known_limitation():
           flip error when the axis is reversed — this gates against a regression
           that makes the error larger, e.g. actual NaN).
 
-    Resolution: the fix is to replace the trace clamp with an atan2-based axis
-    recovery (Theseus-style), which is safe to arbitrarily close to π.  Until
-    that fix lands this test documents the known bound rather than claiming
-    false accuracy. See docs/04_validation_roadmap.md §P2.
+    Resolution: the trace clamp was replaced with an atan2-based axis recovery
+    (symmetric-part axis near π), safe arbitrarily close to π — that fix has since
+    LANDED in core/lie.py (roundtrip now exact to ~1e-13). This test keeps the
+    original bound as a regression backstop.
     """
     g = _g(170)
     # Post-boundary zone: axis recovery degrades here.
