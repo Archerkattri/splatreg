@@ -13,7 +13,7 @@
 [![Jacobian audit](https://img.shields.io/badge/Jacobian%20audit-8%2F8-brightgreen.svg)](tests/test_jacobians.py)
 [![recovery](https://img.shields.io/badge/synthetic%20recovery-36%2F36-brightgreen.svg)](RESULTS.md)
 
-<img src="docs/assets/registration_demo.png" alt="splatreg before/after registration" width="92%">
+<img src="assets/registration_demo.png" alt="splatreg before/after registration" width="92%">
 
 </div>
 
@@ -93,7 +93,7 @@ sdf, grad   = gaussian_sdf_grad(target, query_points, sigma=0.02) # signed dista
 
 ## Validation & benchmarks
 
-> splatreg is held to the validation bar of the libraries it sits beside — **gsplat / Theseus / GTSAM / SymForce**. Every number below is reproducible (commands at the bottom); the full record is in [`RESULTS.md`](RESULTS.md), the bar itself in [`docs/04_validation_roadmap.md`](docs/04_validation_roadmap.md).
+> splatreg is held to the validation bar of the libraries it sits beside — **gsplat / Theseus / GTSAM / SymForce**. Every number below is reproducible (commands at the bottom); the full record is in [`RESULTS.md`](RESULTS.md).
 
 ### 1 · Synthetic recovery — the core accuracy test
 
@@ -144,7 +144,7 @@ Two real bugs the audit caught and fixed:
 
 ### 5 · Test suite + CI
 
-`pytest tests/` → **30 passing**: the Jacobian audit, Lie-group ops (exp·log roundtrips, group invariants, hat/vee, near-π stability, a 10k-sample SymForce-style Jacobian sweep), and the LM solver (`CheckLinearError`, singular-system handling, GT recovery, Sim(3) scale). CI runs `black` + `mypy` + `pytest` (Python 3.10/3.11, CUDA-skip), with pre-commit and `py.typed`.
+`pytest tests/` → **30 passing**: the Jacobian audit, Lie-group ops (exp·log roundtrips, group invariants, hat/vee, near-π stability, a 10k-sample SymForce-style Jacobian sweep), and the LM solver (`CheckLinearError`, singular-system handling, GT recovery, Sim(3) scale). The package is `black` + `mypy` clean and ships `py.typed`.
 
 ### 6 · Real-data benchmark — *GPU run pending* ⏳
 
@@ -161,7 +161,7 @@ The external anchor: the **GaussReg** protocol (ECCV 2024) on **ScanNet-GSReg** 
 
 ## Limitations (no overstating)
 
-- **Partial overlap (0/9).** A genuinely hard problem (feature-method territory — TEASER++/Predator). Investigated in [`docs/03_failure_analysis.md`](docs/03_failure_analysis.md): the one-sided slab crop conflates *fixable* partial overlap with *inherently-ambiguous* partial overlap (the crop deletes the rotation-disambiguating feature → unrecoverable by **any** method, full FPFH included). A feature-based aligner (`align_features.py`, `init="features"`) is shipped and helps the symmetric case; large partial overlap is **WIP**. **`merge` is reliable for high-overlap captures.**
+- **Partial overlap (0/9).** A genuinely hard problem (feature-method territory — TEASER++/Predator). The one-sided slab crop conflates *fixable* partial overlap with *inherently-ambiguous* partial overlap (the crop deletes the rotation-disambiguating feature → unrecoverable by **any** method, full FPFH included). A feature-based aligner (`align_features.py`, `init="features"`) is shipped and helps the symmetric case; large partial overlap is **WIP**. **`merge` is reliable for high-overlap captures.**
 - **SE(3) speed.** The Gaussian-SDF residual costs more than nearest-neighbour ICP; the closed-form gradient + normal caching are landed, the full wall-time + truncation tuning are the GPU follow-up.
 
 ---
@@ -188,4 +188,4 @@ python examples/make_readme_figure.py            # regenerate the hero figure
 
 ## License & layout
 
-Apache-2.0. `splatreg/` — library (`api`, `align`, `align_features`, `core/lie`, `geometry/gaussian_sdf`, `residuals/`, `solvers/lm`). `tests/` · `benchmarks/` · `examples/` · `docs/` (`03` failure analysis, `04` validation roadmap). Full validation record: [`RESULTS.md`](RESULTS.md).
+Apache-2.0. `splatreg/` — library (`api`, `align`, `align_features`, `core/lie`, `geometry/gaussian_sdf`, `residuals/`, `solvers/lm`). `tests/` · `benchmarks/` · `examples/`. Full validation record: [`RESULTS.md`](RESULTS.md).

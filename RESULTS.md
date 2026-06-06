@@ -7,7 +7,7 @@ against them).
 
 **What this file is:** every claim, with the measured number and the command to reproduce
 it — and the honest limitations. Validation is held to the bar of the libraries splatreg
-sits beside (gsplat / Theseus / GTSAM / SymForce); see `docs/04_validation_roadmap.md`.
+sits beside (gsplat / Theseus / GTSAM / SymForce).
 
 _Last validated 2026-06-06, single box, CUDA._
 
@@ -75,18 +75,17 @@ is scale + implicit-field robustness, and it costs ~80× in SE(3) (see limitatio
 | Symmetric (sphere) | **9/9 = 100%** with `init="features"` (8/9 with global init) |
 | **Partial overlap** (20–60% removed) | **0/9** — see limitations (a real + partly *inherent* gap) |
 
-## 5. Test suite + CI (library-bar rigor)
+## 5. Test suite (library-bar rigor)
 
 `pytest tests/` → **30 passing** (Jacobian audit + Lie ops + LM solver). `tests/conftest.py` (deterministic
 seed fixture), `splatreg/testing.py` (a shippable `assert_residual_jacobian` so every future
-residual gets the numerical audit — the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS` equivalent),
-`.github/workflows/test.yml` (CI across Python 3.10–3.12). Roadmap to full parity:
-`docs/04_validation_roadmap.md`.
+residual gets the numerical audit — the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS` equivalent).
+`black` + `mypy` are clean and `splatreg/py.typed` ships.
 
 ## 6. Honest limitations (no overstating)
 
 - **Partial overlap (0/9).** A genuine, known-hard problem (the territory of feature-based
-  methods like TEASER++/Predator). Investigated in `docs/03`: gating the fine ICP helps only
+  methods like TEASER++/Predator). Gating the fine ICP helps only
   marginally (2/9, fragile), and the random-direction crop conflates *fixable* partial (overlap
   keeps the disambiguating feature) with *inherently-ambiguous* partial (the crop deletes the
   feature → unrecoverable by **any** method). The credible fix is a feature-based robust aligner
@@ -98,7 +97,7 @@ residual gets the numerical audit — the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS
   (`trunc_sigmas`, N×k instead of N×M) are the GPU follow-up.
 - **Real-scan data.** Validation so far is synthetic-known-transform + robustness corruptions;
   a real-scan benchmark (GaussReg's ScanNet-GSReg protocol — RRE/RTE/RSE/success/time) is the
-  next external anchor (`docs/04` P4).
+  next external anchor.
 
 ## 7. Reproduce
 

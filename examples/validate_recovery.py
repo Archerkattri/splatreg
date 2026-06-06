@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 """Synthetic Sim(3) / SE(3) RECOVERY harness — splatreg's rigorous validation.
 
-This is the credible benchmark the MVP spec asks for (``docs/02_mvp_spec.md`` §"MVP
-deliverable + how it's validated", tier 1): *take one realistic splat, apply a KNOWN
+This is splatreg's credible validation benchmark: *take one realistic splat, apply a KNOWN
 Sim(3), recover it with ``register`` and report rotation / translation / **scale** error
 plus post-alignment Chamfer.* It isolates the solver — no GT-pose dataset, no download —
 and is the protocol we define for splat-registration (none is standard).

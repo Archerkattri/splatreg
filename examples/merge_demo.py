@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 """MERGE DEMO — splatreg's headline: fuse two overlapping captures into ONE clean ``.ply``.
 
-This is the demo the MVP spec calls "the screenshot that sells it" (``docs/02_mvp_spec.md``
-§"Real pairs (the demo)" / §"merge helper"): the thing SuperSplat / graphdeco-#990 / Cesium
+This is splatreg's headline demo: the thing SuperSplat / graphdeco-#990 / Cesium
 users ask for and no tool provides — *merge two overlapping splats, aligned, into a single
 deduped ``.ply``* — quantified against the status-quo baseline (naive ``torch.cat``).
 

@@ -3,7 +3,7 @@
 
 Builds a realistic object splat A, transforms it by a known SE(3) to make splat B (unknown
 relative pose), recovers the transform with ``register``, and renders a before/after
-3D scatter to ``docs/assets/registration_demo.png``. CPU, deterministic.
+3D scatter to ``assets/registration_demo.png``. CPU, deterministic.
 
     PYTHONPATH=. python examples/make_readme_figure.py
 """
@@ -94,7 +94,7 @@ panel(
 )
 plt.tight_layout()
 
-out_dir = os.path.join(_REPO, "docs", "assets")
+out_dir = os.path.join(_REPO, "assets")
 os.makedirs(out_dir, exist_ok=True)
 out = os.path.join(out_dir, "registration_demo.png")
 plt.savefig(out, dpi=150, bbox_inches="tight", facecolor="white")
