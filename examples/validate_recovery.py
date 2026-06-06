@@ -34,6 +34,7 @@ Run (CPU — the DiT owns the GPUs; the Sim(3) autodiff path is memory-heavy so 
 
 It needs only ``splatreg`` (torch + numpy). Self-contained and deterministic per seed.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -74,8 +75,8 @@ if DEVICE.startswith("cuda") and not torch.cuda.is_available():
     print("SPLATREG_DEVICE=cuda requested but CUDA is unavailable; falling back to CPU.")
     DEVICE = "cpu"
 DTYPE = torch.float32
-N_POINTS = 1400                # shell+blob anchor count (modest: the Sim(3) autodiff is heavy)
-MAX_ITERS = 60                 # LM iterations for the fine refine
+N_POINTS = 1400  # shell+blob anchor count (modest: the Sim(3) autodiff is heavy)
+MAX_ITERS = 60  # LM iterations for the fine refine
 # Quality / machine-adaptivity policy passed to `register` (CLI `--quality`, default "full"):
 # "full" | "balanced" | "low" | "auto" | a 0..1 float. "auto" sizes the work to detected memory.
 QUALITY: object = "full"
@@ -87,7 +88,7 @@ QUALITY: object = "full"
 ROT_AXIS = [0.3, 0.9, 0.25]
 ROT_DEGS = [5.0, 30.0, 90.0]
 SCALES = [0.8, 1.0, 1.3]
-TRANS = [0.03, -0.02, 0.025]   # object units (~30 mm); applied AFTER s*R
+TRANS = [0.03, -0.02, 0.025]  # object units (~30 mm); applied AFTER s*R
 
 # Success gates (spec: "recover <=1 deg / <=1% scale"; we report at a slightly looser, field-
 # limited <2 deg / <2% — the soft sum-of-Gaussians SDF's zero level-set sits a hair off the true
@@ -99,10 +100,11 @@ SUCC_SCALE_PCT = 2.0
 
 def recover_once(A, M_gt, s_gt, transform):
     """Apply ``M_gt`` to A -> B, recover with default-residual ``register``, return a metrics dict."""
-    B = make_object_splat.apply_to(A, M_gt)          # B = M_gt . A (points + scales transformed)
+    B = make_object_splat.apply_to(A, M_gt)  # B = M_gt . A (points + scales transformed)
     t0 = time.perf_counter()
-    res = register(B, A, init="global", transform=transform, max_iters=MAX_ITERS,
-                   quality=QUALITY)                  # residuals=None -> default set sized by quality
+    res = register(
+        B, A, init="global", transform=transform, max_iters=MAX_ITERS, quality=QUALITY
+    )  # residuals=None -> default set sized by quality
     dt = time.perf_counter() - t0
 
     s_est = res.scale
@@ -132,12 +134,16 @@ def recover_once(A, M_gt, s_gt, transform):
 def run_block(transform, scales, label):
     """Run the full seed x grid for one transform mode; print a table; return success stats."""
     print("=" * 100)
-    print(f"{label}  (transform={transform!r}, default residuals, init='global', "
-          f"max_iters={MAX_ITERS}, N={N_POINTS}, device={DEVICE})")
+    print(
+        f"{label}  (transform={transform!r}, default residuals, init='global', "
+        f"max_iters={MAX_ITERS}, N={N_POINTS}, device={DEVICE})"
+    )
     print("-" * 100)
-    header = (f"{'seed':>4} {'rot_gt':>7} {'scl_gt':>7} {'|':>1} "
-              f"{'rot_err°':>9} {'trans_mm':>9} {'scale_err%':>11} {'cham_mm':>9} "
-              f"{'iters':>6} {'sec':>6}  ok")
+    header = (
+        f"{'seed':>4} {'rot_gt':>7} {'scl_gt':>7} {'|':>1} "
+        f"{'rot_err°':>9} {'trans_mm':>9} {'scale_err%':>11} {'cham_mm':>9} "
+        f"{'iters':>6} {'sec':>6}  ok"
+    )
     print(header)
 
     rows = []
@@ -152,10 +158,12 @@ def run_block(transform, scales, label):
                 m.update(seed=seed, rot_gt=rot_deg, scale_gt=s_gt)
                 rows.append(m)
                 ok = "Y" if m["success"] else "."
-                print(f"{seed:>4} {rot_deg:>6.1f}° {s_gt:>7.2f} {'|':>1} "
-                      f"{m['rot_err']:>9.4f} {m['trans_err_mm']:>9.3f} "
-                      f"{m['scale_err_pct']:>11.3f} {m['cham_mm']:>9.4f} "
-                      f"{m['iters']:>6d} {m['secs']:>6.2f}  {ok}")
+                print(
+                    f"{seed:>4} {rot_deg:>6.1f}° {s_gt:>7.2f} {'|':>1} "
+                    f"{m['rot_err']:>9.4f} {m['trans_err_mm']:>9.3f} "
+                    f"{m['scale_err_pct']:>11.3f} {m['cham_mm']:>9.4f} "
+                    f"{m['iters']:>6d} {m['secs']:>6.2f}  {ok}"
+                )
 
     return summarize(rows, transform, label)
 
@@ -171,8 +179,7 @@ def summarize(rows, transform, label):
     def worst(key):
         return float(np.max([r[key] for r in rows]))
 
-    gate = (f"rot<{SUCC_ROT_DEG}°" if transform == "se3"
-            else f"rot<{SUCC_ROT_DEG}° & scale<{SUCC_SCALE_PCT}%")
+    gate = f"rot<{SUCC_ROT_DEG}°" if transform == "se3" else f"rot<{SUCC_ROT_DEG}° & scale<{SUCC_SCALE_PCT}%"
     print("-" * 100)
     print(f"  {label} SUMMARY:  success {n_ok}/{n} = {100.0 * n_ok / n:.1f}%   (gate: {gate})")
     print(f"    median  rot_err  = {med('rot_err'):.4f}°     worst = {worst('rot_err'):.4f}°")
@@ -197,8 +204,10 @@ def _peak_report():
     if DEVICE.startswith("cuda"):
         peak = torch.cuda.max_memory_allocated() / 2**30
         reserved = torch.cuda.max_memory_reserved() / 2**30
-        print(f"PEAK MEMORY: GPU allocated {peak:.2f} GiB, reserved {reserved:.2f} GiB"
-              + (f"; python RSS {rss:.2f} GiB" if rss is not None else ""))
+        print(
+            f"PEAK MEMORY: GPU allocated {peak:.2f} GiB, reserved {reserved:.2f} GiB"
+            + (f"; python RSS {rss:.2f} GiB" if rss is not None else "")
+        )
     elif rss is not None:
         print(f"PEAK MEMORY: python RSS {rss:.2f} GiB (CPU run)")
 
@@ -206,10 +215,12 @@ def _peak_report():
 def main():
     global DEVICE, QUALITY, N_POINTS, MAX_ITERS
     ap = argparse.ArgumentParser(description="splatreg synthetic Sim(3)/SE(3) recovery harness.")
-    ap.add_argument("--quality", default="full",
-                    help="quality policy: full|balanced|low|auto|<0..1 float> (default: full)")
-    ap.add_argument("--device", default=DEVICE,
-                    help="cpu|cuda (default: $SPLATREG_DEVICE or cpu)")
+    ap.add_argument(
+        "--quality",
+        default="full",
+        help="quality policy: full|balanced|low|auto|<0..1 float> (default: full)",
+    )
+    ap.add_argument("--device", default=DEVICE, help="cpu|cuda (default: $SPLATREG_DEVICE or cpu)")
     ap.add_argument("--n", type=int, default=N_POINTS, help=f"object anchor count (default {N_POINTS})")
     ap.add_argument("--iters", type=int, default=MAX_ITERS, help=f"LM iters (default {MAX_ITERS})")
     args = ap.parse_args()
@@ -232,9 +243,11 @@ def main():
         torch.cuda.reset_peak_memory_stats()
     t_start = time.perf_counter()
 
-    print(f"\nsplatreg synthetic recovery harness — {len(SEEDS)} seeds x "
-          f"{len(ROT_DEGS)}x{len(SCALES)} grid per block, on {DEVICE.upper()}, quality={QUALITY!r}.\n"
-          f"Geometry: anisotropic ellipsoid SHELL + filled blob + +x lobe (rotation observable).\n")
+    print(
+        f"\nsplatreg synthetic recovery harness — {len(SEEDS)} seeds x "
+        f"{len(ROT_DEGS)}x{len(SCALES)} grid per block, on {DEVICE.upper()}, quality={QUALITY!r}.\n"
+        f"Geometry: anisotropic ellipsoid SHELL + filled blob + +x lobe (rotation observable).\n"
+    )
 
     sim3 = run_block("sim3", SCALES, "SIM(3) RECOVERY  (rotation + translation + SCALE)")
     # SE(3) (rigid) block: scale fixed to 1, so only the unit-scale grid column is meaningful.
@@ -243,8 +256,10 @@ def main():
     print("=" * 100)
     total = sim3["n"] + se3["n"]
     total_ok = sim3["n_ok"] + se3["n_ok"]
-    print(f"OVERALL: {total_ok}/{total} cells within gate "
-          f"({100.0 * total_ok / total:.1f}%)   wall {time.perf_counter() - t_start:.1f}s")
+    print(
+        f"OVERALL: {total_ok}/{total} cells within gate "
+        f"({100.0 * total_ok / total:.1f}%)   wall {time.perf_counter() - t_start:.1f}s"
+    )
     _peak_report()
     print("=" * 100)
 

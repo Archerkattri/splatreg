@@ -14,6 +14,7 @@ Pure torch + numpy (the only splatreg runtime deps). Provides:
 
 Everything is deterministic given a seed.
 """
+
 from __future__ import annotations
 
 import math
@@ -42,10 +43,9 @@ def axis_angle_R(axis, deg: float, *, device="cpu", dtype=torch.float32) -> torc
     axis = axis / axis.norm().clamp_min(1e-12)
     th = math.radians(deg)
     K = torch.tensor(
-        [[0.0, -axis[2], axis[1]],
-         [axis[2], 0.0, -axis[0]],
-         [-axis[1], axis[0], 0.0]],
-        dtype=dtype, device=device,
+        [[0.0, -axis[2], axis[1]], [axis[2], 0.0, -axis[0]], [-axis[1], axis[0], 0.0]],
+        dtype=dtype,
+        device=device,
     )
     eye = torch.eye(3, dtype=dtype, device=device)
     return eye + math.sin(th) * K + (1.0 - math.cos(th)) * (K @ K)
@@ -64,6 +64,7 @@ def chamfer_mm(a: torch.Tensor, b: torch.Tensor, *, max_pts: int = 4000) -> floa
     Subsamples each side to ``max_pts`` (deterministic stride) to keep the ``cdist`` bounded, then
     averages the mean nearest-neighbour distance in each direction. Returned x1000 (m -> mm).
     """
+
     def sub(x):
         if x.shape[0] <= max_pts:
             return x
@@ -71,7 +72,7 @@ def chamfer_mm(a: torch.Tensor, b: torch.Tensor, *, max_pts: int = 4000) -> floa
         return x[sel]
 
     a, b = sub(a), sub(b)
-    d = torch.cdist(a, b)                              # (Na, Nb)
+    d = torch.cdist(a, b)  # (Na, Nb)
     d_ab = d.min(dim=1).values.mean()
     d_ba = d.min(dim=0).values.mean()
     return 1000.0 * float(0.5 * (d_ab + d_ba))
@@ -108,14 +109,14 @@ def _make_object_splat(
     g = torch.Generator(device="cpu").manual_seed(int(seed))
     n_shell = int(round(shell_frac * n))
     n_fill = n - n_shell
-    radii = torch.tensor([0.14, 0.09, 0.06], dtype=dtype)        # anisotropic extents (m)
+    radii = torch.tensor([0.14, 0.09, 0.06], dtype=dtype)  # anisotropic extents (m)
 
     def unit_sphere(m):
         u = torch.rand(m, generator=g)
         v = torch.rand(m, generator=g)
         phi = 2 * math.pi * u
         costh = 2 * v - 1
-        sinth = torch.sqrt((1 - costh ** 2).clamp_min(0))
+        sinth = torch.sqrt((1 - costh**2).clamp_min(0))
         return torch.stack([sinth * torch.cos(phi), sinth * torch.sin(phi), costh], dim=1)
 
     # Shell: unit sphere -> anisotropic surface, with thin-shell radial jitter (~ Gaussian scale).
@@ -127,7 +128,7 @@ def _make_object_splat(
     if n_fill > 0:
         dir_f = unit_sphere(n_fill)
         rad_f = torch.rand(n_fill, 1, generator=g) ** (1.0 / 3.0)
-        fill = dir_f * radii * rad_f * 0.92                     # 0.92 keeps fill just inside the shell
+        fill = dir_f * radii * rad_f * 0.92  # 0.92 keeps fill just inside the shell
         pts = torch.cat([shell, fill], dim=0)
     else:
         pts = shell

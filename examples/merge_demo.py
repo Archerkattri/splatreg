@@ -41,6 +41,7 @@ Run (CPU — the DiT owns the GPUs):
         PYTHONPATH=/path/to/splatreg python examples/merge_demo.py
     # or on a real export:  python examples/merge_demo.py --ply outputs/.../final.ply
 """
+
 from __future__ import annotations
 
 import argparse
@@ -103,9 +104,12 @@ def _set_opacity(g: Gaussians, value: float) -> Gaussians:
     """Return a copy with every opacity set to a constant (so the dedupe winner is observable)."""
     n = len(g)
     return Gaussians(
-        means=g.means, quats=g.quats, scales=g.scales,
+        means=g.means,
+        quats=g.quats,
+        scales=g.scales,
         opacities=torch.full((n,), float(value), device=g.means.device, dtype=g.means.dtype),
-        colors=g.colors, log_scales=g.log_scales,
+        colors=g.colors,
+        log_scales=g.log_scales,
     )
 
 
@@ -116,8 +120,7 @@ def naive_cat(a: Gaussians, b: Gaussians) -> Gaussians:
         quats=torch.cat([a.quats, b.quats], 0),
         scales=torch.cat([a.scales, b.scales], 0),
         opacities=torch.cat([a.opacities.reshape(-1), b.opacities.reshape(-1)], 0),
-        colors=(None if a.colors is None or b.colors is None
-                else torch.cat([a.colors, b.colors], 0)),
+        colors=(None if a.colors is None or b.colors is None else torch.cat([a.colors, b.colors], 0)),
         log_scales=a.log_scales,
     )
 
@@ -131,23 +134,24 @@ def band_count(means: torch.Tensor, lo: float, hi: float) -> int:
 def run_demo(full: Gaussians, source_label: str) -> None:
     print("=" * 96)
     print(f"MERGE DEMO  —  source: {source_label}")
-    print(f"  full splat: {len(full)} Gaussians, log_scales={full.log_scales}, "
-          f"bbox diag {float((full.means.amax(0) - full.means.amin(0)).norm()):.4f} m, "
-          f"device={DEVICE}")
+    print(
+        f"  full splat: {len(full)} Gaussians, log_scales={full.log_scales}, "
+        f"bbox diag {float((full.means.amax(0) - full.means.amin(0)).norm()):.4f} m, "
+        f"device={DEVICE}"
+    )
 
     # --- split into two overlapping halves (share a central band in x) ---------------
     x = full.means[:, 0]
     xmid = float(x.median())
     extent_x = float(x.max() - x.min())
-    band = 0.08 * extent_x                       # overlap band half-width ~ 8% of the x-extent
+    band = 0.08 * extent_x  # overlap band half-width ~ 8% of the x-extent
     lo, hi = xmid - band, xmid + band
-    left = _index(full, x <= xmid + band)        # left half  + band
-    right = _index(full, x >= xmid - band)       # right half + band
+    left = _index(full, x <= xmid + band)  # left half  + band
+    right = _index(full, x >= xmid - band)  # right half + band
     # Distinct opacities so the "highest-opacity wins" dedupe survivor is observable in the band.
     left = _set_opacity(left, 0.90)
     right = _set_opacity(right, 0.40)
-    print(f"  split at x_med={xmid:.4f}; overlap band x in [{lo:.4f}, {hi:.4f}] "
-          f"(width {2 * band:.4f} m)")
+    print(f"  split at x_med={xmid:.4f}; overlap band x in [{lo:.4f}, {hi:.4f}] " f"(width {2 * band:.4f} m)")
     print(f"  left half {len(left)} (opacity 0.90) | right half {len(right)} (opacity 0.40)")
 
     # --- apply a KNOWN relative Sim(3) to the right half (the inter-capture offset) ---
@@ -169,13 +173,26 @@ def run_demo(full: Gaussians, source_label: str) -> None:
 
     # --- splatreg merge: register right->left (sim3, global init) + dedupe ------------
     t0 = time.perf_counter()
-    merged = splatreg.merge([left, right_moved], ref=0, transform="sim3",
-                            init="global", max_iters=40, quality=QUALITY,
-                            dedupe_method=DEDUPE_METHOD)
+    merged = splatreg.merge(
+        [left, right_moved],
+        ref=0,
+        transform="sim3",
+        init="global",
+        max_iters=40,
+        quality=QUALITY,
+        dedupe_method=DEDUPE_METHOD,
+    )
     dt = time.perf_counter() - t0
     # No-dedupe variant: registered concatenation only (isolates dedupe vs registration effect).
-    merged_nodedupe = splatreg.merge([left, right_moved], ref=0, transform="sim3",
-                                     init="global", dedupe=False, max_iters=40, quality=QUALITY)
+    merged_nodedupe = splatreg.merge(
+        [left, right_moved],
+        ref=0,
+        transform="sim3",
+        init="global",
+        dedupe=False,
+        max_iters=40,
+        quality=QUALITY,
+    )
 
     band_cat = band_count(cat.means, lo, hi)
     band_merged = band_count(merged.means, lo, hi)
@@ -195,20 +212,30 @@ def run_demo(full: Gaussians, source_label: str) -> None:
     print(f"    aligned single-half reference (target) : ~{single_ref}")
     print(f"    aligned both-halves (double) reference : ~{double_ref}")
     print(f"    naive torch.cat (baseline)             :  {band_cat}")
-    print(f"    splatreg merge (deduped)               :  {band_merged}    "
-          f"({band_cat - band_merged} removed; "
-          f"{100.0 * band_merged / max(band_cat, 1):.0f}% of cat density)")
-    print(f"    band survivors with high opacity (>0.6): {frac_high:.2f}  "
-          f"(left half = 0.90 should win the overlap)")
+    print(
+        f"    splatreg merge (deduped)               :  {band_merged}    "
+        f"({band_cat - band_merged} removed; "
+        f"{100.0 * band_merged / max(band_cat, 1):.0f}% of cat density)"
+    )
+    print(
+        f"    band survivors with high opacity (>0.6): {frac_high:.2f}  "
+        f"(left half = 0.90 should win the overlap)"
+    )
     print("  TOTAL COUNT:")
-    print(f"    naive cat {len(cat)}  ->  splatreg merge {len(merged)}  "
-          f"(removed {len(cat) - len(merged)} overlap duplicates)")
-    print(f"    registered-only (dedupe=False): {len(merged_nodedupe)}  "
-          f"(== cat size {len(cat)}: {len(merged_nodedupe) == len(cat)})")
+    print(
+        f"    naive cat {len(cat)}  ->  splatreg merge {len(merged)}  "
+        f"(removed {len(cat) - len(merged)} overlap duplicates)"
+    )
+    print(
+        f"    registered-only (dedupe=False): {len(merged_nodedupe)}  "
+        f"(== cat size {len(cat)}: {len(merged_nodedupe) == len(cat)})"
+    )
     print("  CHAMFER-TO-ORIGINAL (mm; lower = closer to the untouched full splat):")
     print(f"    naive torch.cat            : {cham_cat:.4f} mm   (right half left misaligned)")
-    print(f"    splatreg merge (registered): {cham_merged:.4f} mm   "
-          f"({cham_cat / max(cham_merged, 1e-9):.1f}x closer than cat)")
+    print(
+        f"    splatreg merge (registered): {cham_merged:.4f} mm   "
+        f"({cham_cat / max(cham_merged, 1e-9):.1f}x closer than cat)"
+    )
     print(f"    splatreg (registered, no dedupe): {cham_nodedupe:.4f} mm")
 
     # --- save_ply + round-trip -------------------------------------------------------
@@ -219,9 +246,11 @@ def run_demo(full: Gaussians, source_label: str) -> None:
     reloaded = load_ply(out_path, device=DEVICE)
     dmax = float((reloaded.means.to(DTYPE) - merged.means).abs().max())
     print(f"  saved merged splat -> {out_path}")
-    print(f"  save_ply -> load_ply round-trip: {len(reloaded)} Gaussians "
-          f"(== {len(merged)}: {len(reloaded) == len(merged)}), "
-          f"max |mean| diff {dmax:.2e}")
+    print(
+        f"  save_ply -> load_ply round-trip: {len(reloaded)} Gaussians "
+        f"(== {len(merged)}: {len(reloaded) == len(merged)}), "
+        f"max |mean| diff {dmax:.2e}"
+    )
     print("=" * 96)
 
 
@@ -237,27 +266,38 @@ def _peak_report():
     if DEVICE.startswith("cuda"):
         peak = torch.cuda.max_memory_allocated() / 2**30
         reserved = torch.cuda.max_memory_reserved() / 2**30
-        print(f"  PEAK MEMORY: GPU allocated {peak:.2f} GiB, reserved {reserved:.2f} GiB"
-              + (f"; python RSS {rss:.2f} GiB" if rss is not None else ""))
+        print(
+            f"  PEAK MEMORY: GPU allocated {peak:.2f} GiB, reserved {reserved:.2f} GiB"
+            + (f"; python RSS {rss:.2f} GiB" if rss is not None else "")
+        )
     elif rss is not None:
         print(f"  PEAK MEMORY: python RSS {rss:.2f} GiB (CPU run)")
 
 
 def main():
     global DEVICE, QUALITY, DEDUPE_METHOD
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--ply", type=str, default=None,
-                    help="optional path to a REAL exported 3DGS .ply to split-and-merge "
-                         "instead of the synthetic object")
-    ap.add_argument("--n", type=int, default=5000,
-                    help="synthetic object anchor count (ignored with --ply)")
-    ap.add_argument("--quality", default="full",
-                    help="quality policy: full|balanced|low|auto|<0..1 float> (default: full)")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument(
+        "--ply",
+        type=str,
+        default=None,
+        help="optional path to a REAL exported 3DGS .ply to split-and-merge "
+        "instead of the synthetic object",
+    )
+    ap.add_argument("--n", type=int, default=5000, help="synthetic object anchor count (ignored with --ply)")
+    ap.add_argument(
+        "--quality",
+        default="full",
+        help="quality policy: full|balanced|low|auto|<0..1 float> (default: full)",
+    )
     ap.add_argument("--device", default=DEVICE, help="cpu|cuda (default: $SPLATREG_DEVICE or cpu)")
-    ap.add_argument("--dedupe", default="voxel", choices=("voxel", "knn"),
-                    help="overlap dedupe pass: voxel (default) | knn (cross-splat, catches the "
-                         "~16%% residual overlap a voxel grid leaves at cell boundaries)")
+    ap.add_argument(
+        "--dedupe",
+        default="voxel",
+        choices=("voxel", "knn"),
+        help="overlap dedupe pass: voxel (default) | knn (cross-splat, catches the "
+        "~16%% residual overlap a voxel grid leaves at cell boundaries)",
+    )
     args = ap.parse_args()
 
     DEVICE = args.device
