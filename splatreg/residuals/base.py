@@ -8,6 +8,7 @@ Convention: right-perturbation, ``T_new = T @ exp(xi)``, ``xi = [tx,ty,tz, rx,ry
 Implement ``residual``; optionally override ``jacobian`` for an analytic ``d r / d xi`` (else
 splatreg autodiffs it). Override ``requires`` to declare needed inputs for validation.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -20,8 +21,8 @@ from ..core.types import Gaussians
 
 class Residual(ABC):
     def __init__(self, weight: float = 1.0, robust: Optional[Any] = None):
-        self.weight = float(weight)     # multiplies the residual (sqrt-weight handled by the solver)
-        self.robust = robust            # optional robust kernel (Huber/Cauchy), applied by the solver
+        self.weight = float(weight)  # multiplies the residual (sqrt-weight handled by the solver)
+        self.robust = robust  # optional robust kernel (Huber/Cauchy), applied by the solver
 
     @abstractmethod
     def residual(self, T: torch.Tensor, target: "Gaussians", source: Any) -> torch.Tensor:

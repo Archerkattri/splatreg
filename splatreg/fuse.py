@@ -24,6 +24,7 @@ chosen value is returned alongside the deduped splat by :func:`voxel_dedupe_repo
 Self-contained: torch + numpy only. Deterministic — the per-voxel winner is chosen by a stable
 (voxel-key, descending-opacity) ordering, so the survivor set is reproducible across runs.
 """
+
 from __future__ import annotations
 
 from typing import Optional, Tuple
@@ -79,11 +80,11 @@ def _median_anchor_spacing(g: Gaussians) -> Optional[float]:
     means = g.means
     m = min(n, 4096)
     step = max(1, n // m)
-    sample = means[::step][:m]                                       # deterministic strided subsample
+    sample = means[::step][:m]  # deterministic strided subsample
     ref = means if n <= 20000 else means[:: max(1, n // 20000)][:20000]
     d = torch.cdist(sample, ref)
-    d = d.masked_fill(d <= _EPS, float("inf"))                       # drop self / exact coincidence
-    nn = d.min(dim=1).values                                         # nearest non-coincident neighbour
+    d = d.masked_fill(d <= _EPS, float("inf"))  # drop self / exact coincidence
+    nn = d.min(dim=1).values  # nearest non-coincident neighbour
     finite = nn[torch.isfinite(nn) & (nn > 0.0)]
     if finite.numel() > 0:
         med_nn = float(finite.median().item())
@@ -155,10 +156,10 @@ def _voxel_winner_indices(means: torch.Tensor, opacities: torch.Tensor, voxel: f
     so the survivors preserve the input ordering.
     """
     n = means.shape[0]
-    coords = torch.floor(means / voxel).to(torch.int64)             # (N, 3) voxel indices
+    coords = torch.floor(means / voxel).to(torch.int64)  # (N, 3) voxel indices
     # Shift to a non-negative origin so a positional hash stays monotone and collision-free.
     coords = coords - coords.amin(dim=0, keepdim=True)
-    dims = coords.amax(dim=0) + 1                                    # (3,) grid extent per axis
+    dims = coords.amax(dim=0) + 1  # (3,) grid extent per axis
     stride_y = dims[2]
     stride_x = dims[1] * dims[2]
     keys = coords[:, 0] * stride_x + coords[:, 1] * stride_y + coords[:, 2]  # (N,) unique per cell
@@ -167,15 +168,15 @@ def _voxel_winner_indices(means: torch.Tensor, opacities: torch.Tensor, voxel: f
     # Stable per-voxel argmax-opacity: sort rows by (key asc, opacity desc); the first row of each
     # key-run is that voxel's highest-opacity survivor. ``stable`` keeps the original index order as
     # the final tie-break, so the result is deterministic.
-    order = torch.argsort(opa, descending=True, stable=True)        # opacity desc (primary content)
+    order = torch.argsort(opa, descending=True, stable=True)  # opacity desc (primary content)
     keys_o = keys[order]
-    key_sorted, key_order = torch.sort(keys_o, stable=True)         # keys asc, opacity order kept
+    key_sorted, key_order = torch.sort(keys_o, stable=True)  # keys asc, opacity order kept
     order = order[key_order]
     # First occurrence of each distinct key in the (key asc, opacity desc) ordering.
     first_mask = torch.ones_like(key_sorted, dtype=torch.bool)
     first_mask[1:] = key_sorted[1:] != key_sorted[:-1]
     keep = order[first_mask]
-    return torch.sort(keep).values                                  # ascending -> stable survivor set
+    return torch.sort(keep).values  # ascending -> stable survivor set
 
 
 def _index_gaussians(g: Gaussians, idx: torch.Tensor) -> Gaussians:
@@ -248,11 +249,11 @@ def _knn_keep_mask(means: torch.Tensor, opacities: torch.Tensor, radius: float) 
     chunk = max(1, _KNN_CHUNK)
     for start in range(0, n, chunk):
         end = min(start + chunk, n)
-        rows = idx_all[start:end]                                    # (c,) absolute query indices
-        d2 = torch.cdist(means[start:end], means) ** 2              # (c, N)
+        rows = idx_all[start:end]  # (c,) absolute query indices
+        d2 = torch.cdist(means[start:end], means) ** 2  # (c, N)
         within = d2 <= r2
-        within[torch.arange(end - start, device=means.device), rows] = False   # exclude self
-        oi = opa[start:end].unsqueeze(1)                            # (c, 1)
+        within[torch.arange(end - start, device=means.device), rows] = False  # exclude self
+        oi = opa[start:end].unsqueeze(1)  # (c, 1)
         higher = (opa.unsqueeze(0) > oi) | (
             (opa.unsqueeze(0) == oi) & (idx_all.unsqueeze(0) < rows.unsqueeze(1))
         )

@@ -37,6 +37,7 @@ Notes:
     (honest: ICP recovered scale = 1 always).
   - Real numbers only. If a cell fails / is inconclusive, it is counted as failure (not excluded).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -76,17 +77,18 @@ TRANS = [0.03, -0.02, 0.025]
 SUCC_ROT_DEG = 2.0
 SUCC_SCALE_PCT = 2.0
 N_POINTS = 1400
-MAX_ITERS = 60   # same as validate_recovery.py default
+MAX_ITERS = 60  # same as validate_recovery.py default
 
 # ─── Plain ICP parameters ─────────────────────────────────────────────────────
 # Give ICP a FAIR budget: same iteration count as the LM (60 iters). Point-to-point Procrustes ICP.
-ICP_ITERS = 60       # iteration budget — same as splatreg's max_iters
+ICP_ITERS = 60  # iteration budget — same as splatreg's max_iters
 ICP_TRIM_KEEP = 1.0  # no trimming: use all correspondences (standard ICP; trimming would be a variant)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Standalone plain ICP implementation (point-to-point Procrustes)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def _kabsch_umeyama(src: torch.Tensor, dst: torch.Tensor, with_scale: bool = False):
     """Closed-form optimal SE(3)/Sim(3) that maps src -> dst (Kabsch / Umeyama).
@@ -155,11 +157,11 @@ def plain_icp(
 
     for _ in range(max_iters):
         # Transform source.
-        p = (R @ src.T).T + t                          # (N, 3)
+        p = (R @ src.T).T + t  # (N, 3)
         # Nearest neighbour in target.
-        dists = torch.cdist(p, tgt)                    # (N, M)
-        nn = dists.argmin(dim=1)                        # (N,)
-        corresp = tgt[nn]                               # (N, 3)
+        dists = torch.cdist(p, tgt)  # (N, M)
+        nn = dists.argmin(dim=1)  # (N,)
+        corresp = tgt[nn]  # (N, 3)
         # Closed-form rigid (Kabsch) on correspondences.
         _, R_new, t_new = _kabsch_umeyama(p, corresp, with_scale=False)
         # Compose with current cumulative T.
@@ -181,9 +183,17 @@ def plain_icp(
 # Core cell evaluation helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _score_T(T_est: torch.Tensor, M_gt: torch.Tensor, s_gt: float,
-             A: Gaussians, B: Gaussians, transform: str,
-             wall_sec: float, scale_est: float = 1.0) -> dict:
+
+def _score_T(
+    T_est: torch.Tensor,
+    M_gt: torch.Tensor,
+    s_gt: float,
+    A: Gaussians,
+    B: Gaussians,
+    transform: str,
+    wall_sec: float,
+    scale_est: float = 1.0,
+) -> dict:
     """Compute rot_err, trans_mm, scale_err%, chamfer_mm, success from a recovered T."""
     s_est = scale_est
     R_est = T_est[:3, :3] / s_est if abs(s_est - 1.0) > 1e-9 else T_est[:3, :3].clone()
@@ -194,13 +204,18 @@ def _score_T(T_est: torch.Tensor, M_gt: torch.Tensor, s_gt: float,
     A_aligned = A.means @ T_est[:3, :3].transpose(-1, -2) + T_est[:3, 3]
     cham = chamfer_mm(A_aligned, B.means)
     success = rot_err < SUCC_ROT_DEG and (transform == "se3" or scale_err_pct < SUCC_SCALE_PCT)
-    return dict(rot_err=rot_err, trans_err_mm=trans_err_mm,
-                scale_err_pct=scale_err_pct, scale_est=s_est,
-                cham_mm=cham, secs=wall_sec, success=success)
+    return dict(
+        rot_err=rot_err,
+        trans_err_mm=trans_err_mm,
+        scale_err_pct=scale_err_pct,
+        scale_est=s_est,
+        cham_mm=cham,
+        secs=wall_sec,
+        success=success,
+    )
 
 
-def eval_splatreg(A: Gaussians, M_gt: torch.Tensor, s_gt: float,
-                  transform: str, device: str, dtype) -> dict:
+def eval_splatreg(A: Gaussians, M_gt: torch.Tensor, s_gt: float, transform: str, device: str, dtype) -> dict:
     """splatreg full LM: global init + ICP+SDF residuals."""
     B = make_object_splat.apply_to(A, M_gt)
     t0 = time.perf_counter()
@@ -210,10 +225,16 @@ def eval_splatreg(A: Gaussians, M_gt: torch.Tensor, s_gt: float,
     return _score_T(res.T, M_gt, s_gt, A, B, transform, dt, scale_est=s_est)
 
 
-def eval_plain_icp(A: Gaussians, M_gt: torch.Tensor, s_gt: float,
-                   transform: str, device: str, dtype,
-                   init_T: torch.Tensor | None = None,
-                   method_label: str = "ICP-centroid") -> dict:
+def eval_plain_icp(
+    A: Gaussians,
+    M_gt: torch.Tensor,
+    s_gt: float,
+    transform: str,
+    device: str,
+    dtype,
+    init_T: torch.Tensor | None = None,
+    method_label: str = "ICP-centroid",
+) -> dict:
     """Standalone plain ICP (point-to-point, centroid init by default).
 
     Scale is NOT estimated. For Sim(3) cells, scale_est = 1.0 always (honest reporting).
@@ -228,14 +249,16 @@ def eval_plain_icp(A: Gaussians, M_gt: torch.Tensor, s_gt: float,
     return _score_T(T_est, M_gt, s_gt, A, B, transform, dt, scale_est=1.0)
 
 
-def eval_splatreg_init_then_icp(A: Gaussians, M_gt: torch.Tensor, s_gt: float,
-                                 transform: str, device: str, dtype) -> dict:
+def eval_splatreg_init_then_icp(
+    A: Gaussians, M_gt: torch.Tensor, s_gt: float, transform: str, device: str, dtype
+) -> dict:
     """splatreg global init -> plain ICP (tests init contribution vs fine LM contribution)."""
     from splatreg.align import global_align
+
     B = make_object_splat.apply_to(A, M_gt)
     t0 = time.perf_counter()
     # Step 1: coarse global init from splatreg's super-Fibonacci aligner.
-    T_coarse = global_align(B, A, transform="se3")   # always SE(3) init for ICP (no scale solve)
+    T_coarse = global_align(B, A, transform="se3")  # always SE(3) init for ICP (no scale solve)
     T_coarse = T_coarse.to(device=device, dtype=dtype)
     # Step 2: plain ICP from that init.
     src_pts = A.means.to(device=device, dtype=dtype)
@@ -248,6 +271,7 @@ def eval_splatreg_init_then_icp(A: Gaussians, M_gt: torch.Tensor, s_gt: float,
 # ──────────────────────────────────────────────────────────────────────────────
 # Residual ablation helpers
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def _auto_sdf_sigma(target: Gaussians) -> float:
     """Mirror of api.py's _auto_sdf_sigma (2x median Gaussian scale)."""
@@ -262,13 +286,15 @@ def _auto_sdf_sigma(target: Gaussians) -> float:
     return max(0.01 * extent, 1e-12)
 
 
-def eval_ablation(A: Gaussians, M_gt: torch.Tensor, s_gt: float,
-                  transform: str, residual_names: list[str]) -> dict:
+def eval_ablation(
+    A: Gaussians, M_gt: torch.Tensor, s_gt: float, transform: str, residual_names: list[str]
+) -> dict:
     """splatreg LM with a specific residual subset (global init always on).
 
     residual_names: list of strings from {"ICP", "SDF"}.
     """
     from splatreg.residuals import ICP, SDF
+
     B = make_object_splat.apply_to(A, M_gt)
     sigma = _auto_sdf_sigma(B)  # B is the target in register(B, A, ...)
     residuals = []
@@ -281,8 +307,9 @@ def eval_ablation(A: Gaussians, M_gt: torch.Tensor, s_gt: float,
         raise ValueError("ablation: must specify at least one residual")
 
     t0 = time.perf_counter()
-    res = register(B, A, residuals=residuals, init="global",
-                   transform=transform, max_iters=MAX_ITERS, quality="full")
+    res = register(
+        B, A, residuals=residuals, init="global", transform=transform, max_iters=MAX_ITERS, quality="full"
+    )
     dt = time.perf_counter() - t0
     s_est = float(res.scale)
     return _score_T(res.T, M_gt, s_gt, A, B, transform, dt, scale_est=s_est)
@@ -292,21 +319,33 @@ def eval_ablation(A: Gaussians, M_gt: torch.Tensor, s_gt: float,
 # Table printing / summarizing
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _med(rows, key): return float(np.median([r[key] for r in rows]))
-def _worst(rows, key): return float(np.max([r[key] for r in rows]))
-def _succ_rate(rows): return sum(r["success"] for r in rows), len(rows)
+
+def _med(rows, key):
+    return float(np.median([r[key] for r in rows]))
+
+
+def _worst(rows, key):
+    return float(np.max([r[key] for r in rows]))
+
+
+def _succ_rate(rows):
+    return sum(r["success"] for r in rows), len(rows)
 
 
 def print_cell_header():
-    print(f"{'seed':>4} {'rot_gt':>7} {'scl_gt':>7} | "
-          f"{'rot_err°':>9} {'trans_mm':>9} {'scale%':>8} {'cham_mm':>9} {'sec':>6}  ok")
+    print(
+        f"{'seed':>4} {'rot_gt':>7} {'scl_gt':>7} | "
+        f"{'rot_err°':>9} {'trans_mm':>9} {'scale%':>8} {'cham_mm':>9} {'sec':>6}  ok"
+    )
 
 
 def print_cell(seed, rot_gt, s_gt, m):
     ok = "Y" if m["success"] else "."
-    print(f"{seed:>4} {rot_gt:>6.1f}° {s_gt:>7.2f} | "
-          f"{m['rot_err']:>9.4f} {m['trans_err_mm']:>9.3f} "
-          f"{m['scale_err_pct']:>8.3f} {m['cham_mm']:>9.4f} {m['secs']:>6.2f}  {ok}")
+    print(
+        f"{seed:>4} {rot_gt:>6.1f}° {s_gt:>7.2f} | "
+        f"{m['rot_err']:>9.4f} {m['trans_err_mm']:>9.3f} "
+        f"{m['scale_err_pct']:>8.3f} {m['cham_mm']:>9.4f} {m['secs']:>6.2f}  {ok}"
+    )
 
 
 def summarize_block(rows, label, transform):
@@ -314,9 +353,13 @@ def summarize_block(rows, label, transform):
     gate = f"rot<{SUCC_ROT_DEG}°" + ("" if transform == "se3" else f" & scale<{SUCC_SCALE_PCT}%")
     print(f"  [{label}] success {n_ok}/{n} = {100.0*n_ok/n:.1f}%  (gate: {gate})")
     print(f"    median rot_err  = {_med(rows,'rot_err'):.4f}°   worst = {_worst(rows,'rot_err'):.4f}°")
-    print(f"    median trans_mm = {_med(rows,'trans_err_mm'):.3f}   worst = {_worst(rows,'trans_err_mm'):.3f}")
+    print(
+        f"    median trans_mm = {_med(rows,'trans_err_mm'):.3f}   worst = {_worst(rows,'trans_err_mm'):.3f}"
+    )
     if transform == "sim3":
-        print(f"    median scale%   = {_med(rows,'scale_err_pct'):.3f}   worst = {_worst(rows,'scale_err_pct'):.3f}")
+        print(
+            f"    median scale%   = {_med(rows,'scale_err_pct'):.3f}   worst = {_worst(rows,'scale_err_pct'):.3f}"
+        )
     print(f"    median cham_mm  = {_med(rows,'cham_mm'):.4f}   worst = {_worst(rows,'cham_mm'):.4f}")
     print(f"    median sec      = {_med(rows,'secs'):.2f}")
     return {"n_ok": n_ok, "n": n, "rows": rows, "label": label, "transform": transform}
@@ -326,6 +369,7 @@ def summarize_block(rows, label, transform):
 # Per-regime (rot bin) breakdown helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def regime_breakdown(rows, label):
     """Print per-rotation-magnitude (5/30/90°) success rates for a method's rows."""
     print(f"  {label} — per-rotation-regime:")
@@ -334,14 +378,17 @@ def regime_breakdown(rows, label):
         if not subset:
             continue
         n_ok, n = _succ_rate(subset)
-        print(f"    rot={rot_deg:4.0f}°  success {n_ok}/{n} = {100.0*n_ok/n:.1f}%  "
-              f"median_rot={_med(subset,'rot_err'):.4f}°  "
-              f"median_trans={_med(subset,'trans_err_mm'):.3f}mm")
+        print(
+            f"    rot={rot_deg:4.0f}°  success {n_ok}/{n} = {100.0*n_ok/n:.1f}%  "
+            f"median_rot={_med(subset,'rot_err'):.4f}°  "
+            f"median_trans={_med(subset,'trans_err_mm'):.3f}mm"
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Main benchmark driver
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def run_part_a(seeds, device, dtype, transform):
     """Run Part A for one transform mode. Returns dict of method -> summary."""
@@ -350,7 +397,7 @@ def run_part_a(seeds, device, dtype, transform):
 
     method_rows: dict[str, list] = {
         "splatreg-full": [],
-        "ICP-centroid":  [],
+        "ICP-centroid": [],
         "sfib-init+ICP": [],
     }
 
@@ -364,11 +411,9 @@ def run_part_a(seeds, device, dtype, transform):
 
                 m_spl = eval_splatreg(A, M_gt, s_gt, transform, device, dtype)
                 m_icp = eval_plain_icp(A, M_gt, s_gt, transform, device, dtype)
-                m_si  = eval_splatreg_init_then_icp(A, M_gt, s_gt, transform, device, dtype)
+                m_si = eval_splatreg_init_then_icp(A, M_gt, s_gt, transform, device, dtype)
 
-                for m, key in [(m_spl, "splatreg-full"),
-                               (m_icp, "ICP-centroid"),
-                               (m_si,  "sfib-init+ICP")]:
+                for m, key in [(m_spl, "splatreg-full"), (m_icp, "ICP-centroid"), (m_si, "sfib-init+ICP")]:
                     m.update(seed=seed, rot_gt=rot_deg, scale_gt=s_gt)
                     method_rows[key].append(m)
 
@@ -431,8 +476,10 @@ def print_comparison_table(a_se3, a_sim3):
     print("=" * 100)
 
     methods = ["splatreg-full", "ICP-centroid", "sfib-init+ICP"]
-    header = (f"{'Method':<22} {'Mode':<6} | {'succ':>6} {'med_rot°':>9} "
-              f"{'med_trans_mm':>14} {'med_scale%':>11} {'med_cham_mm':>12} {'med_sec':>8}")
+    header = (
+        f"{'Method':<22} {'Mode':<6} | {'succ':>6} {'med_rot°':>9} "
+        f"{'med_trans_mm':>14} {'med_scale%':>11} {'med_cham_mm':>12} {'med_sec':>8}"
+    )
     print(header)
     print("-" * 100)
 
@@ -451,8 +498,10 @@ def print_comparison_table(a_se3, a_sim3):
             med_cham = _med(rows, "cham_mm")
             med_sec = _med(rows, "secs")
             scale_note = f"{med_scale:11.3f}" if transform == "sim3" else "    n/a (fixed)"
-            print(f"{method:<22} {block_label:<6} | {succ_str:>6} {med_rot:>9.4f} "
-                  f"{med_trans:>14.3f} {scale_note:>11} {med_cham:>12.4f} {med_sec:>8.2f}")
+            print(
+                f"{method:<22} {block_label:<6} | {succ_str:>6} {med_rot:>9.4f} "
+                f"{med_trans:>14.3f} {scale_note:>11} {med_cham:>12.4f} {med_sec:>8.2f}"
+            )
     print("=" * 100)
     print("Note: ICP-centroid and sfib-init+ICP do NOT estimate scale.")
     print("      scale% for ICP rows = |1 - s_gt| / s_gt × 100 (honest: scale_est=1 always).")
@@ -464,17 +513,21 @@ def print_ablation_table(b_summaries):
     print("\n" + "=" * 100)
     print("PART B — RESIDUAL ABLATION SUMMARY TABLE  (SE(3), global init always on)")
     print("=" * 100)
-    header = (f"{'Residuals':<28} | {'succ':>6} {'med_rot°':>9} {'med_trans_mm':>14} "
-              f"{'med_cham_mm':>12} {'med_sec':>8}")
+    header = (
+        f"{'Residuals':<28} | {'succ':>6} {'med_rot°':>9} {'med_trans_mm':>14} "
+        f"{'med_cham_mm':>12} {'med_sec':>8}"
+    )
     print(header)
     print("-" * 100)
     for variant_label, s in b_summaries.items():
         rows = s["rows"]
         n_ok, n = s["n_ok"], s["n"]
         succ_str = f"{n_ok}/{n}"
-        print(f"{variant_label:<28} | {succ_str:>6} {_med(rows,'rot_err'):>9.4f} "
-              f"{_med(rows,'trans_err_mm'):>14.3f} {_med(rows,'cham_mm'):>12.4f} "
-              f"{_med(rows,'secs'):>8.2f}")
+        print(
+            f"{variant_label:<28} | {succ_str:>6} {_med(rows,'rot_err'):>9.4f} "
+            f"{_med(rows,'trans_err_mm'):>14.3f} {_med(rows,'cham_mm'):>12.4f} "
+            f"{_med(rows,'secs'):>8.2f}"
+        )
     print("=" * 100)
     print("All ablation variants use splatreg's global (super-Fibonacci) init + LM solver.")
     print("Photometric residual excluded: requires RGB camera frames (not applicable here).")
@@ -484,12 +537,20 @@ def print_ablation_table(b_summaries):
 def main():
     global SEEDS
     ap = argparse.ArgumentParser(description="splatreg vs ICP baseline + residual ablation.")
-    ap.add_argument("--device", default=os.environ.get("SPLATREG_DEVICE", "cpu"),
-                    help="cpu|cuda (default: $SPLATREG_DEVICE or cpu)")
-    ap.add_argument("--seeds", type=int, default=len(SEEDS),
-                    help=f"number of seeds to run (default: {len(SEEDS)}, max: {len(SEEDS)})")
-    ap.add_argument("--skip-sim3", action="store_true",
-                    help="skip Sim(3) block (saves time; SE(3) + ablation only)")
+    ap.add_argument(
+        "--device",
+        default=os.environ.get("SPLATREG_DEVICE", "cpu"),
+        help="cpu|cuda (default: $SPLATREG_DEVICE or cpu)",
+    )
+    ap.add_argument(
+        "--seeds",
+        type=int,
+        default=len(SEEDS),
+        help=f"number of seeds to run (default: {len(SEEDS)}, max: {len(SEEDS)})",
+    )
+    ap.add_argument(
+        "--skip-sim3", action="store_true", help="skip Sim(3) block (saves time; SE(3) + ablation only)"
+    )
     args = ap.parse_args()
 
     device = args.device
@@ -499,7 +560,7 @@ def main():
     dtype = torch.float32
 
     # Truncate seeds if user asked for fewer.
-    seeds = SEEDS[:args.seeds]
+    seeds = SEEDS[: args.seeds]
     SEEDS = seeds
 
     torch.manual_seed(0)
@@ -508,8 +569,10 @@ def main():
         torch.cuda.reset_peak_memory_stats()
 
     print(f"\nsplatreg vs ICP baseline + residual ablation")
-    print(f"Config: seeds={seeds}, N_POINTS={N_POINTS}, MAX_ITERS={MAX_ITERS}, "
-          f"device={device.upper()}, dtype={dtype}")
+    print(
+        f"Config: seeds={seeds}, N_POINTS={N_POINTS}, MAX_ITERS={MAX_ITERS}, "
+        f"device={device.upper()}, dtype={dtype}"
+    )
     print(f"Grid: rot={ROT_DEGS}°, scales(sim3)={SCALES}, transform: SE(3) + Sim(3)")
     print(f"Success gate: rot < {SUCC_ROT_DEG}°, |scale%| < {SUCC_SCALE_PCT}% (Sim3 only)")
     print(f"ICP init: centroid (Method B standard) OR splatreg global init (Method C)")

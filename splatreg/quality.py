@@ -27,6 +27,7 @@ Policy
 
 Nothing here is heavy: torch + (optional) psutil, with an ``os.sysconf`` RAM fallback.
 """
+
 from __future__ import annotations
 
 import logging
@@ -49,11 +50,11 @@ __all__ = ["QualityConfig", "resolve_quality", "FULL", "BALANCED", "LOW"]
 #     ALWAYS auto-fitted to the available memory — even in FULL mode — which is what lets full
 #     quality run on a small GPU without OOM and without throwing away a single point.
 # These ``_FULL_*`` chunk values are only the *ceiling* the fitter starts from.
-_FULL_N_POINTS: Optional[int] = None     # None -> residuals sample ALL source anchors (full).
-_FULL_JAC_ROW_CHUNK = 256                # autodiff row-chunk ceiling (memory-fitted down per run).
-_FULL_SDF_CHUNK = 2048                   # gaussian_sdf per-query block ceiling (memory-fitted down).
-_FULL_KNN = 50                           # normal-estimation neighbourhood.
-_FULL_MAX_ITERS = 20                     # LM iterations (api/Tracker default; callers may override).
+_FULL_N_POINTS: Optional[int] = None  # None -> residuals sample ALL source anchors (full).
+_FULL_JAC_ROW_CHUNK = 256  # autodiff row-chunk ceiling (memory-fitted down per run).
+_FULL_SDF_CHUNK = 2048  # gaussian_sdf per-query block ceiling (memory-fitted down).
+_FULL_KNN = 50  # normal-estimation neighbourhood.
+_FULL_MAX_ITERS = 20  # LM iterations (api/Tracker default; callers may override).
 
 # Floors so even the smallest machine still does something sane.
 _MIN_N_POINTS = 128
@@ -99,10 +100,16 @@ class QualityConfig:
 # knobs here are just ceilings that the memory fitter lowers per run. FULL keeps n_points uncapped.
 FULL = QualityConfig(label="full")
 BALANCED = QualityConfig(
-    n_points=4096, knn=50, max_iters=_FULL_MAX_ITERS, label="balanced",
+    n_points=4096,
+    knn=50,
+    max_iters=_FULL_MAX_ITERS,
+    label="balanced",
 )
 LOW = QualityConfig(
-    n_points=1024, knn=24, max_iters=_FULL_MAX_ITERS, label="low",
+    n_points=1024,
+    knn=24,
+    max_iters=_FULL_MAX_ITERS,
+    label="low",
 )
 
 _NAMED = {"full": FULL, "balanced": BALANCED, "low": LOW}
@@ -120,7 +127,7 @@ def _scale_config(scale: float) -> QualityConfig:
     s = float(min(1.0, max(0.0, scale)))
     if s >= 1.0:
         return replace(FULL, label="scale=1.00")
-    ref_points = 16384       # full-reference sample to take a fraction of when asked for < full.
+    ref_points = 16384  # full-reference sample to take a fraction of when asked for < full.
     n_points = max(_MIN_N_POINTS, int(round(ref_points * s)))
     knn = int(round(_FULL_KNN * s + LOW.knn * (1.0 - s)))
     return QualityConfig(n_points=n_points, knn=knn, max_iters=_FULL_MAX_ITERS, label=f"scale={s:.2f}")
@@ -168,7 +175,9 @@ _AUTO_MAX_N_POINTS = 16_384
 
 
 def _fit_chunks(
-    cfg: QualityConfig, device: torch.device, target_anchors: Optional[int],
+    cfg: QualityConfig,
+    device: torch.device,
+    target_anchors: Optional[int],
     source_anchors: Optional[int] = None,
 ) -> QualityConfig:
     """Lower ``cfg``'s quality-neutral chunk knobs until the Sim(3) autodiff peak fits memory.
@@ -197,10 +206,11 @@ def _fit_chunks(
     M = max(M, 1)
 
     jac = int(cfg.jac_row_chunk)
-    sdf = min(int(cfg.sdf_chunk_size), n_pts_eff)        # a block bigger than the sample is wasted
+    sdf = min(int(cfg.sdf_chunk_size), n_pts_eff)  # a block bigger than the sample is wasted
     if free is None:
-        return replace(cfg, sdf_chunk_size=max(_MIN_SDF_CHUNK, sdf),
-                       label=f"{cfg.label} (chunks={jac}/{sdf}, mem={tag})")
+        return replace(
+            cfg, sdf_chunk_size=max(_MIN_SDF_CHUNK, sdf), label=f"{cfg.label} (chunks={jac}/{sdf}, mem={tag})"
+        )
 
     frac = _BUDGET_FRAC_CUDA if device.type == "cuda" else _BUDGET_FRAC_CPU
     budget = free * frac
@@ -251,8 +261,12 @@ def _auto_config(device: torch.device, target_anchors: Optional[int]) -> Quality
         return replace(FULL, label=f"auto:{tag} frac={frac:g} -> full n_points")
     n_points = int(max(_MIN_N_POINTS, min(fit_points, _AUTO_MAX_N_POINTS)))
     knn = _FULL_KNN if n_points >= 1024 else 24
-    return QualityConfig(n_points=n_points, knn=knn, max_iters=_FULL_MAX_ITERS,
-                         label=f"auto:{tag} frac={frac:g} -> n_points={n_points}")
+    return QualityConfig(
+        n_points=n_points,
+        knn=knn,
+        max_iters=_FULL_MAX_ITERS,
+        label=f"auto:{tag} frac={frac:g} -> n_points={n_points}",
+    )
 
 
 def resolve_quality(
@@ -293,7 +307,7 @@ def resolve_quality(
     QualityConfig : the resolved, memory-fitted sizing for this run.
     """
     if isinstance(quality, QualityConfig):
-        return quality                                   # explicit override: user owns the budget.
+        return quality  # explicit override: user owns the budget.
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = torch.device(device)
@@ -314,7 +328,5 @@ def resolve_quality(
                 f"QualityConfig; got {quality!r}."
             )
     else:
-        raise TypeError(
-            f"quality must be str | float | QualityConfig | None, got {type(quality).__name__}."
-        )
+        raise TypeError(f"quality must be str | float | QualityConfig | None, got {type(quality).__name__}.")
     return _fit_chunks(base, device, target_anchors, source_anchors)

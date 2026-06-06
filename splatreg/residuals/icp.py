@@ -23,6 +23,7 @@ point-to-point:  ∂r/∂ξ = ûᵀ · [ R | −R·[p_s]× ],  û = (p − q)/�
 
 The convention ``ξ = [tx,ty,tz, rx,ry,rz]`` (translation first) matches splatreg's contract.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -59,8 +60,8 @@ def _gaussian_surface_normals(g: Gaussians) -> torch.Tensor:
     correspondence against the point-to-surface vector in :meth:`ICP.residual`).
     """
     scales = g.scales.exp() if g.log_scales else g.scales
-    thin_axis = scales.argmin(dim=-1)                                   # (N,)
-    R = _quat_to_rotmat(g.quats.to(dtype=g.means.dtype))                # (N, 3, 3)
+    thin_axis = scales.argmin(dim=-1)  # (N,)
+    R = _quat_to_rotmat(g.quats.to(dtype=g.means.dtype))  # (N, 3, 3)
     normals = R[torch.arange(R.shape[0], device=R.device), :, thin_axis]  # (N, 3)
     return normals / normals.norm(dim=-1, keepdim=True).clamp_min(1e-12)
 
@@ -70,11 +71,14 @@ def _skew_rows(v: torch.Tensor) -> torch.Tensor:
     n = v.shape[0]
     z = torch.zeros(n, device=v.device, dtype=v.dtype)
     vx, vy, vz = v[:, 0], v[:, 1], v[:, 2]
-    return torch.stack([
-        torch.stack([z, -vz, vy], dim=1),
-        torch.stack([vz, z, -vx], dim=1),
-        torch.stack([-vy, vx, z], dim=1),
-    ], dim=1)
+    return torch.stack(
+        [
+            torch.stack([z, -vz, vy], dim=1),
+            torch.stack([vz, z, -vx], dim=1),
+            torch.stack([-vy, vx, z], dim=1),
+        ],
+        dim=1,
+    )
 
 
 class ICP(Residual):
@@ -102,7 +106,7 @@ class ICP(Residual):
         super().__init__(weight=weight, robust=robust)
         self.point_to_plane = bool(point_to_plane)
         self.max_correspondence_dist = float(max_correspondence_dist)
-        self._n_corr = 0     # last correspondence count, exposed via dim()
+        self._n_corr = 0  # last correspondence count, exposed via dim()
 
     def requires(self) -> set:
         return {"source_gaussians"}
@@ -119,9 +123,7 @@ class ICP(Residual):
             return source.point_cloud
         if torch.is_tensor(source):
             return source
-        raise TypeError(
-            "ICP source must be a Gaussians, a Frame with point_cloud, or an (N,3) tensor"
-        )
+        raise TypeError("ICP source must be a Gaussians, a Frame with point_cloud, or an (N,3) tensor")
 
     def _correspondences(self, T: torch.Tensor, target: Gaussians, source: Any):
         """Return ``(p, q, n, src_pts, keep)`` at the current pose.
@@ -133,20 +135,20 @@ class ICP(Residual):
         src = self._source_points(source).to(device=target.means.device, dtype=target.means.dtype)
         R = T[:3, :3].to(device=src.device, dtype=src.dtype)
         t = T[:3, 3].to(device=src.device, dtype=src.dtype)
-        p = (R @ src.T).T + t                                           # (N, 3)
+        p = (R @ src.T).T + t  # (N, 3)
 
-        tgt = target.means.to(device=src.device, dtype=src.dtype)       # (M, 3)
-        dists = torch.cdist(p, tgt)                                     # (N, M)
-        min_dist, nn = dists.min(dim=1)                                 # (N,), (N,)
+        tgt = target.means.to(device=src.device, dtype=src.dtype)  # (M, 3)
+        dists = torch.cdist(p, tgt)  # (N, M)
+        min_dist, nn = dists.min(dim=1)  # (N,), (N,)
 
         if self.max_correspondence_dist > 0.0:
             keep = min_dist <= self.max_correspondence_dist
         else:
             keep = torch.ones_like(min_dist, dtype=torch.bool)
 
-        q = tgt[nn]                                                     # (N, 3)
+        q = tgt[nn]  # (N, 3)
         normals = _gaussian_surface_normals(target).to(device=src.device, dtype=src.dtype)
-        n = normals[nn]                                                 # (N, 3)
+        n = normals[nn]  # (N, 3)
         # Orient each normal to face from the surface toward the (transformed) source point,
         # so the point-to-plane residual sign is consistent regardless of stored normal sign.
         sign = torch.sign(((p - q) * n).sum(dim=-1, keepdim=True))
@@ -164,8 +166,8 @@ class ICP(Residual):
         if p.shape[0] == 0:
             return p.new_zeros(0)
         if self.point_to_plane:
-            return ((p - q) * n).sum(dim=-1)                            # (n,)
-        return (p - q).norm(dim=-1)                                     # (n,)
+            return ((p - q) * n).sum(dim=-1)  # (n,)
+        return (p - q).norm(dim=-1)  # (n,)
 
     def jacobian(self, T: torch.Tensor, target: Gaussians, source: Any) -> Optional[torch.Tensor]:
         p, q, n, src, _keep = self._correspondences(T, target, source)
@@ -175,16 +177,16 @@ class ICP(Residual):
 
         R = T[:3, :3].to(device=p.device, dtype=p.dtype)
         # ∂p/∂v = R ; ∂p/∂ω = −R·[src]×    (right-perturbation: T·exp(ξ), step in source frame)
-        skew = _skew_rows(src)                                          # (n, 3, 3)
-        J_trans = R.unsqueeze(0).expand(p.shape[0], 3, 3)              # (n, 3, 3)
-        J_rot = -(J_trans @ skew)                                       # (n, 3, 3)
-        J_point = torch.cat([J_trans, J_rot], dim=2)                    # (n, 3, 6)
+        skew = _skew_rows(src)  # (n, 3, 3)
+        J_trans = R.unsqueeze(0).expand(p.shape[0], 3, 3)  # (n, 3, 3)
+        J_rot = -(J_trans @ skew)  # (n, 3, 3)
+        J_point = torch.cat([J_trans, J_rot], dim=2)  # (n, 3, 6)
 
         if self.point_to_plane:
-            row = n                                                     # ∂r/∂p = nᵀ
+            row = n  # ∂r/∂p = nᵀ
         else:
             row = (p - q) / (p - q).norm(dim=-1, keepdim=True).clamp_min(1e-12)  # ∂r/∂p = ûᵀ
-        return (row.unsqueeze(1) @ J_point).squeeze(1)                  # (n, 6)
+        return (row.unsqueeze(1) @ J_point).squeeze(1)  # (n, 6)
 
     def dim(self) -> int:
         return self._n_corr

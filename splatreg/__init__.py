@@ -8,6 +8,7 @@ Public surface (filled in by the carve):
     Tracker(target, residuals=[...]).track(frame) -> RegisterResult
     Residual, Solver  (extension points)
 """
+
 from .core.types import Gaussians, Frame, RegisterResult, LinearizedProblem, SE3Update
 from .residuals.base import Residual
 from .solvers.base import Solver
@@ -21,8 +22,16 @@ except ImportError:
 
 __version__ = "0.0.1"
 __all__ = [
-    "register", "merge", "Tracker",
-    "Residual", "Solver",
-    "QualityConfig", "resolve_quality",
-    "Gaussians", "Frame", "RegisterResult", "LinearizedProblem", "SE3Update",
+    "register",
+    "merge",
+    "Tracker",
+    "Residual",
+    "Solver",
+    "QualityConfig",
+    "resolve_quality",
+    "Gaussians",
+    "Frame",
+    "RegisterResult",
+    "LinearizedProblem",
+    "SE3Update",
 ]

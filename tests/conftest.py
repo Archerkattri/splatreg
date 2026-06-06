@@ -4,6 +4,7 @@ Deterministic seeding before every test (the gsplat/Theseus autouse-seed discipl
 so failures reproduce, plus a device fixture (CPU default; ``SPLATREG_TEST_DEVICE=cuda``
 to exercise the GPU path).
 """
+
 from __future__ import annotations
 
 import os

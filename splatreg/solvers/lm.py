@@ -15,6 +15,7 @@ Convention: right-perturbation, tangent ``[tx, ty, tz, rx, ry, rz]`` (Sim(3): + 
 is the GPU-sync-free, preallocated, analytic-Jacobian-first one ported from the GaussianFeels SE(3)
 tracker; autodiff is strictly a fallback for residuals without a hand-written Jacobian.
 """
+
 from __future__ import annotations
 
 from typing import Any, Iterable, Optional
@@ -52,7 +53,12 @@ def _flatten_rows(r: torch.Tensor, J: torch.Tensor, dof: int):
 
 
 def _autodiff_jacobian(
-    residual, T: torch.Tensor, target, source, dof: int, exp_fn,
+    residual,
+    T: torch.Tensor,
+    target,
+    source,
+    dof: int,
+    exp_fn,
     jac_row_chunk: int = _DEFAULT_JAC_ROW_CHUNK,
 ) -> torch.Tensor:
     """Right-perturbation Jacobian ``d r / d delta`` at ``delta = 0`` via functorch ``jacrev``.
@@ -72,6 +78,7 @@ def _autodiff_jacobian(
     threads ``jac_row_chunk`` from the quality policy. Returns ``(..., dim, dof)``, matching the
     analytic-Jacobian shape; ``run_lm`` flattens it afterwards.
     """
+
     def _r_of_delta(delta: torch.Tensor) -> torch.Tensor:
         return residual.residual(T @ exp_fn(delta), target, source)
 
@@ -113,8 +120,8 @@ class LevenbergMarquardt(Solver):
             Jw = J
             rw = r
 
-        H = Jw.transpose(-1, -2) @ Jw                 # (dof, dof)
-        b = Jw.transpose(-1, -2) @ rw                 # (dof,)
+        H = Jw.transpose(-1, -2) @ Jw  # (dof, dof)
+        b = Jw.transpose(-1, -2) @ rw  # (dof,)
 
         idx = torch.arange(dof, device=device)
         diag_H = H[idx, idx].clamp_min(1e-12)

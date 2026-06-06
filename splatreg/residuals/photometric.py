@@ -24,6 +24,7 @@ Only high-gradient pixels inside the (optional) mask with valid rendered depth c
 
 gsplat is OPTIONAL: the import is guarded and a clear install hint is raised at construction.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -36,6 +37,7 @@ from .base import Residual
 
 try:  # gsplat is an optional dependency (the [render] extra).
     from gsplat import rasterization as _gsplat_rasterization
+
     _GSPLAT_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised only when gsplat is absent
     _gsplat_rasterization = None
@@ -48,12 +50,8 @@ _GSPLAT_INSTALL_HINT = (
 
 
 # Sobel filters (kept on CPU; per-device/dtype copies cached so the hot loop never re-allocates).
-_SOBEL_X_CPU = torch.tensor([[-1.0, 0.0, 1.0],
-                             [-2.0, 0.0, 2.0],
-                             [-1.0, 0.0, 1.0]]).view(1, 1, 3, 3)
-_SOBEL_Y_CPU = torch.tensor([[-1.0, -2.0, -1.0],
-                             [0.0, 0.0, 0.0],
-                             [1.0, 2.0, 1.0]]).view(1, 1, 3, 3)
+_SOBEL_X_CPU = torch.tensor([[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]]).view(1, 1, 3, 3)
+_SOBEL_Y_CPU = torch.tensor([[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]]).view(1, 1, 3, 3)
 _SOBEL_CACHE: dict = {}
 
 
@@ -73,7 +71,7 @@ def _image_gradients(image_hw3: torch.Tensor) -> torch.Tensor:
     grad_x = F.conv2d(F.pad(chw, (1, 1, 1, 1), mode="replicate"), sx, groups=3)
     grad_y = F.conv2d(F.pad(chw, (1, 1, 1, 1), mode="replicate"), sy, groups=3)
     grad = torch.stack([grad_x.squeeze(0), grad_y.squeeze(0)], dim=-1)  # (3, H, W, 2)
-    return grad.permute(1, 2, 0, 3)                                     # (H, W, 3, 2)
+    return grad.permute(1, 2, 0, 3)  # (H, W, 3, 2)
 
 
 def _rgb_to_hwc(rgb: torch.Tensor) -> torch.Tensor:
@@ -143,7 +141,9 @@ class Photometric(Residual):
 
         self._device = T_WC.device
         self.T_WC = T_WC.to(device=self._device, dtype=torch.float32)
-        self.rgb_gt = _rgb_to_hwc(rgb_gt.to(self._device, dtype=torch.float32)) if rgb_gt is not None else None
+        self.rgb_gt = (
+            _rgb_to_hwc(rgb_gt.to(self._device, dtype=torch.float32)) if rgb_gt is not None else None
+        )
         self.K = K.to(self._device, dtype=torch.float32) if K is not None else None
         self.mask = mask
         self.width = int(width) if width is not None else None
@@ -160,7 +160,7 @@ class Photometric(Residual):
         self.R_CW = self.T_CW[:3, :3]
         self.t_CW = self.T_CW[:3, 3]
 
-        self._dim = 0   # residual dim of the last call (= 3 × selected pixels)
+        self._dim = 0  # residual dim of the last call (= 3 × selected pixels)
 
     def requires(self) -> set:
         return {"rgb", "K"}
@@ -196,8 +196,8 @@ class Photometric(Residual):
         scales = target.scales.exp() if target.log_scales else target.scales
         opac = target.opacities
         opac = opac.squeeze(-1) if opac.dim() == 2 else opac
-        viewmats = self.T_CW.unsqueeze(0)                          # (1, 4, 4) world→cam
-        Ks = K.unsqueeze(0)                                        # (1, 3, 3)
+        viewmats = self.T_CW.unsqueeze(0)  # (1, 4, 4) world→cam
+        Ks = K.unsqueeze(0)  # (1, 3, 3)
         render, _alpha, _meta = _gsplat_rasterization(
             means=target.means.to(torch.float32),
             quats=target.quats.to(torch.float32),
@@ -211,7 +211,7 @@ class Photometric(Residual):
             sh_degree=self.sh_degree,
             render_mode="RGB+ED",
         )
-        out = render[0]                                            # (H, W, 4)
+        out = render[0]  # (H, W, 4)
         rgb_pred = out[..., :3]
         # Expected depth Σwᵢzᵢ / Σwᵢ — the per-pixel surface depth, robust to the
         # alpha-weighted accumulation that darkens edge pixels (exactly the high-gradient
@@ -232,8 +232,8 @@ class Photometric(Residual):
         height = self.height or H
         rgb_pred, depth_pred = self._render(target, K, width, height)
 
-        grad = _image_gradients(rgb_pred)                          # (H, W, 3, 2)
-        grad_mag = grad.norm(dim=(-2, -1))                         # (H, W)
+        grad = _image_gradients(rgb_pred)  # (H, W, 3, 2)
+        grad_mag = grad.norm(dim=(-2, -1))  # (H, W)
         depth_ok = (depth_pred.abs() > self.depth_min) & (depth_pred.abs() < self.depth_max)
         cand = grad_mag > self.grad_threshold
         if mask is not None:
@@ -263,7 +263,7 @@ class Photometric(Residual):
             self._dim = 0
             return target.means.new_zeros(0)
         rgb_pred, _depth_pred, _grad, v, u, _intr, rgb_gt = sel
-        r_rgb = (rgb_pred[v, u] - rgb_gt[v, u]).reshape(-1)        # (3N,)
+        r_rgb = (rgb_pred[v, u] - rgb_gt[v, u]).reshape(-1)  # (3N,)
         abs_r = r_rgb.abs()
         huber_w = torch.where(
             abs_r <= self.huber_k,
@@ -293,39 +293,45 @@ class Photometric(Residual):
         )
 
         # Back-project predicted depth to camera-frame points (OpenCV pinhole, gsplat convention).
-        z = depth_pred[v, u].abs().clamp_min(1e-6)                 # (N,)
+        z = depth_pred[v, u].abs().clamp_min(1e-6)  # (N,)
         x_cam = (u.float() - cx) * z / fx
         y_cam = (v.float() - cy) * z / fy
         # ∂(u,v)/∂p_cam = (1/z²) [[fx·z, 0, −fx·x], [0, fy·z, −fy·y]]
         inv_z2 = 1.0 / (z * z)
         zeros = torch.zeros_like(z)
-        J_proj = torch.stack([
-            torch.stack([fx * z * inv_z2, zeros, -fx * x_cam * inv_z2], dim=1),
-            torch.stack([zeros, fy * z * inv_z2, -fy * y_cam * inv_z2], dim=1),
-        ], dim=1)                                                  # (N, 2, 3)
+        J_proj = torch.stack(
+            [
+                torch.stack([fx * z * inv_z2, zeros, -fx * x_cam * inv_z2], dim=1),
+                torch.stack([zeros, fy * z * inv_z2, -fy * y_cam * inv_z2], dim=1),
+            ],
+            dim=1,
+        )  # (N, 2, 3)
 
         # ∂p_cam/∂δ_WO  (right-perturbation T_WO ← T_WO · exp(δ)).
-        p_cam = torch.stack([x_cam, y_cam, z], dim=1)              # (N, 3)
+        p_cam = torch.stack([x_cam, y_cam, z], dim=1)  # (N, 3)
         p_world = (self.T_WC[:3, :3] @ p_cam.T).T + self.T_WC[:3, 3]
         X_obj = (T_OW[:3, :3] @ p_world.T).T + T_OW[:3, 3]
-        R_CW_R_WO = self.R_CW @ T_WO[:3, :3]                       # (3, 3)
+        R_CW_R_WO = self.R_CW @ T_WO[:3, :3]  # (3, 3)
         N = X_obj.shape[0]
         Xx, Xy, Xz = X_obj[:, 0], X_obj[:, 1], X_obj[:, 2]
         zr = torch.zeros_like(Xx)
-        Xobj_skew = torch.stack([
-            torch.stack([zr, -Xz, Xy], dim=1),
-            torch.stack([Xz, zr, -Xx], dim=1),
-            torch.stack([-Xy, Xx, zr], dim=1),
-        ], dim=1)                                                  # (N, 3, 3)
+        Xobj_skew = torch.stack(
+            [
+                torch.stack([zr, -Xz, Xy], dim=1),
+                torch.stack([Xz, zr, -Xx], dim=1),
+                torch.stack([-Xy, Xx, zr], dim=1),
+            ],
+            dim=1,
+        )  # (N, 3, 3)
         R_b = R_CW_R_WO.unsqueeze(0).expand(N, 3, 3)
-        J_trans = R_b                                              # ∂p_cam/∂v = R_CW·R_WO
-        J_rot = -R_b @ Xobj_skew                                   # ∂p_cam/∂ω
-        J_pose = torch.cat([J_trans, J_rot], dim=2)               # (N, 3, 6)
+        J_trans = R_b  # ∂p_cam/∂v = R_CW·R_WO
+        J_rot = -R_b @ Xobj_skew  # ∂p_cam/∂ω
+        J_pose = torch.cat([J_trans, J_rot], dim=2)  # (N, 3, 6)
 
-        grad_uv = grad[v, u]                                       # (N, 3, 2)
-        J_pix = J_proj @ J_pose                                   # (N, 2, 6)
+        grad_uv = grad[v, u]  # (N, 3, 2)
+        J_pix = J_proj @ J_pose  # (N, 2, 6)
         J = (grad_uv.unsqueeze(-1) * J_pix.unsqueeze(1)).sum(dim=2)  # (N, 3, 6)
-        J = J.reshape(-1, 6)                                      # (3N, 6)
+        J = J.reshape(-1, 6)  # (3N, 6)
         J = J * huber_w.unsqueeze(1)
         self._dim = int(J.shape[0])
         return J

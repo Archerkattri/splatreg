@@ -28,6 +28,7 @@ Tests in this file:
 Run standalone:  PYTHONPATH=. python tests/test_solver.py
 Or via pytest:   pytest tests/test_solver.py
 """
+
 from __future__ import annotations
 
 import os
@@ -54,22 +55,25 @@ DEV = "cpu"
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_grid_splat(n: int = 400, scale: float = 0.003) -> Gaussians:
     """Regular grid of near-planar Gaussians — well-conditioned for ICP."""
-    k = int(n ** 0.5)
+    k = int(n**0.5)
     g = torch.Generator().manual_seed(42)
     xs = torch.linspace(-0.5, 0.5, k, dtype=DT)
     ys = torch.linspace(-0.5, 0.5, k, dtype=DT)
     xx, yy = torch.meshgrid(xs, ys, indexing="ij")
-    means = torch.stack([xx.reshape(-1), yy.reshape(-1),
-                         0.01 * torch.randn(k * k, generator=g, dtype=DT)], dim=1)
+    means = torch.stack(
+        [xx.reshape(-1), yy.reshape(-1), 0.01 * torch.randn(k * k, generator=g, dtype=DT)], dim=1
+    )
     n_actual = means.shape[0]
     q = torch.zeros(n_actual, 4, dtype=DT)
     q[:, 0] = 1.0  # identity rotation (wxyz)
     scales_t = torch.full((n_actual, 3), scale, dtype=DT)
     opacities = torch.ones(n_actual, dtype=DT)
-    return Gaussians(means=means.to(DEV), quats=q.to(DEV), scales=scales_t.to(DEV),
-                     opacities=opacities.to(DEV))
+    return Gaussians(
+        means=means.to(DEV), quats=q.to(DEV), scales=scales_t.to(DEV), opacities=opacities.to(DEV)
+    )
 
 
 def _make_random_splat(n: int = 200, seed: int = 99) -> Gaussians:
@@ -81,8 +85,9 @@ def _make_random_splat(n: int = 200, seed: int = 99) -> Gaussians:
     q[:, 0] = 1.0
     scales_t = torch.full((n, 3), 0.005, dtype=DT)
     opacities = torch.ones(n, dtype=DT)
-    return Gaussians(means=means.to(DEV), quats=q.to(DEV), scales=scales_t.to(DEV),
-                     opacities=opacities.to(DEV))
+    return Gaussians(
+        means=means.to(DEV), quats=q.to(DEV), scales=scales_t.to(DEV), opacities=opacities.to(DEV)
+    )
 
 
 def _rand_T(seed: int, rot_scale: float = 0.2, trans_scale: float = 0.05) -> torch.Tensor:
@@ -94,9 +99,9 @@ def _rand_T(seed: int, rot_scale: float = 0.2, trans_scale: float = 0.05) -> tor
     return se3_exp(xi)
 
 
-def _assemble_icp_problem(T: torch.Tensor, target: Gaussians, source: Gaussians,
-                          point_to_plane: bool = True,
-                          dof: int = 6) -> Optional[LinearizedProblem]:
+def _assemble_icp_problem(
+    T: torch.Tensor, target: Gaussians, source: Gaussians, point_to_plane: bool = True, dof: int = 6
+) -> Optional[LinearizedProblem]:
     """Build the LinearizedProblem for ICP at pose T (analytic Jacobian)."""
     icp = ICP(point_to_plane=point_to_plane)
     r = icp.residual(T, target, source)
@@ -111,6 +116,7 @@ def _assemble_icp_problem(T: torch.Tensor, target: Gaussians, source: Gaussians,
 # A minimal residual that just returns a fixed (r, J) regardless of T.
 # Used to inject degenerate Jacobians without depending on ICP internals.
 # ---------------------------------------------------------------------------
+
 
 class _FixedResidual(Residual):
     """Returns a fixed (r, J) regardless of T. Used to inject degenerate Jacobians."""
@@ -134,6 +140,7 @@ class _FixedResidual(Residual):
 # 1. GT recovery
 # ---------------------------------------------------------------------------
 
+
 def test_lm_solve_linear_problem():
     """LM recovers a known small SE(3) transform to atol 1e-4 on a grid point cloud.
 
@@ -154,21 +161,27 @@ def test_lm_solve_linear_problem():
     T_init = _rand_T(7, rot_scale=0.05, trans_scale=0.02)
 
     result = run_lm(
-        T_init, [ICP(point_to_plane=False)], target, source,
-        transform="se3", damping=1e-4, n_iters=50, convergence_tol=1e-8,
-        max_trans_step=0.1, max_rot_step=0.5,
+        T_init,
+        [ICP(point_to_plane=False)],
+        target,
+        source,
+        transform="se3",
+        damping=1e-4,
+        n_iters=50,
+        convergence_tol=1e-8,
+        max_trans_step=0.1,
+        max_rot_step=0.5,
     )
 
     T_err = (result.T - T_gt).abs().max().item()
-    assert T_err < 1e-4, (
-        f"LM did not recover GT: max|T_recovered - T_gt| = {T_err:.3e} (atol 1e-4)"
-    )
+    assert T_err < 1e-4, f"LM did not recover GT: max|T_recovered - T_gt| = {T_err:.3e} (atol 1e-4)"
     assert result.converged, "LM should have converged on this well-conditioned problem"
 
 
 # ---------------------------------------------------------------------------
 # 2a. CheckLinearError — epsilon form (strict Jacobian correctness check)
 # ---------------------------------------------------------------------------
+
 
 def test_check_linear_error_epsilon():
     """SymForce CheckLinearError (epsilon form): J correctly predicts dr for tiny steps.
@@ -216,6 +229,7 @@ def test_check_linear_error_epsilon():
 # ---------------------------------------------------------------------------
 # 2b. CheckLinearError — rho form (SymForce descent quality check)
 # ---------------------------------------------------------------------------
+
 
 def test_check_linear_error_rho():
     """SymForce rho: actual/predicted improvement ratio is close to 1 for a small step.
@@ -297,6 +311,7 @@ def test_check_linear_error_rho():
 # 3. Singular / degenerate-system handling
 # ---------------------------------------------------------------------------
 
+
 def test_singular_system_no_crash():
     """A rank-deficient J (rank-1, all rows identical) must not crash the solver.
 
@@ -318,13 +333,17 @@ def test_singular_system_no_crash():
     # run_lm with a degenerate residual should complete without raising.
     try:
         result = run_lm(
-            T_init, [degenerate_res], target, source,
-            transform="se3", damping=1e-4, n_iters=5, convergence_tol=0.0,
+            T_init,
+            [degenerate_res],
+            target,
+            source,
+            transform="se3",
+            damping=1e-4,
+            n_iters=5,
+            convergence_tol=0.0,
         )
     except Exception as exc:
-        raise AssertionError(
-            f"run_lm raised {type(exc).__name__} on a degenerate system: {exc}"
-        ) from exc
+        raise AssertionError(f"run_lm raised {type(exc).__name__} on a degenerate system: {exc}") from exc
 
     # Finite cost and transform.
     assert torch.isfinite(result.T).all(), "run_lm returned non-finite T on degenerate system"
@@ -342,14 +361,11 @@ def test_singular_fully_zero_jacobian():
     J = torch.zeros(10, 6, dtype=DT, device=DEV)
 
     solver = LevenbergMarquardt(damping=1e-4)
-    problem = LinearizedProblem(J=J, r=r,
-                                weight=torch.ones(10, dtype=DT, device=DEV), dof=6)
+    problem = LinearizedProblem(J=J, r=r, weight=torch.ones(10, dtype=DT, device=DEV), dof=6)
     try:
         update = solver.solve(problem)
     except Exception as exc:
-        raise AssertionError(
-            f"LM.solve raised {type(exc).__name__} on a zero Jacobian: {exc}"
-        ) from exc
+        raise AssertionError(f"LM.solve raised {type(exc).__name__} on a zero Jacobian: {exc}") from exc
 
     assert torch.isfinite(update.delta).all(), "LM.solve returned non-finite delta for zero J"
 
@@ -358,6 +374,7 @@ def test_singular_fully_zero_jacobian():
 # 4. Zero-residual convergence
 # ---------------------------------------------------------------------------
 
+
 def test_all_zero_residual_converges():
     """Starting exactly at GT (zero ICP residual) the solver reports converged=True."""
     target = _make_grid_splat(400)
@@ -365,23 +382,27 @@ def test_all_zero_residual_converges():
     T_gt = torch.eye(4, dtype=DT, device=DEV)
 
     result = run_lm(
-        T_gt, [ICP(point_to_plane=False)], target, source,
-        transform="se3", damping=1e-4, n_iters=20, convergence_tol=1e-10,
-        max_trans_step=0.1, max_rot_step=0.5,
+        T_gt,
+        [ICP(point_to_plane=False)],
+        target,
+        source,
+        transform="se3",
+        damping=1e-4,
+        n_iters=20,
+        convergence_tol=1e-10,
+        max_trans_step=0.1,
+        max_rot_step=0.5,
     )
 
-    assert result.converged, (
-        "solver should converge immediately when started at GT (zero residual)"
-    )
+    assert result.converged, "solver should converge immediately when started at GT (zero residual)"
     # Cost should be 0 (or nearly 0, up to fp noise in ICP correspondences).
-    assert result.info["cost"] < 1e-12, (
-        f"Cost at GT should be ~0, got {result.info['cost']:.3e}"
-    )
+    assert result.info["cost"] < 1e-12, f"Cost at GT should be ~0, got {result.info['cost']:.3e}"
 
 
 # ---------------------------------------------------------------------------
 # 5. Overall cost decrease over an LM run
 # ---------------------------------------------------------------------------
+
 
 def test_cost_decreases_over_lm_run():
     """The final cost should be far lower than the initial cost (ICP problem solvable).
@@ -400,9 +421,16 @@ def test_cost_decreases_over_lm_run():
     T_init = _rand_T(11, rot_scale=0.05, trans_scale=0.02)
 
     result = run_lm(
-        T_init, [ICP(point_to_plane=False)], target, source,
-        transform="se3", damping=1e-4, n_iters=30, convergence_tol=0.0,
-        max_trans_step=0.1, max_rot_step=0.5,
+        T_init,
+        [ICP(point_to_plane=False)],
+        target,
+        source,
+        transform="se3",
+        damping=1e-4,
+        n_iters=30,
+        convergence_tol=0.0,
+        max_trans_step=0.1,
+        max_rot_step=0.5,
     )
 
     history = result.info["cost_history"]
@@ -421,6 +449,7 @@ def test_cost_decreases_over_lm_run():
 # ---------------------------------------------------------------------------
 # 6. Sim(3) scale recovery
 # ---------------------------------------------------------------------------
+
 
 def test_sim3_solver_recovers_scale():
     """The Sim(3) path correctly recovers a known scale factor.
@@ -445,9 +474,16 @@ def test_sim3_solver_recovers_scale():
 
     T_init = torch.eye(4, dtype=DT, device=DEV)
     result = run_lm(
-        T_init, [ICP(point_to_plane=False)], target, source,
-        transform="sim3", damping=1e-3, n_iters=100, convergence_tol=1e-8,
-        max_trans_step=0.5, max_rot_step=0.5,
+        T_init,
+        [ICP(point_to_plane=False)],
+        target,
+        source,
+        transform="sim3",
+        damping=1e-3,
+        n_iters=100,
+        convergence_tol=1e-8,
+        max_trans_step=0.5,
+        max_rot_step=0.5,
     )
 
     # The recovered scale should be 1/1.2 ≈ 0.833 (aligns scaled source to target).
@@ -463,6 +499,7 @@ def test_sim3_solver_recovers_scale():
 # ---------------------------------------------------------------------------
 # 7. SE3Update / LinearizedProblem contract
 # ---------------------------------------------------------------------------
+
 
 def test_lm_solver_unit_weight_matches_manual():
     """LM with uniform weight=1 matches a manual normal-equation solve.
@@ -490,13 +527,12 @@ def test_lm_solver_unit_weight_matches_manual():
     delta_manual = torch.linalg.solve(H_damped, -b)
 
     err = (update.delta - delta_manual).abs().max().item()
-    assert err < 1e-10, (
-        f"LM delta doesn't match manual normal-equation solve: max|Δ|={err:.2e}"
-    )
+    assert err < 1e-10, f"LM delta doesn't match manual normal-equation solve: max|Δ|={err:.2e}"
 
 
 if __name__ == "__main__":
     import traceback
+
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     print("=" * 70 + "\nsplatreg solver tests\n" + "=" * 70)
     npass = 0

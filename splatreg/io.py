@@ -32,6 +32,7 @@ optional :mod:`plyfile` package is installed it is used for parsing instead (mor
 exotic/ASCII headers); writing always uses the built-in fast binary path. No new pyproject
 dependency is required; ``plyfile`` is an *optional* robustness upgrade only.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -125,14 +126,22 @@ def _parse_ply_header(f) -> tuple[str, int, list[tuple[str, str]]]:
 
 # PLY scalar type name -> numpy base dtype char.
 _PLY_TO_NP = {
-    "char": "i1", "int8": "i1",
-    "uchar": "u1", "uint8": "u1",
-    "short": "i2", "int16": "i2",
-    "ushort": "u2", "uint16": "u2",
-    "int": "i4", "int32": "i4",
-    "uint": "u4", "uint32": "u4",
-    "float": "f4", "float32": "f4",
-    "double": "f8", "float64": "f8",
+    "char": "i1",
+    "int8": "i1",
+    "uchar": "u1",
+    "uint8": "u1",
+    "short": "i2",
+    "int16": "i2",
+    "ushort": "u2",
+    "uint16": "u2",
+    "int": "i4",
+    "int32": "i4",
+    "uint": "u4",
+    "uint32": "u4",
+    "float": "f4",
+    "float32": "f4",
+    "double": "f8",
+    "float64": "f8",
 }
 
 
@@ -221,8 +230,7 @@ def load_ply(
     """
     cols = _read_ply_vertex(path)
 
-    required = ["x", "y", "z", "opacity", "scale_0", "scale_1", "scale_2",
-                "rot_0", "rot_1", "rot_2", "rot_3"]
+    required = ["x", "y", "z", "opacity", "scale_0", "scale_1", "scale_2", "rot_0", "rot_1", "rot_2", "rot_3"]
     missing = [k for k in required if k not in cols]
     if missing:
         raise ValueError(
@@ -254,10 +262,10 @@ def load_ply(
         if n_rest % 3 != 0:
             raise ValueError(f"f_rest count {n_rest} is not divisible by 3 (RGB channels).")
         k_rest = n_rest // 3  # higher-order coefficients per channel
-        rest = np.stack([cols[k] for k in rest_keys], axis=1)            # (N, 3*k_rest) chan-major
-        rest = rest.reshape(n, 3, k_rest).transpose(0, 2, 1)            # (N, k_rest, 3) coeff-major
-        dc_k = dc.reshape(n, 1, 3)                                       # (N, 1, 3)
-        colors_np = np.concatenate([dc_k, rest], axis=1)                # (N, K, 3), K=1+k_rest
+        rest = np.stack([cols[k] for k in rest_keys], axis=1)  # (N, 3*k_rest) chan-major
+        rest = rest.reshape(n, 3, k_rest).transpose(0, 2, 1)  # (N, k_rest, 3) coeff-major
+        dc_k = dc.reshape(n, 1, 3)  # (N, 1, 3)
+        colors_np = np.concatenate([dc_k, rest], axis=1)  # (N, K, 3), K=1+k_rest
     else:
         colors_np = dc  # (N, 3) — DC only
 
@@ -299,7 +307,9 @@ def save_ply(gaussians: Gaussians, path: _PathLike) -> None:
     opac = g.opacities.detach().cpu().numpy().reshape(n)
 
     columns: list[tuple[str, np.ndarray]] = [
-        ("x", means[:, 0]), ("y", means[:, 1]), ("z", means[:, 2]),
+        ("x", means[:, 0]),
+        ("y", means[:, 1]),
+        ("z", means[:, 2]),
     ]
 
     # --- Colour / SH ---------------------------------------------------------------
@@ -314,7 +324,7 @@ def save_ply(gaussians: Gaussians, path: _PathLike) -> None:
         elif colors.ndim == 3:  # (N, K, 3) SH coeffs, coeff-major
             dc = colors[:, 0, :]  # (N, 3)
             if colors.shape[1] > 1:
-                rest = colors[:, 1:, :]                       # (N, k_rest, 3) coeff-major
+                rest = colors[:, 1:, :]  # (N, k_rest, 3) coeff-major
                 # -> channel-major flat for the PLY: [R coeffs, G coeffs, B coeffs]
                 rest_flat = rest.transpose(0, 2, 1).reshape(n, -1)
             else:
@@ -329,8 +339,12 @@ def save_ply(gaussians: Gaussians, path: _PathLike) -> None:
 
     columns.append(("opacity", opac))
     columns += [("scale_0", scales[:, 0]), ("scale_1", scales[:, 1]), ("scale_2", scales[:, 2])]
-    columns += [("rot_0", quats[:, 0]), ("rot_1", quats[:, 1]),
-                ("rot_2", quats[:, 2]), ("rot_3", quats[:, 3])]
+    columns += [
+        ("rot_0", quats[:, 0]),
+        ("rot_1", quats[:, 1]),
+        ("rot_2", quats[:, 2]),
+        ("rot_3", quats[:, 3]),
+    ]
 
     _write_ply_vertex(path, columns)
 

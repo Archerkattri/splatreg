@@ -4,6 +4,7 @@ These wrap the builtin Levenberg-Marquardt core (:mod:`splatreg.solvers.lm`) beh
 in the package docstring. Everything is self-contained — torch + numpy only — and obeys the
 right-perturbation convention ``T_new = T @ se3_exp(delta)``.
 """
+
 from __future__ import annotations
 
 import logging
@@ -55,8 +56,11 @@ def _global_init(target, source: Any, transform: str, device, dtype) -> torch.Te
     try:
         from splatreg.align import global_align
     except Exception as exc:  # pragma: no cover - align module is optional/in-progress
-        _log.info("init='global' requested but splatreg.align.global_align is unavailable (%s); "
-                  "falling back to identity init.", exc)
+        _log.info(
+            "init='global' requested but splatreg.align.global_align is unavailable (%s); "
+            "falling back to identity init.",
+            exc,
+        )
         return _identity(device, dtype)
     T = global_align(target, source, transform=transform)
     return T.to(device=device, dtype=dtype)
@@ -75,8 +79,11 @@ def _feature_init(target, source: Any, transform: str, device, dtype) -> torch.T
     try:
         from splatreg.align_features import feature_align
     except Exception as exc:  # pragma: no cover
-        _log.info("init='features' requested but splatreg.align_features is unavailable (%s); "
-                  "falling back to identity init.", exc)
+        _log.info(
+            "init='features' requested but splatreg.align_features is unavailable (%s); "
+            "falling back to identity init.",
+            exc,
+        )
         return _identity(device, dtype)
     T, n_inliers = feature_align(target, source, transform=transform)
     _log.debug("feature_align: %d RANSAC inliers", n_inliers)
@@ -121,7 +128,7 @@ def _auto_sdf_sigma(target: Any) -> float:
             "(to auto-derive the SDF sigma). Pass an explicit `residuals=[...]` otherwise."
         )
     scales = target.scales.exp() if target.log_scales else target.scales
-    per_gauss = scales.mean(dim=-1)                                     # (N,) anchor footprint
+    per_gauss = scales.mean(dim=-1)  # (N,) anchor footprint
     finite = per_gauss[torch.isfinite(per_gauss) & (per_gauss > 0.0)]
     if finite.numel() > 0:
         med = float(finite.median().item())
@@ -144,6 +151,7 @@ def _default_residuals(target: Any, quality: QualityConfig) -> list:
     Peak memory is bounded regardless by the row-chunked Sim(3) autodiff Jacobian (``solvers/lm.py``).
     """
     from .residuals import ICP, SDF  # local import: residuals are optional plugins
+
     sigma = _auto_sdf_sigma(target)
     # n_points=0 tells SDF to use ALL source anchors (its `m <= n_points` short-circuit). The
     # QualityConfig stores None for "full"; map that to 0 here.
@@ -232,7 +240,8 @@ def register(
     init_tensor = None if isinstance(init, str) else init
     device, dtype = _infer_device_dtype(init_tensor, target, source)
     q = resolve_quality(
-        quality, device,
+        quality,
+        device,
         target_anchors=_target_anchor_count(target),
         source_anchors=_target_anchor_count(source),
     )
@@ -268,9 +277,7 @@ def register(
     return result
 
 
-def _apply_transform_to_gaussians(
-    g: Gaussians, T: torch.Tensor, scale: float = 1.0
-) -> Gaussians:
+def _apply_transform_to_gaussians(g: Gaussians, T: torch.Tensor, scale: float = 1.0) -> Gaussians:
     """Return a copy of ``g`` with the SE(3)/Sim(3) transform ``T`` baked into the Gaussians.
 
     ``T``'s top-left block is ``s * R`` (``s == scale``; ``1.0`` for SE(3)). The rotation is
@@ -288,7 +295,7 @@ def _apply_transform_to_gaussians(
     block = T[:3, :3]
     t = T[:3, 3]
     s = float(scale)
-    R = block / s if abs(s - 1.0) > 1e-12 else block       # de-scale to a pure rotation
+    R = block / s if abs(s - 1.0) > 1e-12 else block  # de-scale to a pure rotation
     means = s * (g.means @ R.transpose(-1, -2)) + t
     quats = _quat_mul_wxyz(_quat_from_matrix_wxyz(R), g.quats)
 
@@ -408,8 +415,13 @@ def merge(
             pieces.append(g)
             continue
         result = register(
-            reference, g, residuals=residuals, init=init, transform=transform,
-            max_iters=max_iters, quality=quality,
+            reference,
+            g,
+            residuals=residuals,
+            init=init,
+            transform=transform,
+            max_iters=max_iters,
+            quality=quality,
         )
         pieces.append(_apply_transform_to_gaussians(g, result.T, result.scale))
 
@@ -423,9 +435,7 @@ def merge(
     )
     if dedupe and len(fused) > 1:
         if dedupe_method not in ("voxel", "knn"):
-            raise ValueError(
-                f"dedupe_method must be 'voxel' or 'knn', got {dedupe_method!r}."
-            )
+            raise ValueError(f"dedupe_method must be 'voxel' or 'knn', got {dedupe_method!r}.")
         n_before = sum(len(p) for p in pieces)
         # Size the dedupe from the CLEAN reference splat's anchor spacing (not the merged splat,
         # whose overlap duplicates would corrupt the spacing estimate).
@@ -435,8 +445,9 @@ def merge(
         else:
             radius = knn_radius if knn_radius is not None else auto_knn_radius(reference)
             fused, used = knn_dedupe_report(fused, radius)
-        _log.debug("merge(): %s-dedupe at %.4g kept %d/%d Gaussians",
-                   dedupe_method, used, len(fused), n_before)
+        _log.debug(
+            "merge(): %s-dedupe at %.4g kept %d/%d Gaussians", dedupe_method, used, len(fused), n_before
+        )
     return fused
 
 

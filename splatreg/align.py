@@ -30,6 +30,7 @@ on-device for SVD precision). Self-contained: torch only, no gsplat / pytorch3d 
 / SLAM imports. Deterministic — no RNG (closed-form seeds, strided subsample, first-index
 tie-break) — so it is reproducible.
 """
+
 from __future__ import annotations
 
 import math
@@ -40,12 +41,12 @@ from .core.types import Gaussians
 
 # Defaults tuned (A/B-bench) for 0 failures on the hardest case — a near-featureless sphere
 # under an arbitrary uniform-SO(3) transform.
-DEFAULT_N_ROTATIONS = 256    # super-Fibonacci SO(3) seeds (~26deg covering); + a few PCA seeds
-DEFAULT_ICP_ITERS = 40       # trimmed-ICP iterations per seed
-DEFAULT_N_POINTS = 12288     # deterministic strided target subsample for the fit (denser -> lower floor)
-_SUB_SOURCE = 4096           # deterministic strided source subsample driving the fit
-_ICP_TRIM_KEEP = 0.85        # fraction of best correspondences kept each iter (outlier reject)
-_SEED_BATCH = 64             # seeds processed per chunk in the batched ICP (bounds peak memory)
+DEFAULT_N_ROTATIONS = 256  # super-Fibonacci SO(3) seeds (~26deg covering); + a few PCA seeds
+DEFAULT_ICP_ITERS = 40  # trimmed-ICP iterations per seed
+DEFAULT_N_POINTS = 12288  # deterministic strided target subsample for the fit (denser -> lower floor)
+_SUB_SOURCE = 4096  # deterministic strided source subsample driving the fit
+_ICP_TRIM_KEEP = 0.85  # fraction of best correspondences kept each iter (outlier reject)
+_SEED_BATCH = 64  # seeds processed per chunk in the batched ICP (bounds peak memory)
 _PSI = 1.533751168755204288118041
 
 
@@ -62,8 +63,9 @@ def _superfib_quats(n: int, device, dtype) -> torch.Tensor:
     rr = torch.sqrt((1.0 - t).clamp_min(0.0))
     alpha = (2.0 * math.pi / phi) * s
     beta = (2.0 * math.pi / _PSI) * s
-    return torch.stack([r * torch.sin(alpha), r * torch.cos(alpha),
-                        rr * torch.sin(beta), rr * torch.cos(beta)], dim=1)
+    return torch.stack(
+        [r * torch.sin(alpha), r * torch.cos(alpha), rr * torch.sin(beta), rr * torch.cos(beta)], dim=1
+    )
 
 
 def _quats_to_R(q: torch.Tensor) -> torch.Tensor:
@@ -71,9 +73,15 @@ def _quats_to_R(q: torch.Tensor) -> torch.Tensor:
     q = q / q.norm(dim=1, keepdim=True).clamp_min(1e-12)
     x, y, z, w = q[:, 0], q[:, 1], q[:, 2], q[:, 3]
     R = q.new_empty((q.shape[0], 3, 3))
-    R[:, 0, 0] = 1 - 2 * (y * y + z * z); R[:, 0, 1] = 2 * (x * y - z * w);     R[:, 0, 2] = 2 * (x * z + y * w)
-    R[:, 1, 0] = 2 * (x * y + z * w);     R[:, 1, 1] = 1 - 2 * (x * x + z * z); R[:, 1, 2] = 2 * (y * z - x * w)
-    R[:, 2, 0] = 2 * (x * z - y * w);     R[:, 2, 1] = 2 * (y * z + x * w);     R[:, 2, 2] = 1 - 2 * (x * x + y * y)
+    R[:, 0, 0] = 1 - 2 * (y * y + z * z)
+    R[:, 0, 1] = 2 * (x * y - z * w)
+    R[:, 0, 2] = 2 * (x * z + y * w)
+    R[:, 1, 0] = 2 * (x * y + z * w)
+    R[:, 1, 1] = 1 - 2 * (x * x + z * z)
+    R[:, 1, 2] = 2 * (y * z - x * w)
+    R[:, 2, 0] = 2 * (x * z - y * w)
+    R[:, 2, 1] = 2 * (y * z + x * w)
+    R[:, 2, 2] = 1 - 2 * (x * x + y * y)
     return R
 
 
@@ -139,7 +147,7 @@ def _pca_seed_rotations(src: torch.Tensor, tgt: torch.Tensor) -> torch.Tensor:
         for sy in (1.0, -1.0):
             S = torch.diag(torch.tensor([sx, sy, sx * sy], device=dev, dtype=dt))
             R = Vt @ S @ Vs.transpose(-2, -1)
-            if torch.linalg.det(R) > 0:                       # proper rotation only
+            if torch.linalg.det(R) > 0:  # proper rotation only
                 cands.append(R)
     return torch.stack(cands, dim=0)
 
@@ -161,7 +169,7 @@ def _umeyama(src: torch.Tensor, dst: torch.Tensor, with_scale: bool):
     cov = (dc.transpose(-2, -1) @ sc) / n
     U, D, Vh = torch.linalg.svd(cov)
     S = torch.eye(3, device=src.device, dtype=src.dtype)
-    if torch.linalg.det(U) * torch.linalg.det(Vh) < 0:        # reflection guard
+    if torch.linalg.det(U) * torch.linalg.det(Vh) < 0:  # reflection guard
         S[2, 2] = -1.0
     R = U @ S @ Vh
     if with_scale:
@@ -239,8 +247,9 @@ def _trim_mean_sqrt(dist_sq: torch.Tensor, frac: float) -> torch.Tensor:
     return v[:, :k].sqrt().mean(dim=1)
 
 
-def _batched_trimmed_icp(src_sub: torch.Tensor, tgt_sub: torch.Tensor, R_seeds: torch.Tensor,
-                         with_scale: bool, icp_iters: int):
+def _batched_trimmed_icp(
+    src_sub: torch.Tensor, tgt_sub: torch.Tensor, R_seeds: torch.Tensor, with_scale: bool, icp_iters: int
+):
     """All seeds through one batched trimmed point-to-point ICP (centre, per-seed scale match,
     trimmed Umeyama iterations, trimmed symmetric Chamfer score). Returns ``(aligned (B,K,3),
     score (B,))`` (lower score = better). Seeds processed in chunks of ``_SEED_BATCH``."""
@@ -254,7 +263,7 @@ def _batched_trimmed_icp(src_sub: torch.Tensor, tgt_sub: torch.Tensor, R_seeds: 
     aligned_chunks: list[torch.Tensor] = []
     score_chunks: list[torch.Tensor] = []
     for lo in range(0, R_seeds.shape[0], _SEED_BATCH):
-        Rb = R_seeds[lo:lo + _SEED_BATCH]
+        Rb = R_seeds[lo : lo + _SEED_BATCH]
         b = Rb.shape[0]
         X = torch.bmm(p0c.unsqueeze(0).expand(b, K, 3), Rb.transpose(1, 2))
         if with_scale:
@@ -330,13 +339,11 @@ def global_align(
 
     # Seeds (all on-device): PCA sign-flip candidates first (deterministic tie favours them),
     # then the super-Fibonacci grid.
-    R_pca = _pca_seed_rotations(src_sub, tgt_sub)                            # (<=5,3,3)
+    R_pca = _pca_seed_rotations(src_sub, tgt_sub)  # (<=5,3,3)
     R_grid = super_fibonacci_so3(int(n_rotations), device=dev, dtype=torch.float32)  # (n,3,3)
     R_seeds = torch.cat([R_pca, R_grid], dim=0)
 
-    aligned_sub, scores = _batched_trimmed_icp(
-        src_sub, tgt_sub, R_seeds, with_scale, int(icp_iters)
-    )
+    aligned_sub, scores = _batched_trimmed_icp(src_sub, tgt_sub, R_seeds, with_scale, int(icp_iters))
 
     # Stability tie-break (symmetric fix F-S2, docs/03 RC-S2): among seeds within _SCORE_EPS
     # of the best score, prefer the one whose centroid is closest to the target centroid —
@@ -347,17 +354,17 @@ def global_align(
     _SCORE_EPS = 5e-3
     best_score = scores.min()
     near_best = scores <= best_score + _SCORE_EPS * (best_score.abs().clamp_min(1.0))
-    near_idx = near_best.nonzero(as_tuple=False).squeeze(1)   # indices of near-best seeds
+    near_idx = near_best.nonzero(as_tuple=False).squeeze(1)  # indices of near-best seeds
     if near_idx.shape[0] > 1:
         # Pick the near-best seed whose centroid is closest to the target centroid.
         # aligned_sub[b] is the source sub-sample after ICP convergence under seed b.
-        near_centroids = aligned_sub[near_idx].mean(dim=1)                # (K, 3)
-        tgt_centroid = tgt_sub.mean(0)                                     # (3,)
-        centroid_dists = (near_centroids - tgt_centroid).norm(dim=1)       # (K,)
+        near_centroids = aligned_sub[near_idx].mean(dim=1)  # (K, 3)
+        tgt_centroid = tgt_sub.mean(0)  # (3,)
+        centroid_dists = (near_centroids - tgt_centroid).norm(dim=1)  # (K,)
         best_sub = near_idx[centroid_dists.argmin()]
     else:
         best_sub = torch.argmin(scores)
-    winner = aligned_sub[best_sub]                                        # stays on-device
+    winner = aligned_sub[best_sub]  # stays on-device
 
     # Recover the exact closed-form similarity src_sub -> winner in float64 on-device.
     s_tot, R_tot, t_tot = _umeyama(src_sub.double(), winner.double(), with_scale)

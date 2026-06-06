@@ -15,6 +15,7 @@ for field residuals (the SDF); for nearest-neighbour residuals (ICP) a small fra
 rows near a correspondence-switch boundary may differ, which `max_mismatch` tolerates.
 Audit in float64 for the tightest comparison.
 """
+
 from __future__ import annotations
 
 from typing import Any, Callable, Tuple
@@ -26,8 +27,9 @@ from .core.lie import se3_exp
 __all__ = ["numerical_jacobian", "check_residual_jacobian", "assert_residual_jacobian"]
 
 
-def numerical_jacobian(residual_fn: Callable[[torch.Tensor], torch.Tensor],
-                       T: torch.Tensor, *, eps: float = 1e-6, dof: int = 6) -> torch.Tensor:
+def numerical_jacobian(
+    residual_fn: Callable[[torch.Tensor], torch.Tensor], T: torch.Tensor, *, eps: float = 1e-6, dof: int = 6
+) -> torch.Tensor:
     """Central-difference Jacobian of ``residual_fn(T_4x4) -> (n,)`` w.r.t. the
     right-perturbation tangent ``T @ se3_exp(xi)`` (xi = [tx,ty,tz, rx,ry,rz])."""
     cols = []
@@ -38,18 +40,27 @@ def numerical_jacobian(residual_fn: Callable[[torch.Tensor], torch.Tensor],
     return torch.stack(cols, dim=1)
 
 
-def check_residual_jacobian(residual: Any, T: torch.Tensor, target: Any, source: Any, *,
-                            eps: float = 1e-6) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def check_residual_jacobian(
+    residual: Any, T: torch.Tensor, target: Any, source: Any, *, eps: float = 1e-6
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Return ``(per_row_max_error, analytic, numerical)`` for a residual at pose ``T``."""
     J_an = residual.jacobian(T, target, source).detach()
-    Jn = numerical_jacobian(lambda Tp: residual.residual(Tp, target, source).detach(),
-                            T, eps=eps, dof=int(J_an.shape[1]))
+    Jn = numerical_jacobian(
+        lambda Tp: residual.residual(Tp, target, source).detach(), T, eps=eps, dof=int(J_an.shape[1])
+    )
     return (J_an - Jn).abs().max(dim=1).values, J_an, Jn
 
 
-def assert_residual_jacobian(residual: Any, T: torch.Tensor, target: Any, source: Any, *,
-                             atol: float = 1e-4, eps: float = 1e-6,
-                             max_mismatch: float = 0.02) -> float:
+def assert_residual_jacobian(
+    residual: Any,
+    T: torch.Tensor,
+    target: Any,
+    source: Any,
+    *,
+    atol: float = 1e-4,
+    eps: float = 1e-6,
+    max_mismatch: float = 0.02,
+) -> float:
     """Assert ``residual.jacobian`` matches the numerical Jacobian to ``atol`` for at least
     ``(1 - max_mismatch)`` of rows (a small NN-switch boundary fraction is tolerated for
     correspondence residuals). Returns the max per-row error. Raises ``AssertionError``."""
@@ -59,5 +70,6 @@ def assert_residual_jacobian(residual: Any, T: torch.Tensor, target: Any, source
         raise AssertionError(
             f"{type(residual).__name__}.jacobian disagrees with numerical: "
             f"{bad * 100:.1f}% of rows exceed atol={atol:g} "
-            f"(max row error {row_err.max().item():.2e}).")
+            f"(max row error {row_err.max().item():.2e})."
+        )
     return float(row_err.max().item())

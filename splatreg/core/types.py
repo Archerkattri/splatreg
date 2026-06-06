@@ -3,6 +3,7 @@
 Pure-python + torch tensors. NOTHING here imports gsplat/CUDA — these types are the stable
 interface every module (solver, residuals, io, api) agrees on. Do not add heavy deps to this file.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -18,11 +19,12 @@ class Gaussians:
     Convention: ``quats`` are wxyz; ``scales`` are linear unless ``log_scales`` is True;
     ``colors`` are either (N,3) RGB or (N,K,3) SH coefficients.
     """
-    means: torch.Tensor                      # (N, 3)
-    quats: torch.Tensor                      # (N, 4) wxyz
-    scales: torch.Tensor                     # (N, 3)
-    opacities: torch.Tensor                  # (N,) or (N, 1)
-    colors: Optional[torch.Tensor] = None    # (N, 3) RGB or (N, K, 3) SH
+
+    means: torch.Tensor  # (N, 3)
+    quats: torch.Tensor  # (N, 4) wxyz
+    scales: torch.Tensor  # (N, 3)
+    opacities: torch.Tensor  # (N,) or (N, 1)
+    colors: Optional[torch.Tensor] = None  # (N, 3) RGB or (N, K, 3) SH
     log_scales: bool = False
 
     @property
@@ -34,8 +36,9 @@ class Gaussians:
 
     def to(self, device) -> "Gaussians":
         f = lambda t: t.to(device) if t is not None else None
-        return Gaussians(f(self.means), f(self.quats), f(self.scales), f(self.opacities),
-                         f(self.colors), self.log_scales)
+        return Gaussians(
+            f(self.means), f(self.quats), f(self.scales), f(self.opacities), f(self.colors), self.log_scales
+        )
 
 
 @dataclass
@@ -45,10 +48,11 @@ class Frame:
     For splat-to-splat registration the 'source' is another ``Gaussians``, not a Frame —
     residuals receive whichever is relevant via the ``source`` argument.
     """
-    rgb: Optional[torch.Tensor] = None          # (H, W, 3)
-    depth: Optional[torch.Tensor] = None        # (H, W)
-    K: Optional[torch.Tensor] = None            # (3, 3) intrinsics
-    mask: Optional[torch.Tensor] = None         # (H, W) bool
+
+    rgb: Optional[torch.Tensor] = None  # (H, W, 3)
+    depth: Optional[torch.Tensor] = None  # (H, W)
+    K: Optional[torch.Tensor] = None  # (3, 3) intrinsics
+    mask: Optional[torch.Tensor] = None  # (H, W) bool
     point_cloud: Optional[torch.Tensor] = None  # (M, 3) points (cam/world frame)
 
 
@@ -59,16 +63,18 @@ class LinearizedProblem:
     ``dof`` is 6 for SE(3) or 7 for Sim(3) (the 7th is log-scale). ``weight`` holds per-row
     sqrt-weights (a backend may apply them or assume J/r are already weighted — see the builtin LM).
     """
-    J: torch.Tensor          # (R, dof) stacked Jacobian
-    r: torch.Tensor          # (R,) stacked residual
-    weight: torch.Tensor     # (R,) per-row sqrt weight
+
+    J: torch.Tensor  # (R, dof) stacked Jacobian
+    r: torch.Tensor  # (R,) stacked residual
+    weight: torch.Tensor  # (R,) per-row sqrt weight
     dof: int = 6
 
 
 @dataclass
 class SE3Update:
     """A tangent-space step returned by a Solver (se(3) or sim(3))."""
-    delta: torch.Tensor      # (dof,) tangent  [tx,ty,tz, rx,ry,rz, (log_s)]
+
+    delta: torch.Tensor  # (dof,) tangent  [tx,ty,tz, rx,ry,rz, (log_s)]
     cost: float = 0.0
 
 
@@ -80,7 +86,8 @@ class RegisterResult:
     for Sim(3); plain SE(3) when ``transform='se3'``). ``info`` carries diagnostics
     (per-iter cost, rmse, overlap, n_iters, timings, residual breakdown).
     """
-    T: torch.Tensor                          # (4, 4)
+
+    T: torch.Tensor  # (4, 4)
     scale: float = 1.0
     converged: bool = False
     info: dict = field(default_factory=dict)

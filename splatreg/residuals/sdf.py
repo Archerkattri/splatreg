@@ -36,6 +36,7 @@ implicit dependence of the SDF normal on the query point) is dropped, exactly as
 gradient is defined as ``n~`` — this is the standard Gauss-Newton SDF linearisation and keeps
 the step cheap and stable.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -126,18 +127,16 @@ class SDF(Residual):
         if self._sample_cache_key != key or self._sample_idx is None:
             gen = np.random.default_rng(self.seed)
             idx_np = gen.choice(m, size=self.n_points, replace=False)
-            self._sample_idx = torch.from_numpy(np.sort(idx_np)).to(
-                device=means.device, dtype=torch.long
-            )
+            self._sample_idx = torch.from_numpy(np.sort(idx_np)).to(device=means.device, dtype=torch.long)
             self._sample_cache_key = key
         return means[self._sample_idx]
 
     def _transformed(self, T: torch.Tensor, source: Any):
         """Return ``(src_pts, p, R)``: sampled source points, ``T``-transformed points, ``T``'s R."""
-        src_pts = self._source_points(source)                       # (N, 3)
+        src_pts = self._source_points(source)  # (N, 3)
         R = T[:3, :3].to(dtype=src_pts.dtype)
         t = T[:3, 3].to(dtype=src_pts.dtype)
-        p = src_pts @ R.T + t                                       # (N, 3)
+        p = src_pts @ R.T + t  # (N, 3)
         return src_pts, p, R
 
     def _resolve_normals(self, target: Gaussians):
@@ -151,6 +150,7 @@ class SDF(Residual):
         key = (id(target), target.means.data_ptr(), int(target.means.shape[0]))
         if self._norm_cache_key != key or self._norm_cache is None:
             from ..geometry.gaussian_sdf import estimate_anchor_normals
+
             self._norm_cache = estimate_anchor_normals(target.means, k=self.knn)
             self._norm_cache_key = key
         return self._norm_cache
@@ -185,22 +185,28 @@ class SDF(Residual):
         # forward — the fast SE(3) path). Truncated path: autodiff. Both are the EXACT ∇_p sdf.
         if self.trunc_sigmas is None:
             from ..geometry.gaussian_sdf import gaussian_sdf_grad
+
             _, grad = gaussian_sdf_grad(
-                target, p, sigma=self.sigma, normals=self._resolve_normals(target),
-                use_opacity=self.use_opacity, knn=self.knn, chunk_size=self.chunk_size,
+                target,
+                p,
+                sigma=self.sigma,
+                normals=self._resolve_normals(target),
+                use_opacity=self.use_opacity,
+                knn=self.knn,
+                chunk_size=self.chunk_size,
             )
         else:
             pg = p.detach().requires_grad_(True)
             with torch.enable_grad():
                 sd, _ = self._sdf(target, pg)
-                grad = torch.autograd.grad(sd.sum(), pg, create_graph=False)[0]   # (N, 3) ∇_p sdf
+                grad = torch.autograd.grad(sd.sum(), pg, create_graph=False)[0]  # (N, 3) ∇_p sdf
             grad = grad.detach()
         # Chain the field gradient through the pose-Jacobian of p = T·s_k — the SAME chain the
         # ICP residual uses (numerically verified there). rt_n[k] = R^T g_k.
-        rt_n = grad @ R                                            # (N, 3)  d r/dv = g_k^T R
+        rt_n = grad @ R  # (N, 3)  d r/dv = g_k^T R
         # d r/dw = -(R^T g_k) x s_k = cross(s_k, R^T g_k)   (right-perturbation rotation block)
-        j_rot = torch.cross(src_pts, rt_n, dim=-1)                 # (N, 3)
-        jac = torch.cat([rt_n, j_rot], dim=-1)                     # (N, 6)
+        j_rot = torch.cross(src_pts, rt_n, dim=-1)  # (N, 3)
+        jac = torch.cat([rt_n, j_rot], dim=-1)  # (N, 6)
         return jac * self.weight
 
     def dim(self) -> int:

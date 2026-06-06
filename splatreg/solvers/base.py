@@ -7,6 +7,7 @@ Two pluggability axes (kept separate):
     (pypose / theseus / gtsam). Every backend consumes one ``LinearizedProblem`` and returns an
     ``SE3Update`` (a tangent step), so a new backend never touches the residual plugins.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

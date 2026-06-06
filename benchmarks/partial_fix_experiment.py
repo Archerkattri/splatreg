@@ -13,6 +13,7 @@ distance multiples — measuring rotation error. It changes NOTHING in the libra
 
 Run:  CUDA_VISIBLE_DEVICES=0 SPLATREG_DEVICE=cuda PYTHONPATH=. python benchmarks/partial_fix_experiment.py
 """
+
 from __future__ import annotations
 
 import os
@@ -26,10 +27,9 @@ for p in (_REPO, os.path.join(_REPO, "examples"), _BENCH):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from splatreg import register                                   # noqa: E402
-from splatreg.residuals import ICP                              # noqa: E402
-from _example_utils import (make_object_splat, axis_angle_R,    # noqa: E402
-                            rot_angle_deg, sim3_matrix)
+from splatreg import register  # noqa: E402
+from splatreg.residuals import ICP  # noqa: E402
+from _example_utils import make_object_splat, axis_angle_R, rot_angle_deg, sim3_matrix  # noqa: E402
 from robustness_bench import perturb_partial, ROT_AXIS, FIXED_ROT, TRANS  # noqa: E402
 
 DEV = os.environ.get("SPLATREG_DEVICE", "cuda")
@@ -62,9 +62,12 @@ def main():
     configs = []  # (label, residual_factory(spacing))
     configs.append(("default (ungated)", lambda sp: None))
     for k in (3.0, 5.0, 10.0):
-        configs.append((f"gated x{k:g}", lambda sp, k=k: [ICP(point_to_plane=False, max_correspondence_dist=k * sp)]))
+        configs.append(
+            (f"gated x{k:g}", lambda sp, k=k: [ICP(point_to_plane=False, max_correspondence_dist=k * sp)])
+        )
     header = f"{'cell':>12} | " + " | ".join(f"{lbl:>16}" for lbl, _ in configs)
-    print(header); print("-" * len(header))
+    print(header)
+    print("-" * len(header))
     gate_ok = {lbl: 0 for lbl, _ in configs}
     n = 0
     for keep in KEEPS:

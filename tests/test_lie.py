@@ -7,6 +7,7 @@ scale recovery. These guard every solve: a wrong manifold op silently biases the
 Run standalone:  PYTHONPATH=. python tests/test_lie.py
 Or via pytest:   pytest tests/test_lie.py
 """
+
 from __future__ import annotations
 
 import os
@@ -19,7 +20,13 @@ if _REPO not in sys.path:
     sys.path.insert(0, _REPO)
 
 from splatreg.core.lie import (  # noqa: E402
-    se3_exp, se3_log, sim3_exp, sim3_log, se3_inv, so3_project, skew,
+    se3_exp,
+    se3_log,
+    sim3_exp,
+    sim3_log,
+    se3_inv,
+    so3_project,
+    skew,
 )
 
 DT = torch.float64
@@ -30,9 +37,7 @@ def _g(seed):
 
 
 def _cross(a, b):
-    return torch.stack([a[1] * b[2] - a[2] * b[1],
-                        a[2] * b[0] - a[0] * b[2],
-                        a[0] * b[1] - a[1] * b[0]])
+    return torch.stack([a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]])
 
 
 def test_se3_exp_log_roundtrip():
@@ -62,8 +67,8 @@ def test_se3_group_invariants():
     I = torch.eye(4, dtype=DT)
     for _ in range(500):
         T = se3_exp(torch.randn(6, generator=g, dtype=DT))
-        maxe = max(maxe, (T @ se3_inv(T) - I).abs().max().item())          # T·inv(T) = I
-        maxe = max(maxe, (se3_inv(se3_inv(T)) - T).abs().max().item())     # inv(inv(T)) = T
+        maxe = max(maxe, (T @ se3_inv(T) - I).abs().max().item())  # T·inv(T) = I
+        maxe = max(maxe, (se3_inv(se3_inv(T)) - T).abs().max().item())  # inv(inv(T)) = T
     assert maxe < 1e-9, f"se3 inverse invariants violated, max {maxe:.2e}"
 
 
@@ -72,8 +77,8 @@ def test_sim3_exp_log_roundtrip_and_scale():
     for _ in range(1000):
         xi = torch.randn(7, generator=g, dtype=DT)
         T = sim3_exp(xi)
-        s = float(torch.linalg.det(T[:3, :3]).abs() ** (1.0 / 3.0))        # det(s·R) = s^3
-        maxs = max(maxs, abs(s - float(torch.exp(xi[6]))))                 # s == exp(rho)
+        s = float(torch.linalg.det(T[:3, :3]).abs() ** (1.0 / 3.0))  # det(s·R) = s^3
+        maxs = max(maxs, abs(s - float(torch.exp(xi[6]))))  # s == exp(rho)
         maxe = max(maxe, (sim3_exp(sim3_log(T)) - T).abs().max().item())
     assert maxe < 1e-8, f"sim3 exp(log(T)) != T, max {maxe:.2e}"
     assert maxs < 1e-7, f"sim3 scale != exp(rho), max {maxs:.2e}"
@@ -116,6 +121,7 @@ def test_so3_project_orthogonal_and_reflection():
 
 # ── hat (skew) / vee roundtrip ──────────────────────────────────────────────
 
+
 def _vee(W: torch.Tensor) -> torch.Tensor:
     """Extract the 3-vector from a skew-symmetric 3x3 (inverse of skew/hat)."""
     return torch.stack([W[2, 1], W[0, 2], W[1, 0]])
@@ -146,6 +152,7 @@ def test_skew_antisymmetric():
 # Note: splatreg does not expose a `compose` or `between` function; we test
 # the underlying identity directly via matrix multiply + se3_inv (the same
 # operations the solver uses internally).
+
 
 def test_compose_inv_identity():
     """T @ se3_inv(T) == I and se3_inv(T) @ T == I (both-sided inverse)."""
@@ -193,6 +200,7 @@ def test_sim3_group_invariants():
 
 # ── retract / local (exp/log) magnitude sweep ───────────────────────────────
 
+
 def test_retract_local_magnitude_sweep():
     """exp/log roundtrip across many tangent magnitudes: small, medium, large (< π)."""
     g = _g(15)
@@ -231,6 +239,7 @@ def test_sim3_retract_local_magnitude_sweep():
 
 
 # ── near-π rotation stability (GTSAM / Theseus discipline) ──────────────────
+
 
 def test_near_pi_rotation_stability():
     """Sweep rotation angles from 0.5 up to π-5e-4 and confirm exp/log roundtrip.
@@ -296,9 +305,9 @@ def test_near_pi_known_limitation():
             T = se3_exp(xi)
             xi_back = se3_log(T)
             T_back = se3_exp(xi_back)
-            assert torch.isfinite(T_back).all(), (
-                f"se3 log/exp produced NaN at theta={theta:.8f} — this is a new regression"
-            )
+            assert torch.isfinite(
+                T_back
+            ).all(), f"se3 log/exp produced NaN at theta={theta:.8f} — this is a new regression"
             err = (T_back - T).abs().max().item()
             assert err <= 2.01, (
                 f"Matrix error at theta={theta:.8f} exceeds 2.01 (={err:.3e}), "
@@ -331,6 +340,7 @@ def test_near_pi_sim3_stability():
 # Test that se3_exp is differentiable and its autodiff Jacobian is consistent.
 # For Lie ops we check: d(se3_exp(xi))/d(xi) via autograd vs central differences.
 
+
 def _num_jac_scalar_fn(fn, xi, eps=1e-6):
     """Central-difference Jacobian of fn: R^n -> R^(m) w.r.t xi."""
     n = xi.shape[0]
@@ -357,9 +367,7 @@ def test_symforce_10k_se3_exp_jacobian_sweep():
     max_err = 0.0
     for _ in range(N):
         xi = torch.randn(6, generator=g, dtype=DT)
-        xi[3:] = xi[3:] / xi[3:].norm().clamp_min(1e-8) * (
-            torch.rand(1, generator=g, dtype=DT) * 2.9
-        )
+        xi[3:] = xi[3:] / xi[3:].norm().clamp_min(1e-8) * (torch.rand(1, generator=g, dtype=DT) * 2.9)
         xi = xi.requires_grad_(False)
 
         # Autograd Jacobian: flatten T(xi) -> 16-vector, differentiate w.r.t xi.
@@ -411,9 +419,7 @@ def test_symforce_10k_se3_log_jacobian_sweep():
         J_ad = torch.autograd.functional.jacobian(_log_flat, T_ad, vectorize=True)  # (6, 16)
 
         T_num = T0.detach().clone().reshape(16)
-        J_num = _num_jac_scalar_fn(
-            lambda T_in: se3_log(T_in.reshape(4, 4)), T_num, eps=1e-6
-        )
+        J_num = _num_jac_scalar_fn(lambda T_in: se3_log(T_in.reshape(4, 4)), T_num, eps=1e-6)
 
         err = (J_ad - J_num).abs().max().item()
         if err > max_err:
@@ -427,6 +433,7 @@ def test_symforce_10k_se3_log_jacobian_sweep():
 
 if __name__ == "__main__":
     import traceback
+
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     print("=" * 60 + "\nsplatreg Lie-group op tests\n" + "=" * 60)
     npass = 0

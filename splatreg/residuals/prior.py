@@ -16,6 +16,7 @@ at the relative pose, approximated by ``I`` near the anchor — the same first-o
 production ``_BetweenResidual`` ships). This is exact at ``T = T_prior`` and accurate while the
 relative rotation stays small, which is the regime a soft prior operates in.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -28,11 +29,13 @@ from .base import Residual
 
 def _skew3(v: torch.Tensor) -> torch.Tensor:
     z = torch.zeros((), device=v.device, dtype=v.dtype)
-    return torch.stack([
-        torch.stack([z, -v[2], v[1]]),
-        torch.stack([v[2], z, -v[0]]),
-        torch.stack([-v[1], v[0], z]),
-    ])
+    return torch.stack(
+        [
+            torch.stack([z, -v[2], v[1]]),
+            torch.stack([v[2], z, -v[0]]),
+            torch.stack([-v[1], v[0], z]),
+        ]
+    )
 
 
 def _se3_log(T: torch.Tensor) -> torch.Tensor:
@@ -96,7 +99,7 @@ class Prior(Residual):
             device=dev,
             dtype=torch.float32,
         )
-        self._J = torch.diag(self._info_sqrt)            # constant analytic Jacobian
+        self._J = torch.diag(self._info_sqrt)  # constant analytic Jacobian
         self._T_prior_inv = _se3_inv(self.T_prior)
 
     def requires(self) -> set:
@@ -105,7 +108,7 @@ class Prior(Residual):
     def residual(self, T: torch.Tensor, target: Gaussians, source: Any) -> torch.Tensor:
         info = self._info_sqrt.to(device=T.device, dtype=T.dtype)
         rel = self._T_prior_inv.to(device=T.device, dtype=T.dtype) @ T
-        return _se3_log(rel) * info                       # (6,)
+        return _se3_log(rel) * info  # (6,)
 
     def jacobian(self, T: torch.Tensor, target: Gaussians, source: Any) -> Optional[torch.Tensor]:
         return self._J.to(device=T.device, dtype=T.dtype)  # (6, 6) = diag(info_sqrt)

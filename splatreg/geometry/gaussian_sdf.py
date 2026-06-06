@@ -53,6 +53,7 @@ The query is fully differentiable w.r.t. ``points`` (autograd flows through ``d(
 primitive is equally usable as a plug-in implicit field for optimisation as for one-shot SDF
 sampling.
 """
+
 from __future__ import annotations
 
 from typing import Optional, Tuple
@@ -90,14 +91,14 @@ def estimate_anchor_normals(means: torch.Tensor, k: int = 50) -> torch.Tensor:
         return out
 
     kk = max(2, min(int(k), m))
-    dists = torch.cdist(pts, pts)                              # (M, M)
-    knn_idx = torch.topk(dists, k=kk, largest=False).indices   # (M, k)
-    neighbours = pts[knn_idx]                                  # (M, k, 3)
+    dists = torch.cdist(pts, pts)  # (M, M)
+    knn_idx = torch.topk(dists, k=kk, largest=False).indices  # (M, k)
+    neighbours = pts[knn_idx]  # (M, k, 3)
     centered = neighbours - neighbours.mean(dim=1, keepdim=True)
     # SVD's smallest right-singular vector == covariance's smallest eigenvector,
     # without forming the (M, 3, 3) covariance explicitly.
     _, _, vh = torch.linalg.svd(centered, full_matrices=False)  # vh: (M, 3, 3)
-    normals = vh[:, -1, :]                                      # (M, 3)
+    normals = vh[:, -1, :]  # (M, 3)
 
     centroid = pts.mean(dim=0, keepdim=True)
     outward = pts - centroid
@@ -174,9 +175,7 @@ def gaussian_sdf(
     if use_opacity:
         opa = gaussians.opacities.to(device=device, dtype=dtype).reshape(-1)
         if opa.shape[0] != m:
-            raise ValueError(
-                f"gaussian_sdf: opacities length {opa.shape[0]} != n_gaussians {m}."
-            )
+            raise ValueError(f"gaussian_sdf: opacities length {opa.shape[0]} != n_gaussians {m}.")
 
     trunc_topk: Optional[int] = None
     if trunc_sigmas is not None:
@@ -194,32 +193,32 @@ def gaussian_sdf(
     sd_parts = []
     grad_parts = []
     for start in range(0, n, chunk):
-        block = points[start : start + chunk]                       # (c, 3)
-        diff = block[:, None, :] - anchors[None, :, :]              # (c, M, 3)
-        dist_sq = (diff * diff).sum(dim=-1)                         # (c, M)
+        block = points[start : start + chunk]  # (c, 3)
+        diff = block[:, None, :] - anchors[None, :, :]  # (c, M, 3)
+        dist_sq = (diff * diff).sum(dim=-1)  # (c, M)
 
         if trunc_topk is not None:
             # Gather the k nearest anchors per query and zero out those beyond `radius`.
             near_sq, near_idx = torch.topk(dist_sq, k=trunc_topk, largest=False)  # (c, k)
             weights = torch.exp(-near_sq / two_sigma_sq)
             weights = torch.where(near_sq <= radius_sq, weights, torch.zeros_like(weights))
-            q_near = anchors[near_idx]                              # (c, k, 3)
-            n_near = anchor_normals[near_idx]                       # (c, k, 3)
+            q_near = anchors[near_idx]  # (c, k, 3)
+            n_near = anchor_normals[near_idx]  # (c, k, 3)
             if opa is not None:
                 weights = weights * opa[near_idx]
             w_sum = weights.sum(dim=-1, keepdim=True).clamp_min(_EPS)
             q_tilde = (weights.unsqueeze(-1) * q_near).sum(dim=1) / w_sum
-            n_sum = (weights.unsqueeze(-1) * n_near).sum(dim=1)     # (c, 3)
+            n_sum = (weights.unsqueeze(-1) * n_near).sum(dim=1)  # (c, 3)
         else:
-            weights = torch.exp(-dist_sq / two_sigma_sq)           # (c, M)
+            weights = torch.exp(-dist_sq / two_sigma_sq)  # (c, M)
             if opa is not None:
                 weights = weights * opa[None, :]
             w_sum = weights.sum(dim=-1, keepdim=True).clamp_min(_EPS)
             q_tilde = (weights @ anchors) / w_sum
-            n_sum = weights @ anchor_normals                       # (c, 3)
+            n_sum = weights @ anchor_normals  # (c, 3)
 
         n_tilde = n_sum / n_sum.norm(dim=-1, keepdim=True).clamp_min(_EPS)
-        signed = ((block - q_tilde) * n_tilde).sum(dim=-1)         # (c,)
+        signed = ((block - q_tilde) * n_tilde).sum(dim=-1)  # (c,)
         sd_parts.append(signed)
         grad_parts.append(n_tilde)
 
@@ -290,36 +289,36 @@ def gaussian_sdf_grad(
     sd_parts: list = []
     g_parts: list = []
     for start in range(0, n, chunk):
-        block = points[start : start + chunk]                       # (c, 3)
-        diff = block[:, None, :] - anchors[None, :, :]              # (c, M, 3) = a_i = p - q_i
-        dist_sq = (diff * diff).sum(dim=-1)                         # (c, M)
-        w = torch.exp(-dist_sq / two_sigma_sq)                     # (c, M)
+        block = points[start : start + chunk]  # (c, 3)
+        diff = block[:, None, :] - anchors[None, :, :]  # (c, M, 3) = a_i = p - q_i
+        dist_sq = (diff * diff).sum(dim=-1)  # (c, M)
+        w = torch.exp(-dist_sq / two_sigma_sq)  # (c, M)
         if opa is not None:
             w = w * opa[None, :]
-        raw_w = w.sum(dim=-1, keepdim=True)                       # (c, 1) before clamp
-        w_sum = raw_w.clamp_min(_EPS)                             # (c, 1) = W
-        q_tilde = (w @ anchors) / w_sum                           # (c, 3)
-        n_sum = w @ anchor_normals                                # (c, 3) = S_n
-        raw_n = n_sum.norm(dim=-1, keepdim=True)                  # (c, 1) before clamp
-        n_norm = raw_n.clamp_min(_EPS)                            # (c, 1) = ‖S_n‖
-        n_tilde = n_sum / n_norm                                  # (c, 3)
-        u = block - q_tilde                                       # (c, 3)
-        d = (u * n_tilde).sum(dim=-1)                             # (c,)
+        raw_w = w.sum(dim=-1, keepdim=True)  # (c, 1) before clamp
+        w_sum = raw_w.clamp_min(_EPS)  # (c, 1) = W
+        q_tilde = (w @ anchors) / w_sum  # (c, 3)
+        n_sum = w @ anchor_normals  # (c, 3) = S_n
+        raw_n = n_sum.norm(dim=-1, keepdim=True)  # (c, 1) before clamp
+        n_norm = raw_n.clamp_min(_EPS)  # (c, 1) = ‖S_n‖
+        n_tilde = n_sum / n_norm  # (c, 3)
+        u = block - q_tilde  # (c, 3)
+        d = (u * n_tilde).sum(dim=-1)  # (c,)
 
         # ∂q~/∂p = (1/σ²) Cov_w  ->  Cov_w n~ = (1/W) Σ_i w_i (c_i·n~) c_i
-        cvec = anchors[None, :, :] - q_tilde[:, None, :]          # (c, M, 3) = c_i
-        ci_dot_n = (cvec * n_tilde[:, None, :]).sum(dim=-1)       # (c, M)
-        cov_n = ((w * ci_dot_n).unsqueeze(-1) * cvec).sum(dim=1) / w_sum   # (c, 3)
+        cvec = anchors[None, :, :] - q_tilde[:, None, :]  # (c, M, 3) = c_i
+        ci_dot_n = (cvec * n_tilde[:, None, :]).sum(dim=-1)  # (c, M)
+        cov_n = ((w * ci_dot_n).unsqueeze(-1) * cvec).sum(dim=1) / w_sum  # (c, 3)
         # (∂n~/∂p)ᵀ u  ->  -(1/(σ²‖S_n‖)) Σ_i w_i (n_i·x) a_i,  x = u - d n~
-        x = u - d.unsqueeze(-1) * n_tilde                         # (c, 3)
+        x = u - d.unsqueeze(-1) * n_tilde  # (c, 3)
         ni_dot_x = (anchor_normals[None, :, :] * x[:, None, :]).sum(dim=-1)  # (c, M)
-        last = ((w * ni_dot_x).unsqueeze(-1) * diff).sum(dim=1)            # (c, 3)
-        grad = n_tilde - cov_n / sig_sq - last / (sig_sq * n_norm)        # (c, 3) = ∇_p d
+        last = ((w * ni_dot_x).unsqueeze(-1) * diff).sum(dim=1)  # (c, 3)
+        grad = n_tilde - cov_n / sig_sq - last / (sig_sq * n_norm)  # (c, 3) = ∇_p d
         # Degenerate query (the weight/normal-sum clamp is active -> no anchor support, the field
         # and its gradient are ill-defined): fall back to the bounded surface normal n~. The
         # residual's regime (source points near the target surface) never triggers this; the guard
         # only keeps the standalone primitive from returning a blown-up gradient far from anchors.
-        bad = (raw_w < _EPS) | (raw_n < _EPS)                            # (c, 1)
+        bad = (raw_w < _EPS) | (raw_n < _EPS)  # (c, 1)
         grad = torch.where(bad, n_tilde, grad)
 
         sd_parts.append(d)

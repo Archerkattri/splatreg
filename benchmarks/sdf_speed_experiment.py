@@ -9,6 +9,7 @@ rotation/scale error AND wall time — to see if trunc is a free order-of-magnit
 
 Run:  CUDA_VISIBLE_DEVICES=0 SPLATREG_DEVICE=cuda PYTHONPATH=. python benchmarks/sdf_speed_experiment.py
 """
+
 from __future__ import annotations
 
 import os
@@ -23,11 +24,10 @@ for p in (_REPO, os.path.join(_REPO, "examples"), _BENCH):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from splatreg import register                                   # noqa: E402
-from splatreg.residuals import ICP, SDF                         # noqa: E402
-from splatreg.api import _auto_sdf_sigma                        # noqa: E402
-from _example_utils import (make_object_splat, axis_angle_R,    # noqa: E402
-                            rot_angle_deg, sim3_matrix)
+from splatreg import register  # noqa: E402
+from splatreg.residuals import ICP, SDF  # noqa: E402
+from splatreg.api import _auto_sdf_sigma  # noqa: E402
+from _example_utils import make_object_splat, axis_angle_R, rot_angle_deg, sim3_matrix  # noqa: E402
 
 DEV = os.environ.get("SPLATREG_DEVICE", "cuda")
 if DEV.startswith("cuda") and not torch.cuda.is_available():
@@ -43,8 +43,10 @@ def cell(transform, rot, label, trunc):
     M = sim3_matrix(s_gt, R, torch.tensor(TRANS, device=DEV, dtype=DT))
     B = make_object_splat.apply_to(A, M)
     sigma = _auto_sdf_sigma(B)
-    residuals = [ICP(point_to_plane=False, weight=1.0),
-                 SDF(sigma=sigma, weight=0.3, n_points=0, trunc_sigmas=trunc)]
+    residuals = [
+        ICP(point_to_plane=False, weight=1.0),
+        SDF(sigma=sigma, weight=0.3, n_points=0, trunc_sigmas=trunc),
+    ]
     if DEV.startswith("cuda"):
         torch.cuda.synchronize()
     t0 = time.perf_counter()
@@ -72,8 +74,10 @@ def main():
                 if label == "default":
                     base = dt
                 sp = f"{base/dt:.1f}x" if base else ""
-                print(f"{transform+' '+str(int(rot))+'°':>14} | {label:>8} | {re:>8.3f}° | "
-                      f"{se:>9.3f}% | {dt:>6.1f}s {sp}")
+                print(
+                    f"{transform+' '+str(int(rot))+'°':>14} | {label:>8} | {re:>8.3f}° | "
+                    f"{se:>9.3f}% | {dt:>6.1f}s {sp}"
+                )
         print("-" * 64)
 
 

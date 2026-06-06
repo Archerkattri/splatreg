@@ -8,6 +8,7 @@ centroid corrupts the seed. Fix: match TARGET->SOURCE — every observed partial
 has a correct match in the full reference A (B_partial subset of T.A) — and fit the
 transform on those inliers. Validated here on the partial cells (SE3) vs the default 0/9.
 """
+
 from __future__ import annotations
 
 import os
@@ -21,9 +22,8 @@ for p in (_REPO, os.path.join(_REPO, "examples"), _BENCH):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from splatreg.align import super_fibonacci_so3, _stride_subsample      # noqa: E402
-from _example_utils import (make_object_splat, axis_angle_R,           # noqa: E402
-                            rot_angle_deg, sim3_matrix)
+from splatreg.align import super_fibonacci_so3, _stride_subsample  # noqa: E402
+from _example_utils import make_object_splat, axis_angle_R, rot_angle_deg, sim3_matrix  # noqa: E402
 from robustness_bench import perturb_partial, ROT_AXIS, FIXED_ROT, TRANS  # noqa: E402
 
 DEV = os.environ.get("SPLATREG_DEVICE", "cuda")
@@ -60,10 +60,10 @@ def overlap_aware_align(B_means, A_means, n_rot=256, icp_iters=25, trim=0.8):
         R, t = R0.clone(), Bc - R0 @ Ac
         for _ in range(icp_iters):
             TA = As @ R.transpose(-1, -2) + t
-            d, idx = _nn(Bs, TA)                       # each observed B -> nearest in T.A
+            d, idx = _nn(Bs, TA)  # each observed B -> nearest in T.A
             thr = torch.kthvalue(d, keep_k).values
-            m = d <= thr                               # keep the inlier (overlapping) B points
-            R, t = _kabsch(As[idx[m]], Bs[m])          # fit matched A -> B on inliers
+            m = d <= thr  # keep the inlier (overlapping) B points
+            R, t = _kabsch(As[idx[m]], Bs[m])  # fit matched A -> B on inliers
         d, _ = _nn(Bs, As @ R.transpose(-1, -2) + t)
         score = d.topk(keep_k, largest=False).values.mean().item()
         if score < best[0]:

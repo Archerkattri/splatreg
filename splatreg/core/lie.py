@@ -24,6 +24,7 @@ A 7-DoF Sim(3) step adds a single log-scale component to the tail of the tangent
 Both pairs share the same right-perturbation convention and tangent ordering, so a solver can pick
 the exp/log pair by transform without changing the matrix layout or the Jacobian column order.
 """
+
 from __future__ import annotations
 
 import torch
@@ -37,11 +38,13 @@ def skew(v: torch.Tensor) -> torch.Tensor:
     Built with ``stack`` (not in-place writes) so it is differentiable and vmap-safe.
     """
     z = torch.zeros_like(v[0])
-    return torch.stack([
-        torch.stack([z, -v[2], v[1]]),
-        torch.stack([v[2], z, -v[0]]),
-        torch.stack([-v[1], v[0], z]),
-    ])
+    return torch.stack(
+        [
+            torch.stack([z, -v[2], v[1]]),
+            torch.stack([v[2], z, -v[0]]),
+            torch.stack([-v[1], v[0], z]),
+        ]
+    )
 
 
 def se3_exp(delta: torch.Tensor) -> torch.Tensor:
@@ -67,8 +70,8 @@ def se3_exp(delta: torch.Tensor) -> torch.Tensor:
     # (W the unit-axis skew), the standard V = I + (1-cos)/theta^2 Omega +
     # (theta-sin)/theta^3 Omega^2 simplifies via Omega = theta*W to
     # V = I + (1-cos)/theta * W + (theta-sin)/theta * W^2.
-    c0 = (1.0 - cos_t) / theta      # (1 - cos) / theta
-    c1 = (theta - sin_t) / theta    # (theta - sin) / theta
+    c0 = (1.0 - cos_t) / theta  # (1 - cos) / theta
+    c1 = (theta - sin_t) / theta  # (theta - sin) / theta
     V = I3 + c0 * W + c1 * W2
     T = torch.eye(4, device=dev, dtype=dtype)
     T[:3, :3] = R
@@ -87,12 +90,12 @@ def se3_log(T: torch.Tensor, dof: int = 6) -> torch.Tensor:
     R = T[:3, :3]
     t = T[:3, 3]
     trace = ((R[0, 0] + R[1, 1] + R[2, 2]) - 1.0) * 0.5
-    cos_t = trace.clamp(-1.0, 1.0)                         # = cos(theta)
+    cos_t = trace.clamp(-1.0, 1.0)  # = cos(theta)
     I3 = torch.eye(3, device=dev, dtype=dtype)
     asym = torch.stack([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]])  # = 2 sin(theta) axis
     asym_norm = asym.norm()
-    sin_t = asym_norm * 0.5                                # = sin(theta) >= 0, consistent with asym
-    theta = torch.atan2(sin_t, cos_t)                     # robust theta in [0, pi] (no acos clamp)
+    sin_t = asym_norm * 0.5  # = sin(theta) >= 0, consistent with asym
+    theta = torch.atan2(sin_t, cos_t)  # robust theta in [0, pi] (no acos clamp)
     theta_s = theta.clamp_min(1e-12)
     # Axis direction = NORMALISED antisymmetric part -- exact for any theta where asym != 0 (the
     # magnitude cancels, so it is accurate right up to theta=pi). Only when R is (numerically)
@@ -153,8 +156,8 @@ def sim3_exp(delta: torch.Tensor) -> torch.Tensor:
     I3 = torch.eye(3, device=dev, dtype=dtype)
     R = I3 + sin_t * W + (1.0 - cos_t) * W2
     # Translation uses the SE(3) V-matrix (scale lives only in the s*R block), matching se3_exp.
-    c0 = (1.0 - cos_t) / theta      # (1 - cos) / theta
-    c1 = (theta - sin_t) / theta    # (theta - sin) / theta
+    c0 = (1.0 - cos_t) / theta  # (1 - cos) / theta
+    c1 = (theta - sin_t) / theta  # (theta - sin) / theta
     V = I3 + c0 * W + c1 * W2
     T = torch.eye(4, device=dev, dtype=dtype)
     T[:3, :3] = s * R

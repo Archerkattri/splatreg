@@ -53,6 +53,7 @@ Two fixes are applied to the existing ``_pca_seed_rotations`` and ``global_align
     scale closest to 1.0 (stability tie-break) instead of the first index.  Addresses RC-S2.
 Those fixes live in ``align.py``; this file only documents their rationale.
 """
+
 from __future__ import annotations
 
 import math
@@ -78,9 +79,9 @@ _FS_KNN = 12
 _FS_DESC_DIM = 9
 
 # RANSAC
-_FS_RANSAC_ITERS = 512       # number of 3-point hypotheses
-_FS_INLIER_TOL = 0.015       # 3-D inlier distance threshold (metres); ~1.5 cm
-_FS_MIN_MATCHES = 6          # fewer MNN matches → fall back to identity
+_FS_RANSAC_ITERS = 512  # number of 3-point hypotheses
+_FS_INLIER_TOL = 0.015  # 3-D inlier distance threshold (metres); ~1.5 cm
+_FS_MIN_MATCHES = 6  # fewer MNN matches → fall back to identity
 
 # Score epsilon for stability tie-break in global_align (used in align.py)
 _SCORE_EPS = 1e-3
@@ -101,8 +102,8 @@ def _knn_indices(pts: torch.Tensor, k: int) -> torch.Tensor:
     step = max(1, int(4_000_000 // max(N, 1)))
     for lo in range(0, N, step):
         hi = min(lo + step, N)
-        d = torch.cdist(pts[lo:hi], pts)                  # (chunk, N)
-        d[:, lo:hi].fill_diagonal_(float("inf"))          # exclude self
+        d = torch.cdist(pts[lo:hi], pts)  # (chunk, N)
+        d[:, lo:hi].fill_diagonal_(float("inf"))  # exclude self
         _, idx = torch.topk(d, k, dim=1, largest=False)
         out[lo:hi] = idx
     return out
@@ -129,39 +130,39 @@ def _fpfh_lite(pts: torch.Tensor, k: int = _FS_KNN) -> torch.Tensor:
     N = pts.shape[0]
     k = min(k, N - 1)
     pts32 = pts.to(torch.float32)
-    idx = _knn_indices(pts32, k)               # (N, k)
+    idx = _knn_indices(pts32, k)  # (N, k)
 
     # Neighbourhood vectors: (N, k, 3)
-    nbrs = pts32[idx]                           # (N, k, 3)
-    centred = nbrs - pts32.unsqueeze(1)         # (N, k, 3) — vectors from anchor to neighbours
+    nbrs = pts32[idx]  # (N, k, 3)
+    centred = nbrs - pts32.unsqueeze(1)  # (N, k, 3) — vectors from anchor to neighbours
 
     # ─── PCA eigenvalue ratios ───────────────────────────────────────────────
     # Covariance (N, 3, 3) — summed outer products, no-bias (divide by k)
     cov = torch.einsum("nki,nkj->nij", centred, centred) / k
     # SVD → singular values (= eigenvalues of a PSD matrix, desc sorted)
     try:
-        sv = torch.linalg.svdvals(cov)                  # (N, 3), descending
+        sv = torch.linalg.svdvals(cov)  # (N, 3), descending
     except Exception:
         sv = torch.ones(N, 3, device=pts.device, dtype=torch.float32) * (1.0 / 3.0)
     total = sv.sum(dim=1, keepdim=True).clamp_min(1e-10)
-    sv_norm = sv / total                                # (N, 3), sums to 1
+    sv_norm = sv / total  # (N, 3), sums to 1
 
     # linearity / planarity / scattering  (Weinmann et al., 2014)
-    l_feat = (sv_norm[:, 0] - sv_norm[:, 1]).clamp(0.0, 1.0)          # (N,)
-    p_feat = (sv_norm[:, 1] - sv_norm[:, 2]).clamp(0.0, 1.0)          # (N,)
-    s_feat = sv_norm[:, 2].clamp(0.0, 1.0)                             # (N,)
-    pca_feats = torch.stack([l_feat, p_feat, s_feat], dim=1)           # (N, 3)
+    l_feat = (sv_norm[:, 0] - sv_norm[:, 1]).clamp(0.0, 1.0)  # (N,)
+    p_feat = (sv_norm[:, 1] - sv_norm[:, 2]).clamp(0.0, 1.0)  # (N,)
+    s_feat = sv_norm[:, 2].clamp(0.0, 1.0)  # (N,)
+    pca_feats = torch.stack([l_feat, p_feat, s_feat], dim=1)  # (N, 3)
 
     # ─── distance statistics ──────────────────────────────────────────────────
-    dists = centred.norm(dim=2)                                         # (N, k)
-    d_mean = dists.mean(dim=1)                                          # (N,)
-    d_std = dists.std(dim=1).clamp_min(0.0)                            # (N,)
-    d_max = dists.amax(dim=1)                                           # (N,)
+    dists = centred.norm(dim=2)  # (N, k)
+    d_mean = dists.mean(dim=1)  # (N,)
+    d_std = dists.std(dim=1).clamp_min(0.0)  # (N,)
+    d_max = dists.amax(dim=1)  # (N,)
     d_ratio = (d_max / d_mean.clamp_min(1e-10)).clamp(1.0, 5.0) / 5.0  # normalise [0,1]
     # normalise mean/std by their dataset-wide max so values are in [0,1]
     d_mean_n = d_mean / d_mean.amax().clamp_min(1e-10)
     d_std_n = d_std / d_std.amax().clamp_min(1e-10)
-    dist_feats = torch.stack([d_mean_n, d_std_n, d_ratio], dim=1)      # (N, 3)
+    dist_feats = torch.stack([d_mean_n, d_std_n, d_ratio], dim=1)  # (N, 3)
 
     # ─── angular statistics ───────────────────────────────────────────────────
     # Local frame from the first PCA axis (most-variant direction); project
@@ -169,24 +170,24 @@ def _fpfh_lite(pts: torch.Tensor, k: int = _FS_KNN) -> torch.Tensor:
     # U[:, :, 0] = principal direction (N, 3) from SVD of cov
     # Use svd for the full rotation matrix
     try:
-        U, _, _ = torch.linalg.svd(cov)                # U: (N, 3, 3)
+        U, _, _ = torch.linalg.svd(cov)  # U: (N, 3, 3)
     except Exception:
         U = torch.eye(3, device=pts.device, dtype=torch.float32).unsqueeze(0).expand(N, 3, 3)
 
-    axis1 = U[:, :, 0]                                  # (N, 3) first principal axis
+    axis1 = U[:, :, 0]  # (N, 3) first principal axis
     # elevation: angle between neighbour vector and axis1
     c_norm = centred / (centred.norm(dim=2, keepdim=True).clamp_min(1e-10))  # unit vectors
-    elev = torch.einsum("nki,ni->nk", c_norm, axis1).clamp(-1.0, 1.0)       # (N, k) cos θ
-    elev_mean = elev.mean(dim=1) * 0.5 + 0.5           # shift to [0, 1]
+    elev = torch.einsum("nki,ni->nk", c_norm, axis1).clamp(-1.0, 1.0)  # (N, k) cos θ
+    elev_mean = elev.mean(dim=1) * 0.5 + 0.5  # shift to [0, 1]
     elev_std = elev.std(dim=1).clamp(0.0, 1.0)
     # azimuth: angle of the projection onto the plane perpendicular to axis1
-    proj_plane = c_norm - elev.unsqueeze(2) * axis1.unsqueeze(1)             # (N, k, 3)
-    axis2 = U[:, :, 1]                                  # (N, 3) second principal axis
+    proj_plane = c_norm - elev.unsqueeze(2) * axis1.unsqueeze(1)  # (N, k, 3)
+    axis2 = U[:, :, 1]  # (N, 3) second principal axis
     az_cos = torch.einsum("nki,ni->nk", proj_plane, axis2).clamp(-1.0, 1.0)
     az_mean = az_cos.mean(dim=1) * 0.5 + 0.5
-    ang_feats = torch.stack([elev_mean, elev_std, az_mean], dim=1)           # (N, 3)
+    ang_feats = torch.stack([elev_mean, elev_std, az_mean], dim=1)  # (N, 3)
 
-    desc = torch.cat([pca_feats, dist_feats, ang_feats], dim=1)              # (N, 9)
+    desc = torch.cat([pca_feats, dist_feats, ang_feats], dim=1)  # (N, 9)
     return desc.to(torch.float32)
 
 
@@ -208,14 +209,14 @@ def _mnn_correspondences(
         M is the number of mutual matches; may be 0 if no mutual pairs exist.
     """
     # Pairwise L2 squared distances in feature space
-    dist = torch.cdist(desc_src, desc_tgt)           # (Ns, Nt)
+    dist = torch.cdist(desc_src, desc_tgt)  # (Ns, Nt)
     # Source → target nearest
-    s2t = dist.argmin(dim=1)                         # (Ns,)
+    s2t = dist.argmin(dim=1)  # (Ns,)
     # Target → source nearest
-    t2s = dist.argmin(dim=0)                         # (Nt,)
+    t2s = dist.argmin(dim=0)  # (Nt,)
     # Mutual: src_i -> tgt_j and tgt_j -> src_i
     src_range = torch.arange(desc_src.shape[0], device=desc_src.device)
-    mutual = t2s[s2t] == src_range                   # (Ns,) bool
+    mutual = t2s[s2t] == src_range  # (Ns,) bool
     src_idx = src_range[mutual]
     tgt_idx = s2t[mutual]
     return src_idx, tgt_idx
@@ -265,8 +266,8 @@ def _ransac_se3(
         return eye4, 0
 
     # Correspondence point sets (float64 for Umeyama stability)
-    cs = src_pts[src_idx].double()    # (M, 3) — source points in matched correspondences
-    ct = tgt_pts[tgt_idx].double()    # (M, 3) — matching target points
+    cs = src_pts[src_idx].double()  # (M, 3) — source points in matched correspondences
+    ct = tgt_pts[tgt_idx].double()  # (M, 3) — matching target points
 
     best_T = eye4.clone()
     best_n = 0
@@ -278,8 +279,8 @@ def _ransac_se3(
     for _ in range(n_iters):
         # Sample 3 distinct correspondence indices
         perm = torch.randperm(M, generator=rng)[:3]
-        s_s = cs[perm]     # (3, 3) source sample
-        s_t = ct[perm]     # (3, 3) target sample
+        s_s = cs[perm]  # (3, 3) source sample
+        s_t = ct[perm]  # (3, 3) target sample
 
         # Fit similarity / rigid (Umeyama; float64 for SVD precision)
         try:
@@ -293,8 +294,8 @@ def _ransac_se3(
         T_cand[:3, 3] = t_est
 
         # Count inliers over all MNN correspondences
-        cs_t = cs @ R_est.transpose(-1, -2) * s_est + t_est   # (M, 3)
-        res = (cs_t - ct).norm(dim=1)                          # (M,)
+        cs_t = cs @ R_est.transpose(-1, -2) * s_est + t_est  # (M, 3)
+        res = (cs_t - ct).norm(dim=1)  # (M,)
         n_in = int((res < inlier_tol).sum().item())
         mean_res = float(res[res < inlier_tol].mean().item()) if n_in > 0 else float("inf")
 
@@ -365,8 +366,8 @@ def feature_align(
     tgt_sub = _stride_subsample(tgt_full, n_target)
 
     # Compute local geometric descriptors
-    desc_src = _fpfh_lite(src_sub, k=knn)    # (Ns, D)
-    desc_tgt = _fpfh_lite(tgt_sub, k=knn)    # (Nt, D)
+    desc_src = _fpfh_lite(src_sub, k=knn)  # (Ns, D)
+    desc_tgt = _fpfh_lite(tgt_sub, k=knn)  # (Nt, D)
 
     # Mutual-NN correspondences in feature space
     src_idx, tgt_idx = _mnn_correspondences(desc_src, desc_tgt)
@@ -382,7 +383,10 @@ def feature_align(
 
     # RANSAC over 3-point samples
     T_feat, n_inliers = _ransac_se3(
-        src_sub, tgt_sub, src_idx, tgt_idx,
+        src_sub,
+        tgt_sub,
+        src_idx,
+        tgt_idx,
         n_iters=ransac_iters,
         inlier_tol=inlier_tol,
         with_scale=with_scale,
