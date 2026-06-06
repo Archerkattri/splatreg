@@ -73,7 +73,7 @@ is scale + implicit-field robustness, and it costs ~80× in SE(3) (see limitatio
 | **Noise** (sensor jitter 0.5–2%) | **9/9 = 100%** (rot_err < 0.72°) |
 | **Outliers** (+10–50% clutter) | **9/9 = 100%** (ignores clutter, rot_err ≈ 0°) |
 | Symmetric (sphere) | **7/9** (rotation is ambiguous on a featureless sphere; 2 of 9 poses miss the <2 mm Chamfer gate) |
-| **Partial overlap** (20–60% removed) | **0/9** — see limitations (a real + partly *inherent* gap) |
+| **Partial overlap** (20–60% removed) | **3/9 solved + 6 flagged-ambiguous** (0 silent-wrong) — mild crops solve at 0.00°; heavy crops honestly flagged |
 
 ## 5. Test suite (library-bar rigor)
 
@@ -84,13 +84,16 @@ residual gets the numerical audit — the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS
 
 ## 6. Honest limitations (no overstating)
 
-- **Partial overlap (0/9).** A genuine, known-hard problem (the territory of feature-based
-  methods like TEASER++/Predator). Gating the fine ICP helps only
-  marginally (2/9, fragile), and the random-direction crop conflates *fixable* partial (overlap
-  keeps the disambiguating feature) with *inherently-ambiguous* partial (the crop deletes the
-  feature → unrecoverable by **any** method). The credible fix is a feature-based robust aligner
-  (FPFH + TEASER/RANSAC) + honest "ambiguous" reporting — scoped as the next major feature, not
-  a quick patch. **`merge` is reliable for high-overlap captures; large partial overlap is WIP.**
+- **Partial overlap (3/9 solved + 6 flagged, 0 silent-wrong).** The `init="features"` aligner —
+  an overlap-aware **point-to-plane** trimmed ICP (target→source, so the partial slab slides to
+  its true tangential position) driven by a super-Fibonacci SO(3) sweep, plus FPFH — now **solves
+  the mild crops** (keep ≥ 80%) at rot_err 0.00°. The heavier crops are *inherently-ambiguous*:
+  the one-sided slab deletes the disambiguating geometry, leaving the true pose only ~0.005 below
+  a forest of near-equal wrong basins. There the aligner returns an **honest ambiguity flag**
+  (`result.info['ambiguous']` / `['confidence']`) rather than a silent wrong pose — verified 0
+  silent-wrong. Reliably solving the moderate keep60% crops is open work (a heavy standalone
+  config recovered one but was not reproducible through the library, so it was not shipped).
+  **`merge` is reliable for high-overlap captures.**
 - **SE(3) speed.** Dominated by the SDF field evaluation. The **closed-form gradient is now
   landed** (no autograd graph + no second forward on the SE(3) path — the correctness half of the
   speed work); the wall-time benchmark vs the GaussianFeels tracker + SDF truncation

@@ -96,9 +96,9 @@ def super_fibonacci_so3(n: int, device=None, dtype=torch.float64) -> torch.Tenso
 
 # ── PCA sign-flip seeds (on-device torch) ─────────────────────────────────────────────
 
-# Eigenvalue-spread threshold for degenerate-PCA detection (symmetric-object note, docs/03).
+# Eigenvalue-spread threshold for degenerate-PCA detection (symmetric-object note).
 # If the ratio of the largest to smallest PCA eigenvalue is below this, the cloud is
-# near-isotropic (sphere-like) and the PCA axes are arbitrary/unstable (RC-S1).
+# near-isotropic (sphere-like) and the PCA axes are arbitrary/unstable.
 # Used only for diagnostic purposes in _pca_seed_rotations; the PCA seeds are kept
 # regardless (removing them degrades performance on the sphere because PCA seeds
 # accidentally provide good centroid-alignment candidates that the 256-seed Fibonacci
@@ -118,7 +118,7 @@ def _pca_eigenvalue_spread(pts_centered: torch.Tensor) -> float:
     """Ratio of largest to smallest singular value of the centred cloud (isotropy probe).
 
     Values near 1.0 indicate a near-isotropic (sphere-like) cloud where PCA axes are
-    arbitrary (RC-S1 in docs/03). The asymmetric test object scores ~2.5; a sphere ~1.05.
+    arbitrary. The asymmetric test object scores ~2.5; a sphere ~1.05.
     """
     _, sv, _ = torch.linalg.svd(pts_centered, full_matrices=False)
     return float((sv[0] / sv[-1].clamp_min(1e-10)).item())
@@ -130,7 +130,7 @@ def _pca_seed_rotations(src: torch.Tensor, tgt: torch.Tensor) -> torch.Tensor:
     ICP from identity alone has a small basin; PCA-axis seeds cover large symmetry-axis
     rotations a uniform grid may straddle.
 
-    Note on symmetric objects (RC-S1, docs/03): for near-isotropic clouds the PCA axes
+    Note on symmetric objects: for near-isotropic clouds the PCA axes
     are arbitrary (eigenvalue spread < _PCA_ISOTROPY_THRESH).  We keep the PCA seeds
     anyway because on the test sphere (N=800) individual rotations still differ in
     Chamfer score by ~9mm, so the batched trimmed ICP still selects among them
@@ -345,7 +345,7 @@ def global_align(
 
     aligned_sub, scores = _batched_trimmed_icp(src_sub, tgt_sub, R_seeds, with_scale, int(icp_iters))
 
-    # Stability tie-break (symmetric fix F-S2, docs/03 RC-S2): among seeds within _SCORE_EPS
+    # Stability tie-break (symmetric fix): among seeds within _SCORE_EPS
     # of the best score, prefer the one whose centroid is closest to the target centroid —
     # a proxy for scale/translation stability that avoids per-seed SVD calls and works in
     # tensor ops.  For symmetric clouds all seeds score nearly equally; the first-index

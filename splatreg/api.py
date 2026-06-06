@@ -66,16 +66,25 @@ def _global_init(target, source: Any, transform: str, device, dtype) -> torch.Te
     return T.to(device=device, dtype=dtype)
 
 
-def _feature_init(target, source: Any, transform: str, device, dtype) -> torch.Tensor:
-    """Coarse 4x4 LM seed from :func:`splatreg.align_features.feature_align`.
+def _feature_init(target, source: Any, transform: str, device, dtype) -> tuple[torch.Tensor, dict]:
+    """Coarse 4x4 LM seed from :func:`splatreg.align_features.feature_align` + ambiguity info.
 
-    Feature-based (FPFH-lite descriptors + mutual-NN + RANSAC) coarse init designed for
-    partial-overlap scenarios.  Falls back to identity if the feature module is unavailable or
-    too few correspondences are found (logged at DEBUG level).  When the RANSAC inlier count is
-    low (< 6) the result is a poor init; callers needing reliability should combine this with
-    a subsequent ``init="global"`` pass or check the returned inlier count directly via
-    :func:`splatreg.align_features.feature_align`.
+    Feature-based (FPFH descriptors + ratio-test mutual-NN + clique-prefiltered RANSAC) coarse init
+    designed for partial-overlap scenarios.  Falls back to identity if the feature module is
+    unavailable or too few correspondences are found (logged at DEBUG level).
+
+    Returns ``(T, info)`` where ``info`` carries the honest diagnostics from ``feature_align``
+    (``n_matches``, ``n_inliers``, ``ambiguous``, ``confidence``, ``ambiguity_deg``).  When the
+    overlap does not constrain the pose — the disambiguating feature was cropped away — ``info``
+    reports ``ambiguous=True`` / a low ``confidence`` rather than a misleadingly precise pose.
     """
+    empty_info = {
+        "n_matches": 0,
+        "n_inliers": 0,
+        "ambiguous": True,
+        "confidence": 0.0,
+        "ambiguity_deg": 180.0,
+    }
     try:
         from splatreg.align_features import feature_align
     except Exception as exc:  # pragma: no cover
@@ -84,10 +93,16 @@ def _feature_init(target, source: Any, transform: str, device, dtype) -> torch.T
             "falling back to identity init.",
             exc,
         )
-        return _identity(device, dtype)
-    T, n_inliers = feature_align(target, source, transform=transform)
-    _log.debug("feature_align: %d RANSAC inliers", n_inliers)
-    return T.to(device=device, dtype=dtype)
+        return _identity(device, dtype), dict(empty_info)
+    T, info = feature_align(target, source, transform=transform)
+    _log.debug(
+        "feature_align: %d matches, %d inliers, ambiguous=%s, confidence=%.2f",
+        info.get("n_matches", 0),
+        info.get("n_inliers", 0),
+        info.get("ambiguous"),
+        info.get("confidence", 0.0),
+    )
+    return T.to(device=device, dtype=dtype), info
 
 
 def _infer_device_dtype(*objs) -> tuple:
@@ -203,13 +218,22 @@ def register(
         * ``"global"`` — coarse-init from :func:`splatreg.align.global_align` (super-Fibonacci
           SO(3) sweep + batched trimmed ICP; robust to noise/outliers and near-symmetric clouds;
           assumes full overlap).
-        * ``"features"`` — coarse-init from :func:`splatreg.align_features.feature_align`
-          (FPFH-lite descriptors + mutual-NN correspondences + RANSAC; designed for partial-overlap
-          scenarios where the two clouds see different parts of the same object).  Falls back to
-          identity when fewer than 6 mutual matches are found (featureless / ambiguous crop).
+        * ``"features"`` — a complete partial-overlap registrar from
+          :func:`splatreg.align_features.feature_align` (FPFH descriptors + ratio-test mutual-NN +
+          clique-prefiltered RANSAC + an overlap-aware target->source ICP refine, with an
+          overlap-aware *point-to-plane* super-Fibonacci basin-sweep fallback that recovers the pose
+          from geometry alone on smooth splat surfaces where the descriptors are non-discriminative).
+          Designed for the case where the two clouds see
+          different parts of the same object.  It also returns honest diagnostics
+          (``info['ambiguous']`` / ``info['confidence']`` / ``info['feature']``): when a crop removes
+          the rotation-disambiguating geometry the pose is genuinely unrecoverable and the result is
+          flagged rather than silently wrong.  Because the default residual set assumes FULL overlap
+          (its ICP would pull a good partial-overlap init off-pose), ``init="features"`` with the
+          default residuals returns the feature registration DIRECTLY and skips that LM; pass an
+          explicit overlap-safe ``residuals=[...]`` to run the LM seeded from the feature init.
 
         Both string forms are guarded — fall back to identity with a logged note if the module
-        is unavailable. The chosen transform seeds the LM.
+        is unavailable. For ``init="global"`` the chosen transform seeds the LM.
     transform : ``"se3"`` (dof 6) or ``"sim3"`` (dof 7; the scale DoF is solved, autodiffed).
     backend : only ``"builtin"`` is implemented here (the builtin LM). The ``register`` surface
         keeps the argument so external-engine backends can be wired in without changing callers.
@@ -246,14 +270,25 @@ def register(
         source_anchors=_target_anchor_count(source),
     )
 
+    # The default residual set (auto ICP + SDF) assumes FULL overlap: its point-to-point ICP matches
+    # every SOURCE anchor to the target, so when the target is a PARTIAL crop the anchors over the
+    # missing region pull a good init off the true pose.  The ``init="features"`` aligner is itself a
+    # complete partial-overlap registrar (FPFH -> RANSAC -> overlap-aware target->source ICP refine ->
+    # basin-sweep fallback), so when the caller relies on the default residuals we must NOT run that
+    # full-overlap LM on top of it — doing so re-introduces the original partial-overlap failure.
+    # We therefore short-circuit: ``init="features"`` + default residuals returns the feature
+    # registration directly.  An explicit ``residuals=[...]`` (the caller chose an overlap-safe set)
+    # still runs the LM, seeded from the feature init.
+    user_residuals = residuals is not None
     if residuals is None:
         residuals = _default_residuals(target, q)
 
+    feature_info: Optional[dict] = None
     if isinstance(init, str):
         if init == "global":
             T0 = _global_init(target, source, transform, device, dtype)
         elif init == "features":
-            T0 = _feature_init(target, source, transform, device, dtype)
+            T0, feature_info = _feature_init(target, source, transform, device, dtype)
         else:
             raise ValueError(f"init string must be 'global' or 'features', got {init!r}")
     elif init is None:
@@ -261,19 +296,37 @@ def register(
     else:
         T0 = init.to(device=device, dtype=dtype)
 
-    n_iters = q.max_iters if max_iters is None else int(max_iters)
-    solver: Solver = LevenbergMarquardt()
-    result = run_lm(
-        T0,
-        residuals,
-        target,
-        source,
-        transform=transform,
-        solver=solver,
-        n_iters=n_iters,
-        jac_row_chunk=q.jac_row_chunk,
-    )
+    feature_only = init == "features" and not user_residuals
+    if feature_only:
+        # Return the self-contained feature registration (no full-overlap LM that would corrupt a
+        # partial-overlap init).  Recover the scale from the transform block for Sim(3).
+        scale = 1.0
+        if transform == "sim3":
+            det = float(torch.linalg.det(T0[:3, :3]).abs().clamp_min(1e-18).item())
+            scale = det ** (1.0 / 3.0)
+        result = RegisterResult(T=T0, scale=scale, converged=True, info={})
+    else:
+        n_iters = q.max_iters if max_iters is None else int(max_iters)
+        solver: Solver = LevenbergMarquardt()
+        result = run_lm(
+            T0,
+            residuals,
+            target,
+            source,
+            transform=transform,
+            solver=solver,
+            n_iters=n_iters,
+            jac_row_chunk=q.jac_row_chunk,
+        )
     result.info["quality"] = q.label
+    if feature_info is not None:
+        # Surface the honest partial-overlap diagnostics on the result so callers can trust (or
+        # distrust) the recovered pose.  ``ambiguous=True`` means the overlap did not constrain the
+        # pose (the disambiguating feature was cropped away) — the returned T is the best feasible
+        # guess but should be treated as unreliable; ``confidence`` (0..1) grades it.
+        result.info["feature"] = feature_info
+        result.info["ambiguous"] = bool(feature_info.get("ambiguous", False))
+        result.info["confidence"] = float(feature_info.get("confidence", 0.0))
     return result
 
 

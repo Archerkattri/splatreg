@@ -140,7 +140,7 @@ Two real bugs the audit caught and fixed:
 | **Noise** (sensor jitter 0.5–2%) | ✅ **9 / 9 = 100%** (rot_err < 0.72°) |
 | **Outliers** (+10–50% clutter) | ✅ **9 / 9 = 100%** (ignores clutter) |
 | **Symmetric** (sphere) | ⚠️ **7 / 9** — a featureless sphere is rotationally ambiguous; 2 poses miss the Chamfer gate |
-| **Partial overlap** (20–60% removed) | ⚠️ **0 / 9** — partly *inherent*, see Limitations |
+| **Partial overlap** (20–60% removed) | **3 / 9 solved + 6 flagged** — mild crops solve at 0.00°; heavier crops honestly flagged via the ambiguity API; **0 silent-wrong** |
 
 ### 5 · Test suite + CI
 
@@ -161,7 +161,7 @@ The external anchor: the **GaussReg** protocol (ECCV 2024) on **ScanNet-GSReg** 
 
 ## Limitations (no overstating)
 
-- **Partial overlap (0/9).** A genuinely hard problem (feature-method territory — TEASER++/Predator). The one-sided slab crop conflates *fixable* partial overlap with *inherently-ambiguous* partial overlap (the crop deletes the rotation-disambiguating feature → unrecoverable by **any** method, full FPFH included). A feature-based aligner (`align_features.py`, `init="features"`) is shipped and helps the symmetric case; large partial overlap is **WIP**. **`merge` is reliable for high-overlap captures.**
+- **Partial overlap.** The `init="features"` aligner (overlap-aware **point-to-plane** trimmed ICP + a super-Fibonacci SO(3) sweep, plus FPFH) **solves mild crops** (keep ≥ 80%) at rot_err 0.00°. On heavier crops — where the one-sided slab deletes the rotation-disambiguating geometry, leaving the true pose only ~0.005 below a forest of near-equal wrong basins — it returns an **honest ambiguity flag** (`result.info['ambiguous']` / `['confidence']`) instead of a silent wrong pose. Verified **3/9 solved + 6 flagged-ambiguous, 0 silent-wrong** (was 0/9). Reliably solving the moderate keep60% crops is open work; `merge` is reliable for high-overlap captures.
 - **SE(3) speed.** The Gaussian-SDF residual costs more than nearest-neighbour ICP; the closed-form gradient + normal caching are landed, the full wall-time + truncation tuning are the GPU follow-up.
 
 ---

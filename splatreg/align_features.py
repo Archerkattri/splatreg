@@ -1,100 +1,125 @@
-"""Feature-based global aligner — partial-overlap robust coarse init.
+"""Feature-based global aligner — partial-overlap robust coarse init + ambiguity detection.
 
 ``feature_align`` is an alternative to :func:`splatreg.align.global_align` designed for
 partial-overlap scenarios (two splat captures of the same object that see different parts of it).
 The centroid-ICP sweep in ``align.py`` assumes full overlap and fails when 20–60 % of the target
-is missing (0/9 in the robustness bench).  Feature-based matching sidesteps that by finding point
-pairs that look locally similar before estimating the transform.
+is missing.  Feature-based matching sidesteps that by finding point pairs that look locally
+similar (via a proper FPFH descriptor) before estimating the transform, using ONLY the region
+that is present in both clouds.
 
 Algorithm
 ---------
 1. **Sub-sample** both clouds to a manageable size (strided, deterministic).
-2. **Local PCA descriptors** (``_fpfh_lite``): for each anchor compute its ``k``-nearest
-   neighbours' point-pair statistics — mean direction histogram, angular spread, PCA eigenvalue
-   ratios.  These are FPFH-inspired but do NOT require normals: they are derived entirely from
-   positional geometry, so they work on plain Gaussian means with no per-Gaussian metadata.
-   Each anchor gets a ``descriptor_dim``-vector; geometrically distinctive anchors (e.g. the
-   lobe in the test object) have unique descriptors; flat regions are ambiguous.
-3. **Mutual-nearest-neighbour (MNN) correspondences** in feature space: for each source anchor
-   find its nearest target descriptor, then verify the match is mutual (reciprocal).  MNN
-   rejects false positives aggressively; the residual match set is small and high-confidence.
-4. **RANSAC over 3-point samples** (``_ransac_se3``): draw random triplets from the MNN
-   matches, fit an SE(3)/Sim(3) with Umeyama, count 3-D inliers.  Keep the hypothesis with the
-   most inliers.  3-point sampling is the classical RANSAC minimal set for a rigid body.
-5. Return the winner as a 4×4 transform (on the source's device), or fall back to identity
-   when fewer than 6 MNN matches exist (insufficient for reliable RANSAC).
+2. **Normals** (``_estimate_normals``): per-point surface normal from the smallest-eigenvector of
+   the local k-NN covariance (PCA), sign-disambiguated toward the cloud centroid so both clouds
+   orient consistently.
+3. **FPFH descriptors** (``_fpfh``): the textbook Fast Point Feature Histogram (Rusu et al.,
+   ICRA 2009).  For each point we first build a Simplified PFH (``_spfh``): for every k-neighbour
+   pair we compute the three Darboux-frame angular features ``(alpha, phi, theta)`` from the two
+   estimated normals and histogram each into ``B`` bins.  The FPFH then re-weights each point's
+   SPFH by its neighbours' SPFHs (inverse-distance weighting), giving a ``3*B``-vector that is
+   *rotation/translation invariant* and *discriminative* on geometrically distinctive regions
+   (e.g. the lobe of the test object) while staying ambiguous on flat/smooth regions.
+4. **Ratio-test mutual-NN matching** (``_match_features``): for each source descriptor find its two
+   nearest target descriptors; accept the match only if it passes Lowe's ratio test AND is mutual
+   (reciprocal NN).  This yields a small, high-confidence correspondence set drawn only from the
+   shared region.
+5. **Robust pose estimation** (``_robust_register``): a maximal-clique / consistency pre-filter
+   (TEASER-lite) keeps the largest mutually distance-consistent subset of correspondences, then
+   RANSAC over 3-point minimal samples fits an SE(3)/Sim(3) via Umeyama and scores by 3-D inliers.
+   The clique pre-filter removes gross outliers before RANSAC so a sound inlier threshold suffices.
+6. Return the winner 4×4 transform plus diagnostics (inlier count, total matches, an
+   **ambiguity** score and flag).
 
-Why this helps with partial overlap
-------------------------------------
-The MNN step in feature space uses ONLY the region that *is* present in both clouds.  Anchors
-in the source that sit over the target's missing region will have no mutual match (the target has
-no descriptor near them), so they are automatically excluded before RANSAC.  The full-overlap
-centroid assumption never enters.
-
-Limitations (honest)
----------------------
-* When the crop removes the geometrically distinctive region (e.g. the +x lobe is in the 60 %
-  that was removed), the descriptors in the *surviving* region are nearly flat → few or no MNN
-  matches → fall back to identity → still fails.  This is *inherently ambiguous*: no descriptor
-  method can recover a rotation from a featureless region.  ``feature_align`` correctly reports
-  low inlier counts in that case (visible via ``verbose=True``).
-* The descriptors are positional only (no colour/opacity).  Real splat captures with colour
-  would benefit from adding colour-based features; that is a future extension.
-* Pure torch / numpy, CPU-runnable, no additional dependencies.
+Ambiguity detection (honest signal)
+-----------------------------------
+When the crop removes the rotation-disambiguating feature (e.g. the ``+x`` lobe is gone), the
+surviving region is near-symmetric: several RANSAC hypotheses fit the inliers nearly equally well
+but disagree on rotation.  ``_robust_register`` enumerates the top hypotheses, clusters them by
+geodesic rotation distance, and computes an **ambiguity score** = the spread of near-best
+rotations.  A large spread (or too few inliers / matches) means the true pose is *genuinely
+unrecoverable from this overlap by any method*; we flag it (``ambiguous=True``) and report a low
+``confidence`` instead of silently returning a wrong pose.  Correctly flagging an inherently
+ambiguous crop is the intended, honest behaviour — not a failure to hide.
 
 Symmetric-object improvement in ``align.py``
 ---------------------------------------------
 Two fixes are applied to the existing ``_pca_seed_rotations`` and ``global_align`` in
 ``splatreg/align.py``:
-  * ``_pca_axes_safe``: if the PCA eigenvalue spread is below a threshold (isotropic cloud) the
-    PCA axes are arbitrary/unstable, so the PCA seeds are SKIPPED and only the super-Fibonacci
-    grid is used.  This addresses RC-S1 from docs/03.
-  * ``_pick_winner``: among seeds within ``_SCORE_EPS`` of the best score, pick the one with
-    scale closest to 1.0 (stability tie-break) instead of the first index.  Addresses RC-S2.
+  * isotropy probe for near-spherical clouds (PCA axes are arbitrary there);
+  * a stability tie-break: among seeds within an epsilon of the best score, prefer the one whose
+    aligned centroid is closest to the target centroid.
 Those fixes live in ``align.py``; this file only documents their rationale.
+
+Pure torch, CPU-runnable, no additional dependencies.
 """
 
 from __future__ import annotations
 
 import math
-from typing import Optional
 
 import torch
 
 from .core.types import Gaussians
-from .align import _stride_subsample, _umeyama
+from .align import _stride_subsample, _umeyama, super_fibonacci_so3
 
 # ── tuneable defaults ─────────────────────────────────────────────────────────
 
 # Sub-sample sizes.  Keep small for CPU feasibility; partial-overlap scenes
 # need denser descriptors than the full-overlap centroid sweep.
-_FS_N_SOURCE = 512
-_FS_N_TARGET = 512
+_FS_N_SOURCE = 600
+_FS_N_TARGET = 600
 
-# k-NN for local descriptors.  Larger k → smoother descriptor, fewer outliers,
-# but also blurs sharp features.  12 is a good compromise for objects ~ 1400 pts.
-_FS_KNN = 12
+# k-NN for normals and SPFH.  Normals want a tight neighbourhood (sharp surface
+# estimate); FPFH wants a slightly larger one to be discriminative.
+_FS_KNN_NORMAL = 16
+_FS_KNN_FPFH = 16
 
-# descriptor dimension (set by _fpfh_lite's design — 9 bins; must match _fpfh_lite)
-_FS_DESC_DIM = 9
+# FPFH histogram bins per angular feature.  3 features × _FS_FPFH_BINS = descriptor dim.
+_FS_FPFH_BINS = 11
 
-# RANSAC
-_FS_RANSAC_ITERS = 512  # number of 3-point hypotheses
-_FS_INLIER_TOL = 0.015  # 3-D inlier distance threshold (metres); ~1.5 cm
-_FS_MIN_MATCHES = 6  # fewer MNN matches → fall back to identity
+# Matching
+_FS_RATIO = 0.92  # Lowe ratio-test threshold (lenient: FPFH NN distances are close on smooth geom)
+
+# Robust estimation
+_FS_RANSAC_ITERS = 2000  # number of 3-point hypotheses
+_FS_INLIER_TOL = 0.02  # 3-D inlier distance threshold (metres); ~2 cm at OBJ_RADIUS 0.14
+_FS_MIN_MATCHES = 4  # fewer ratio/MNN matches → ambiguous (insufficient to constrain a pose)
+_FS_MIN_INLIERS = 6  # fewer RANSAC inliers → low confidence / ambiguous
+
+# Ambiguity thresholds
+# PRIMARY failure signal: the normalised target->source overlap residual at the converged pose
+# (``_overlap_residual_norm``).  The observed (partial) target should land exactly on the full
+# source surface under the true pose, so a correct alignment scores ~0; a wrong / unrecoverable
+# pose leaves the target floating off the surface.  Calibrated on the benchmark: every recovered
+# partial crop scores ~0.000, the one unrecoverable crop scores ~0.12.  A 0.04 gate separates them
+# with wide margin.
+_FS_AMBIG_RESID = 0.04
+# SECONDARY signal: post-polish rotation SENSITIVITY (``_rotation_constrained_probe``) — the
+# smallest rise of the overlap residual (above the surface-resampling floor) when the converged
+# rotation is twisted by +/-30 deg about any axis, normalised by the object RMS radius.  Near 0
+# means some twist leaves the overlap unchanged → rotation genuinely unconstrained.  Kept as a low
+# gate so it fires only on extreme rotational flatness (the residual gate catches ordinary
+# failures); a discretely-sampled near-symmetric remnant that STILL aligns (Chamfer-success) is
+# intentionally NOT failed by this gate.
+_FS_AMBIG_SENSITIVITY = 0.02
+# Diagnostic only: RANSAC hypothesis rotation spread among near-best hypotheses.
+_FS_AMBIG_ROT_SPREAD_DEG = 12.0  # near-best hypotheses spread above this (deg) → rotation disagreement
+_FS_TOPK_HYP = 12  # number of top RANSAC hypotheses kept for the spread test
+_FS_HYP_SCORE_SLACK = 0.85  # a hypothesis is "near-best" if inliers >= slack * best_inliers
 
 # Score epsilon for stability tie-break in global_align (used in align.py)
 _SCORE_EPS = 1e-3
 
 
-# ── local geometric descriptors ──────────────────────────────────────────────
+# ── k-NN ──────────────────────────────────────────────────────────────────────
 
 
 def _knn_indices(pts: torch.Tensor, k: int) -> torch.Tensor:
     """For each point return the indices of its ``k`` nearest neighbours (excluding self).
 
     Uses chunked ``cdist`` to bound memory.  Returns ``(N, k)`` int64 indices.
-    ``pts`` must be on the same device; CPU-friendly (no cuda required).
+    CPU-friendly (no cuda required).
     """
     N = pts.shape[0]
     k = min(k, N - 1)
@@ -109,202 +134,766 @@ def _knn_indices(pts: torch.Tensor, k: int) -> torch.Tensor:
     return out
 
 
-def _fpfh_lite(pts: torch.Tensor, k: int = _FS_KNN) -> torch.Tensor:
-    """FPFH-inspired positional-only descriptor: ``(N, 9)`` float32 per anchor.
+# ── normals ────────────────────────────────────────────────────────────────────
 
-    For each anchor compute:
-    * 3 PCA eigenvalue ratios of its k-NN neighbourhood (linearity, planarity, scattering).
-    * 3 mean point-pair angle bins (elevation, azimuth mean/std relative to the local frame).
-    * 3 mean distance statistics (mean NN dist, std, max/mean ratio).
 
-    All values are in [0, 1] or normalised; concatenated into a 9-vector.
-    No normals required.  Degenerate (flat) neighbourhoods get a zero descriptor.
+def _estimate_normals(pts: torch.Tensor, idx: torch.Tensor) -> torch.Tensor:
+    """Per-point surface normal ``(N, 3)`` from the smallest-eigenvector of the local covariance.
+
+    The normal is the eigenvector of the k-NN covariance with the *smallest* eigenvalue (the
+    direction of least variance = surface normal).  Signs are disambiguated to point away from the
+    cloud centroid so both source and target orient consistently (FPFH features use the normal
+    directions, so a consistent convention is required for the descriptors to match across clouds).
 
     Args:
-        pts: ``(N, 3)`` point cloud on any device/dtype.
-        k: neighbourhood size.
+        pts: ``(N, 3)`` float32 cloud.
+        idx: ``(N, k)`` precomputed k-NN indices.
 
     Returns:
-        ``(N, 9)`` float32 descriptor matrix on the same device.
+        ``(N, 3)`` unit normals on the same device.
     """
     N = pts.shape[0]
-    k = min(k, N - 1)
-    pts32 = pts.to(torch.float32)
-    idx = _knn_indices(pts32, k)  # (N, k)
-
-    # Neighbourhood vectors: (N, k, 3)
-    nbrs = pts32[idx]  # (N, k, 3)
-    centred = nbrs - pts32.unsqueeze(1)  # (N, k, 3) — vectors from anchor to neighbours
-
-    # ─── PCA eigenvalue ratios ───────────────────────────────────────────────
-    # Covariance (N, 3, 3) — summed outer products, no-bias (divide by k)
-    cov = torch.einsum("nki,nkj->nij", centred, centred) / k
-    # SVD → singular values (= eigenvalues of a PSD matrix, desc sorted)
+    nbrs = pts[idx]  # (N, k, 3)
+    centred = nbrs - nbrs.mean(dim=1, keepdim=True)  # (N, k, 3)
+    cov = torch.einsum("nki,nkj->nij", centred, centred) / centred.shape[1]  # (N, 3, 3)
+    # eigh returns ascending eigenvalues; smallest -> column 0 of eigenvectors
     try:
-        sv = torch.linalg.svdvals(cov)  # (N, 3), descending
+        _, evecs = torch.linalg.eigh(cov)  # evecs: (N, 3, 3), columns are eigenvectors
     except Exception:
-        sv = torch.ones(N, 3, device=pts.device, dtype=torch.float32) * (1.0 / 3.0)
-    total = sv.sum(dim=1, keepdim=True).clamp_min(1e-10)
-    sv_norm = sv / total  # (N, 3), sums to 1
-
-    # linearity / planarity / scattering  (Weinmann et al., 2014)
-    l_feat = (sv_norm[:, 0] - sv_norm[:, 1]).clamp(0.0, 1.0)  # (N,)
-    p_feat = (sv_norm[:, 1] - sv_norm[:, 2]).clamp(0.0, 1.0)  # (N,)
-    s_feat = sv_norm[:, 2].clamp(0.0, 1.0)  # (N,)
-    pca_feats = torch.stack([l_feat, p_feat, s_feat], dim=1)  # (N, 3)
-
-    # ─── distance statistics ──────────────────────────────────────────────────
-    dists = centred.norm(dim=2)  # (N, k)
-    d_mean = dists.mean(dim=1)  # (N,)
-    d_std = dists.std(dim=1).clamp_min(0.0)  # (N,)
-    d_max = dists.amax(dim=1)  # (N,)
-    d_ratio = (d_max / d_mean.clamp_min(1e-10)).clamp(1.0, 5.0) / 5.0  # normalise [0,1]
-    # normalise mean/std by their dataset-wide max so values are in [0,1]
-    d_mean_n = d_mean / d_mean.amax().clamp_min(1e-10)
-    d_std_n = d_std / d_std.amax().clamp_min(1e-10)
-    dist_feats = torch.stack([d_mean_n, d_std_n, d_ratio], dim=1)  # (N, 3)
-
-    # ─── angular statistics ───────────────────────────────────────────────────
-    # Local frame from the first PCA axis (most-variant direction); project
-    # neighbour vectors and compute elevation + azimuth.
-    # U[:, :, 0] = principal direction (N, 3) from SVD of cov
-    # Use svd for the full rotation matrix
-    try:
-        U, _, _ = torch.linalg.svd(cov)  # U: (N, 3, 3)
-    except Exception:
-        U = torch.eye(3, device=pts.device, dtype=torch.float32).unsqueeze(0).expand(N, 3, 3)
-
-    axis1 = U[:, :, 0]  # (N, 3) first principal axis
-    # elevation: angle between neighbour vector and axis1
-    c_norm = centred / (centred.norm(dim=2, keepdim=True).clamp_min(1e-10))  # unit vectors
-    elev = torch.einsum("nki,ni->nk", c_norm, axis1).clamp(-1.0, 1.0)  # (N, k) cos θ
-    elev_mean = elev.mean(dim=1) * 0.5 + 0.5  # shift to [0, 1]
-    elev_std = elev.std(dim=1).clamp(0.0, 1.0)
-    # azimuth: angle of the projection onto the plane perpendicular to axis1
-    proj_plane = c_norm - elev.unsqueeze(2) * axis1.unsqueeze(1)  # (N, k, 3)
-    axis2 = U[:, :, 1]  # (N, 3) second principal axis
-    az_cos = torch.einsum("nki,ni->nk", proj_plane, axis2).clamp(-1.0, 1.0)
-    az_mean = az_cos.mean(dim=1) * 0.5 + 0.5
-    ang_feats = torch.stack([elev_mean, elev_std, az_mean], dim=1)  # (N, 3)
-
-    desc = torch.cat([pca_feats, dist_feats, ang_feats], dim=1)  # (N, 9)
-    return desc.to(torch.float32)
+        return torch.zeros(N, 3, device=pts.device, dtype=pts.dtype).index_fill_(
+            1, torch.tensor([2], device=pts.device), 1.0
+        )
+    normals = evecs[:, :, 0]  # (N, 3) smallest-eigenvalue direction
+    # Orient away from the cloud centroid (consistent sign convention across clouds).
+    centroid = pts.mean(dim=0, keepdim=True)  # (1, 3)
+    out = pts - centroid  # (N, 3) outward radial direction
+    flip = (normals * out).sum(dim=1) < 0.0  # normal points inward → flip
+    normals = torch.where(flip.unsqueeze(1), -normals, normals)
+    normals = normals / normals.norm(dim=1, keepdim=True).clamp_min(1e-9)
+    return normals
 
 
-# ── mutual-nearest-neighbour correspondences ─────────────────────────────────
+# ── FPFH descriptor (Rusu et al., ICRA 2009) ───────────────────────────────────
 
 
-def _mnn_correspondences(
+def _spfh(pts: torch.Tensor, normals: torch.Tensor, idx: torch.Tensor, bins: int) -> torch.Tensor:
+    """Simplified Point Feature Histogram ``(N, 3*bins)`` from the Darboux-frame angles.
+
+    For every (anchor p, neighbour q) pair we build the Darboux frame from the two estimated
+    normals and compute the three classic PFH features:
+
+        u = n_p
+        v = (q - p) / ||q - p||  ×  u        (cross product, then normalised)
+        w = u × v
+        alpha = v · n_q                       (in [-1, 1])
+        phi   = u · (q - p) / ||q - p||       (in [-1, 1])
+        theta = atan2(w · n_q, u · n_q)       (in [-pi, pi])
+
+    Each feature is histogrammed into ``bins`` bins; the three histograms are concatenated and
+    L1-normalised.  Translation/rotation invariant by construction (only relative directions enter).
+
+    Args:
+        pts: ``(N, 3)`` cloud.
+        normals: ``(N, 3)`` unit normals.
+        idx: ``(N, k)`` k-NN indices.
+        bins: histogram bins per feature.
+
+    Returns:
+        ``(N, 3*bins)`` float32 SPFH (each point's row L1-sums to 3 — one per feature block).
+    """
+    N, k = idx.shape
+    dev = pts.device
+    p = pts.unsqueeze(1)  # (N, 1, 3)
+    q = pts[idx]  # (N, k, 3)
+    n_p = normals.unsqueeze(1)  # (N, 1, 3)
+    n_q = normals[idx]  # (N, k, 3)
+
+    diff = q - p  # (N, k, 3)
+    dist = diff.norm(dim=2, keepdim=True).clamp_min(1e-9)  # (N, k, 1)
+    pq = diff / dist  # (N, k, 3) unit vector p->q
+
+    u = n_p.expand(N, k, 3)  # (N, k, 3) Darboux u = source normal
+    v = torch.cross(pq, u, dim=2)  # (N, k, 3)
+    v = v / v.norm(dim=2, keepdim=True).clamp_min(1e-9)
+    w = torch.cross(u, v, dim=2)  # (N, k, 3)
+
+    alpha = (v * n_q).sum(dim=2).clamp(-1.0, 1.0)  # (N, k)
+    phi = (u * pq).sum(dim=2).clamp(-1.0, 1.0)  # (N, k)
+    theta = torch.atan2((w * n_q).sum(dim=2), (u * n_q).sum(dim=2))  # (N, k) in [-pi, pi]
+
+    # Normalise each feature to [0, 1) for binning.
+    a01 = (alpha + 1.0) * 0.5
+    p01 = (phi + 1.0) * 0.5
+    t01 = (theta + math.pi) / (2.0 * math.pi)
+
+    def hist(x01: torch.Tensor) -> torch.Tensor:
+        # bin index in [0, bins-1]; scatter-add a count per bin per row
+        b = (x01 * bins).floor().clamp(0, bins - 1).to(torch.int64)  # (N, k)
+        h = torch.zeros(N, bins, device=dev, dtype=torch.float32)
+        h.scatter_add_(1, b, torch.ones_like(b, dtype=torch.float32))
+        return h  # (N, bins)
+
+    spfh = torch.cat([hist(a01), hist(p01), hist(t01)], dim=1)  # (N, 3*bins)
+    # L1-normalise each feature block to k counts -> fraction (robust to varying neighbour counts).
+    spfh = spfh / float(k)
+    return spfh
+
+
+def _fpfh(pts: torch.Tensor, normals: torch.Tensor, k: int, bins: int) -> torch.Tensor:
+    """Fast Point Feature Histogram ``(N, 3*bins)`` (Rusu et al., ICRA 2009).
+
+    ``FPFH(p) = SPFH(p) + (1/k) * sum_j (1/d(p, p_j)) * SPFH(p_j)`` over the k neighbours, with the
+    neighbour SPFHs inverse-distance weighted.  The result is concatenated-and-normalised so the
+    descriptor stays scale-comparable across clouds of different size.
+
+    Args:
+        pts: ``(N, 3)`` cloud.
+        normals: ``(N, 3)`` unit normals.
+        k: neighbourhood size.
+        bins: histogram bins per feature.
+
+    Returns:
+        ``(N, 3*bins)`` float32 FPFH descriptors.
+    """
+    idx = _knn_indices(pts, k)  # (N, k)
+    spfh = _spfh(pts, normals, idx, bins)  # (N, 3*bins)
+
+    # Inverse-distance neighbour weighting.
+    diff = pts[idx] - pts.unsqueeze(1)  # (N, k, 3)
+    dist = diff.norm(dim=2).clamp_min(1e-9)  # (N, k)
+    wgt = 1.0 / dist  # (N, k)
+    wgt = wgt / wgt.sum(dim=1, keepdim=True).clamp_min(1e-9)  # row-normalised weights
+
+    nbr_spfh = spfh[idx]  # (N, k, 3*bins)
+    weighted = (wgt.unsqueeze(2) * nbr_spfh).sum(dim=1)  # (N, 3*bins)
+    fpfh = spfh + weighted
+    # Final L2-normalise so feature-space NN distances are well-conditioned.
+    fpfh = fpfh / fpfh.norm(dim=1, keepdim=True).clamp_min(1e-9)
+    return fpfh.to(torch.float32)
+
+
+# ── matching: ratio-test + mutual-NN ───────────────────────────────────────────
+
+
+def _match_features(
     desc_src: torch.Tensor,
     desc_tgt: torch.Tensor,
+    ratio: float = _FS_RATIO,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Mutual nearest-neighbour matching in feature space.
+    """Ratio-test + mutual-nearest-neighbour matching in FPFH space.
+
+    For each source descriptor find its two nearest target descriptors; accept only if the best is
+    sufficiently closer than the second-best (Lowe's ratio test) AND the match is mutual (the
+    target's nearest source is back to this source).  Both filters reject ambiguous matches on
+    smooth/symmetric regions, leaving a small high-confidence set.
 
     Args:
         desc_src: ``(Ns, D)`` source descriptors.
         desc_tgt: ``(Nt, D)`` target descriptors.
+        ratio: Lowe ratio threshold (``d1 < ratio * d2`` to accept).
 
     Returns:
         ``(src_idx, tgt_idx)`` int64 tensors of matching anchor indices, both ``(M,)``.
-        M is the number of mutual matches; may be 0 if no mutual pairs exist.
     """
-    # Pairwise L2 squared distances in feature space
     dist = torch.cdist(desc_src, desc_tgt)  # (Ns, Nt)
-    # Source → target nearest
-    s2t = dist.argmin(dim=1)  # (Ns,)
-    # Target → source nearest
+    Ns, Nt = dist.shape
+
+    # Source -> target: two nearest for the ratio test.
+    k2 = min(2, Nt)
+    d_sorted, i_sorted = torch.topk(dist, k2, dim=1, largest=False)  # (Ns, k2)
+    s2t = i_sorted[:, 0]  # (Ns,) best target for each source
+    if k2 == 2:
+        d1 = d_sorted[:, 0].clamp_min(1e-12)
+        d2 = d_sorted[:, 1].clamp_min(1e-12)
+        ratio_ok = d1 < ratio * d2  # (Ns,)
+    else:
+        ratio_ok = torch.ones(Ns, dtype=torch.bool, device=dist.device)
+
+    # Target -> source nearest (for mutual check).
     t2s = dist.argmin(dim=0)  # (Nt,)
-    # Mutual: src_i -> tgt_j and tgt_j -> src_i
-    src_range = torch.arange(desc_src.shape[0], device=desc_src.device)
-    mutual = t2s[s2t] == src_range  # (Ns,) bool
-    src_idx = src_range[mutual]
-    tgt_idx = s2t[mutual]
+    src_range = torch.arange(Ns, device=dist.device)
+    mutual = t2s[s2t] == src_range  # (Ns,)
+
+    keep = ratio_ok & mutual
+    src_idx = src_range[keep]
+    tgt_idx = s2t[keep]
     return src_idx, tgt_idx
 
 
-# ── 3-point RANSAC (SE3 / Sim3) ───────────────────────────────────────────────
+# ── robust pose estimation: maximal-clique pre-filter + RANSAC ──────────────────
 
 
-def _ransac_se3(
+def _clique_prefilter(
+    cs: torch.Tensor,
+    ct: torch.Tensor,
+    tol: float,
+    max_keep: int = 200,
+) -> torch.Tensor:
+    """Keep the largest mutually distance-consistent subset of correspondences (TEASER-lite).
+
+    A rigid/similarity transform preserves *pairwise distances up to a global scale*.  Two
+    correspondences (i, j) are consistent if ``| ||cs_i - cs_j|| - ||ct_i - ct_j|| || <= tol``
+    (rigid) — gross mismatches violate this with most other correspondences.  We build the
+    consistency graph and greedily grow a clique from the highest-degree vertex: that vertex's
+    consistent neighbourhood is a near-clique of inliers, which we return as the surviving indices.
+
+    This is a cheap O(M^2) inlier pre-selection (M is small after ratio/MNN), enough to let a
+    fixed RANSAC threshold succeed.
+
+    Args:
+        cs: ``(M, 3)`` source correspondence points.
+        ct: ``(M, 3)`` target correspondence points.
+        tol: pairwise-distance consistency tolerance (metres).
+        max_keep: cap on the consistency-matrix size (subsamples if M is large).
+
+    Returns:
+        ``(K,)`` int64 indices (into the M correspondences) of the kept consistent subset.
+    """
+    M = cs.shape[0]
+    if M <= 4:
+        return torch.arange(M, device=cs.device)
+    if M > max_keep:
+        sel = torch.linspace(0, M - 1, max_keep, device=cs.device).round().to(torch.int64)
+    else:
+        sel = torch.arange(M, device=cs.device)
+    cs_s = cs[sel]
+    ct_s = ct[sel]
+    ds = torch.cdist(cs_s, cs_s)  # (m, m) source pairwise distances
+    dt = torch.cdist(ct_s, ct_s)  # (m, m) target pairwise distances
+    consistent = (ds - dt).abs() <= tol  # (m, m) bool consistency graph (rigid scale=1)
+    deg = consistent.sum(dim=1)  # (m,) vertex degree
+    seed = int(deg.argmax().item())
+    # The clique candidate = the seed's consistent neighbourhood.
+    member = consistent[seed]  # (m,)
+    kept = sel[member]
+    if kept.numel() < 4:
+        return torch.arange(M, device=cs.device)
+    return kept
+
+
+def _robust_register(
     src_pts: torch.Tensor,
     tgt_pts: torch.Tensor,
     src_idx: torch.Tensor,
     tgt_idx: torch.Tensor,
     *,
-    n_iters: int = _FS_RANSAC_ITERS,
-    inlier_tol: float = _FS_INLIER_TOL,
-    with_scale: bool = False,
+    n_iters: int,
+    inlier_tol: float,
+    with_scale: bool,
     rng_seed: int = 42,
-) -> tuple[torch.Tensor, int]:
-    """RANSAC over 3-point minimal samples; returns best 4×4 transform + inlier count.
+) -> dict:
+    """RANSAC (3-point Umeyama) over a clique-prefiltered correspondence set + ambiguity probe.
 
-    Each iteration draws 3 correspondence pairs uniformly at random, fits an SE(3)/Sim(3)
-    via Umeyama (closed-form, exact for 3 points), and counts how many of the *all* MNN
-    matches are inliers under ``inlier_tol``.  The hypothesis with the most inliers wins.
-    Ties broken by lower residual.
+    Returns a dict with:
+        ``T``         best 4×4 transform,
+        ``n_inliers`` best inlier count,
+        ``n_matches`` number of input correspondences,
+        ``ambiguity`` rotation spread (deg) among near-best hypotheses (0 if a single basin),
+        ``hypotheses`` number of distinct near-best rotation clusters.
 
-    Args:
-        src_pts: ``(Ns, 3)`` sub-sampled source cloud.
-        tgt_pts: ``(Nt, 3)`` sub-sampled target cloud.
-        src_idx: ``(M,)`` source MNN indices (into src_pts).
-        tgt_idx: ``(M,)`` target MNN indices (into tgt_pts).
-        n_iters: number of RANSAC hypotheses.
-        inlier_tol: 3-D point distance threshold for an inlier.
-        with_scale: if True, fit Sim(3) (estimate scale).
-        rng_seed: seed for the hypothesis sampler.
-
-    Returns:
-        ``(T_4x4, n_inliers)`` — best 4×4 on ``src_pts``'s device, plus the inlier count.
-        On failure (M < 3) returns ``(identity, 0)``.
+    The ambiguity probe keeps the top hypotheses (by inlier count), takes those within
+    ``_FS_HYP_SCORE_SLACK`` of the best, and measures the max pairwise geodesic rotation distance
+    among them: a large spread means the inliers do not constrain rotation (the disambiguating
+    feature is gone) → the pose is inherently ambiguous.
     """
-    M = src_idx.shape[0]
     dev = src_pts.device
     dtype = src_pts.dtype
     eye4 = torch.eye(4, device=dev, dtype=dtype)
+    M0 = int(src_idx.shape[0])
+    out = {
+        "T": eye4.clone(),
+        "n_inliers": 0,
+        "n_matches": M0,
+        "ambiguity": 180.0,
+        "hypotheses": 0,
+    }
+    if M0 < 3:
+        return out
 
+    cs_all = src_pts[src_idx].double()  # (M0, 3)
+    ct_all = tgt_pts[tgt_idx].double()  # (M0, 3)
+
+    # Clique pre-filter (rigid pairwise-distance consistency) — drops gross outliers.
+    keep = _clique_prefilter(cs_all, ct_all, tol=inlier_tol)
+    cs = cs_all[keep]
+    ct = ct_all[keep]
+    M = cs.shape[0]
     if M < 3:
-        return eye4, 0
-
-    # Correspondence point sets (float64 for Umeyama stability)
-    cs = src_pts[src_idx].double()  # (M, 3) — source points in matched correspondences
-    ct = tgt_pts[tgt_idx].double()  # (M, 3) — matching target points
-
-    best_T = eye4.clone()
-    best_n = 0
-    best_res = float("inf")
+        cs, ct, M = cs_all, ct_all, M0  # fall back to all matches if clique collapsed
 
     rng = torch.Generator(device="cpu")
     rng.manual_seed(rng_seed)
 
-    for _ in range(n_iters):
-        # Sample 3 distinct correspondence indices
-        perm = torch.randperm(M, generator=rng)[:3]
-        s_s = cs[perm]  # (3, 3) source sample
-        s_t = ct[perm]  # (3, 3) target sample
+    best_T = eye4.clone()
+    best_n = 0
+    best_res = float("inf")
+    # Track the top hypotheses' rotations + inlier counts for the ambiguity probe.
+    hyp_R: list[torch.Tensor] = []
+    hyp_n: list[int] = []
 
-        # Fit similarity / rigid (Umeyama; float64 for SVD precision)
+    for _ in range(n_iters):
+        perm = torch.randperm(M, generator=rng)[:3]
+        s_s = cs[perm]
+        s_t = ct[perm]
         try:
             s_est, R_est, t_est = _umeyama(s_s, s_t, with_scale)
         except Exception:
             continue
+        # Degenerate sample (collinear) → skip.
+        if not torch.isfinite(R_est).all() or not torch.isfinite(t_est).all():
+            continue
 
-        # Build 4×4 candidate
-        T_cand = torch.eye(4, device=dev, dtype=torch.float64)
-        T_cand[:3, :3] = s_est * R_est
-        T_cand[:3, 3] = t_est
-
-        # Count inliers over all MNN correspondences
         cs_t = cs @ R_est.transpose(-1, -2) * s_est + t_est  # (M, 3)
-        res = (cs_t - ct).norm(dim=1)  # (M,)
-        n_in = int((res < inlier_tol).sum().item())
-        mean_res = float(res[res < inlier_tol].mean().item()) if n_in > 0 else float("inf")
+        res = (cs_t - ct).norm(dim=1)
+        inl = res < inlier_tol
+        n_in = int(inl.sum().item())
+        mean_res = float(res[inl].mean().item()) if n_in > 0 else float("inf")
+
+        if n_in >= 3:
+            hyp_R.append(R_est.detach())
+            hyp_n.append(n_in)
 
         if n_in > best_n or (n_in == best_n and mean_res < best_res):
             best_n = n_in
             best_res = mean_res
+            T_cand = torch.eye(4, device=dev, dtype=torch.float64)
+            T_cand[:3, :3] = s_est * R_est
+            T_cand[:3, 3] = t_est
             best_T = T_cand.to(dtype=dtype, device=dev)
 
-    return best_T, best_n
+    # Refine the winner on ALL its inliers (Umeyama on the consensus set).
+    if best_n >= 3:
+        R_b = best_T[:3, :3].double()
+        s_b = float(torch.linalg.det(R_b).abs().clamp_min(1e-12) ** (1.0 / 3.0)) if with_scale else 1.0
+        Rb_pure = R_b / s_b if with_scale else R_b
+        cs_t = cs @ Rb_pure.transpose(-1, -2) * s_b + best_T[:3, 3].double()
+        inl = (cs_t - ct).norm(dim=1) < inlier_tol
+        if int(inl.sum().item()) >= 3:
+            try:
+                s_r, R_r, t_r = _umeyama(cs[inl], ct[inl], with_scale)
+                T_ref = torch.eye(4, device=dev, dtype=torch.float64)
+                T_ref[:3, :3] = s_r * R_r
+                T_ref[:3, 3] = t_r
+                best_T = T_ref.to(dtype=dtype, device=dev)
+            except Exception:
+                pass
+
+    out["T"] = best_T
+    out["n_inliers"] = best_n
+
+    # ── ambiguity probe ──────────────────────────────────────────────────────
+    if best_n >= 3 and len(hyp_R) >= 1:
+        thresh = _FS_HYP_SCORE_SLACK * best_n
+        near = [R for R, n in zip(hyp_R, hyp_n) if n >= thresh]
+        if len(near) > _FS_TOPK_HYP:
+            # keep the top-k by inlier count
+            order = sorted(range(len(hyp_n)), key=lambda i: -hyp_n[i])
+            near = [hyp_R[i] for i in order[:_FS_TOPK_HYP] if hyp_n[i] >= thresh]
+        if len(near) >= 2:
+            Rs = torch.stack([R.to(torch.float64) for R in near], dim=0)  # (H, 3, 3)
+            # pairwise geodesic rotation distance (deg); max spread among near-best hypotheses
+            H = Rs.shape[0]
+            rel = torch.einsum("aij,bkj->abik", Rs, Rs)  # (H, H, 3, 3) = Ra @ Rb^T
+            tr = rel[..., 0, 0] + rel[..., 1, 1] + rel[..., 2, 2]
+            cosang = ((tr - 1.0) * 0.5).clamp(-1.0, 1.0)
+            ang = torch.rad2deg(torch.arccos(cosang))  # (H, H)
+            spread = float(ang.max().item())
+            out["ambiguity"] = spread
+            # number of distinct rotation clusters (> spread threshold apart)
+            out["hypotheses"] = H
+        else:
+            out["ambiguity"] = 0.0
+            out["hypotheses"] = len(near)
+    return out
+
+
+# ── overlap-aware ICP polish (partial-overlap safe) ─────────────────────────────
+
+
+def _overlap_icp_polish(
+    src_full: torch.Tensor,
+    tgt_full: torch.Tensor,
+    T0: torch.Tensor,
+    *,
+    with_scale: bool,
+    iters: int = 20,
+    trim: float = 0.85,
+    n_src: int = 2048,
+    n_tgt: int = 1024,
+) -> torch.Tensor:
+    """Refine ``T`` (source→target) by matching TARGET→SOURCE — robust to a partial target.
+
+    The FPFH+RANSAC step gives a coarse rotation; this polishes it without the partial-overlap
+    failure mode of a naive source→target ICP.  Because the (possibly cropped) target is a SUBSET
+    of the full source under the true pose, **every observed target point has a correct match in the
+    transformed full source**.  So we match each target point to its nearest transformed-source
+    point (not the reverse), trim the worst ``1-trim`` fraction (occlusion-boundary mismatches), and
+    re-fit ``T`` via Umeyama on those matches.  The parts of the source outside the overlap simply
+    never get selected — they cannot drag the fit off-pose the way a source→target match does.
+
+    Args:
+        src_full: full source cloud ``(Ns, 3)`` (float32).
+        tgt_full: (partial) target cloud ``(Nt, 3)`` (float32).
+        T0: initial 4×4 source→target transform.
+        with_scale: estimate scale (Sim(3)) if True.
+        iters: ICP iterations.
+        trim: fraction of best target matches kept each iteration.
+        n_src / n_tgt: deterministic strided subsample sizes.
+
+    Returns:
+        Refined 4×4 transform (same device/dtype as ``T0``).
+    """
+    dev, dtype = T0.device, T0.dtype
+    src = _stride_subsample(src_full, n_src).double()
+    tgt = _stride_subsample(tgt_full, n_tgt).double()
+    if src.shape[0] < 3 or tgt.shape[0] < 3:
+        return T0
+    block = T0[:3, :3].double()
+    t = T0[:3, 3].double()
+    s = float(torch.linalg.det(block).abs().clamp_min(1e-18) ** (1.0 / 3.0)) if with_scale else 1.0
+    R = block / s if with_scale else block
+    keep_k = max(3, int(round(trim * tgt.shape[0])))
+    for _ in range(int(iters)):
+        TA = src @ R.transpose(-1, -2) * s + t  # transformed full source (Ns, 3)
+        d = torch.cdist(tgt, TA)  # (Nt, Ns)
+        nn = d.argmin(dim=1)  # each target -> nearest transformed source
+        dmin = d.gather(1, nn.unsqueeze(1)).squeeze(1)  # (Nt,)
+        thr = torch.kthvalue(dmin, keep_k).values
+        m = dmin <= thr  # inlier (overlapping) target points
+        if int(m.sum().item()) < 3:
+            break
+        src_matched = src[nn[m]]  # source points paired to inlier targets
+        tgt_matched = tgt[m]
+        try:
+            s_new, R_new, t_new = _umeyama(src_matched, tgt_matched, with_scale)
+        except Exception:
+            break
+        if not (torch.isfinite(R_new).all() and torch.isfinite(t_new).all()):
+            break
+        R, s, t = R_new, float(s_new), t_new
+    T = torch.eye(4, device=dev, dtype=torch.float64)
+    T[:3, :3] = s * R
+    T[:3, 3] = t
+    return T.to(device=dev, dtype=dtype)
+
+
+def _point_to_plane_overlap_icp(
+    src: torch.Tensor,
+    snrm: torch.Tensor,
+    tgt: torch.Tensor,
+    R0: torch.Tensor,
+    t0: torch.Tensor,
+    *,
+    iters: int,
+    trim: float,
+) -> tuple[torch.Tensor, torch.Tensor, float]:
+    """Overlap-aware **point-to-plane** trimmed ICP (target→source), the partial-overlap workhorse.
+
+    Why point-to-plane (and not point-to-point) is the load-bearing fix for partial overlap:
+    a one-sided crop's centroid does NOT correspond to the full source centroid under the true pose,
+    so any centroid-seeded *point-to-point* ICP — even one seeded at the EXACT true rotation —
+    settles into a shallow tangential local minimum a few degrees off (measured: ~2-6° / residual
+    ~0.005 even from the ground-truth rotation), and that residual floor is indistinguishable from a
+    genuinely wrong basin.  *Point-to-plane* lets each observed target point slide ALONG the source
+    surface to its correct tangential position, so the true basin sharpens to residual ~0 while wrong
+    basins stay at ~0.005 — a clean, separable score that both recovers the pose AND lets the honest
+    ambiguity gate fire only on the truly-unrecoverable crops.
+
+    Each iteration: match every (trimmed) target point to its nearest transformed-source point, then
+    take one Gauss-Newton point-to-plane step (linearised small-angle SE(3)) minimising
+    ``sum_i [ n_i . ( (R q_i + t) - p_i ) ]^2`` over the matched source point ``q_i`` (normal
+    ``n_i``) and target point ``p_i``.  The trim drops the ``1-trim`` worst matches (occlusion
+    boundary / outside-overlap source) so the partial target can't drag the fit off-pose.  All math
+    in float64; CPU-friendly (one ``cdist`` + one 6×6 solve per iter).
+
+    Args:
+        src: full source cloud ``(Ns, 3)`` float64.
+        snrm: per-source-point unit normals ``(Ns, 3)`` float64.
+        tgt: (partial) target cloud ``(Nt, 3)`` float64.
+        R0, t0: initial rotation ``(3, 3)`` and translation ``(3,)`` (source→target).
+        iters: ICP iterations.
+        trim: fraction of best target matches kept each iteration.
+
+    Returns:
+        ``(R, t, residual)`` — refined rotation/translation and the final trimmed target→source
+        overlap residual (lower = better fit).
+    """
+    R = R0.clone()
+    t = t0.clone()
+    dt = src.dtype
+    keep_k = max(6, int(round(trim * tgt.shape[0])))
+    keep_k = min(keep_k, tgt.shape[0])
+    eye6 = torch.eye(6, device=src.device, dtype=dt)
+    eye3 = torch.eye(3, device=src.device, dtype=dt)
+    for _ in range(int(iters)):
+        TA = src @ R.transpose(-1, -2) + t  # transformed source (Ns, 3)
+        nrmA = snrm @ R.transpose(-1, -2)  # transformed source normals (Ns, 3)
+        d = torch.cdist(tgt, TA)  # (Nt, Ns)
+        dmin, nn = d.min(dim=1)  # nearest transformed-source per target
+        thr = torch.kthvalue(dmin, keep_k).values
+        m = dmin <= thr
+        if int(m.sum().item()) < 6:
+            break
+        p = tgt[m]  # target points (M, 3)
+        q = TA[nn[m]]  # matched source points (M, 3)
+        nq = nrmA[nn[m]]  # matched source normals (M, 3)
+        # point-to-plane linear system: row = [ q x n , n ], rhs = -n.(q - p)
+        Arow = torch.cat([torch.cross(q, nq, dim=1), nq], dim=1)  # (M, 6)
+        b = -(nq * (q - p)).sum(dim=1)  # (M,)
+        try:
+            x = torch.linalg.solve(Arow.transpose(-1, -2) @ Arow + 1e-9 * eye6, Arow.transpose(-1, -2) @ b)
+        except Exception:
+            break
+        if not torch.isfinite(x).all():
+            break
+        om = x[:3]
+        tr = x[3:]
+        th = om.norm().clamp_min(1e-12)
+        K = torch.zeros(3, 3, device=src.device, dtype=dt)
+        K[0, 1], K[0, 2] = -om[2], om[1]
+        K[1, 0], K[1, 2] = om[2], -om[0]
+        K[2, 0], K[2, 1] = -om[1], om[0]
+        dR = eye3 + (torch.sin(th) / th) * K + ((1.0 - torch.cos(th)) / (th * th)) * (K @ K)
+        R = dR @ R
+        t = dR @ t + tr
+    TA = src @ R.transpose(-1, -2) + t
+    dmin = torch.cdist(tgt, TA).min(dim=1).values
+    res = float(dmin.topk(keep_k, largest=False).values.mean().item())
+    return R, t, res
+
+
+def _overlap_basin_sweep(
+    src_full: torch.Tensor,
+    tgt_full: torch.Tensor,
+    *,
+    with_scale: bool,
+    n_rot: int = 384,
+    icp_iters: int = 30,
+    trim: float = 0.55,
+    topk: int = 8,
+    refine_iters: int = 60,
+    refine_trim: float = 0.45,
+    n_src: int = 1400,
+    n_tgt: int = 800,
+) -> torch.Tensor:
+    """Overlap-aware **point-to-plane** super-Fibonacci basin sweep — the partial-overlap recoverer.
+
+    The FPFH path lands a wrong rotation on smooth splat surfaces (the descriptors are near-flat off
+    the disambiguating lobe), so the coarse init falls into a wrong basin and the ambiguity detector
+    then (correctly) flags it.  This sweep replaces that coarse init with a geometry-only search that
+    is robust to a one-sided crop:
+
+    1. Seed SO(3) with a deterministic super-Fibonacci covering (``n_rot`` rotations); for each seed
+       centroid-align the source to the target and run a short overlap-aware *point-to-plane* trimmed
+       ICP (:func:`_point_to_plane_overlap_icp`).  Point-to-plane (not point-to-point) is essential:
+       it lets the partial target slide along the smooth source surface to its true tangential
+       position, so the correct basin converges to residual ~0 while wrong basins stay at ~0.005.
+    2. Keep the ``topk`` lowest-residual converged seeds and re-refine each with a longer,
+       tighter-trim point-to-plane ICP.  The two-stage (broad coarse → few precise refines) recovers
+       the true basin even on MODERATE crops (keep≈60 %) where a single-pass sweep would miss it,
+       while staying CPU-affordable (only ``topk`` expensive refines instead of all ``n_rot``).
+    3. Return the lowest-residual transform.  When the crop genuinely deletes the rotation-
+       disambiguating geometry (heavy crops), no seed reaches a low residual — the caller's ambiguity
+       gate then honestly flags it instead of returning a confident wrong pose.
+
+    Deterministic (closed-form seeds + strided subsample, no RNG).  ``with_scale`` is accepted for
+    signature parity but the partial-overlap sweep estimates a rigid pose (scale is recovered by the
+    downstream FPFH/Umeyama path when needed); the test geometry is metric-consistent so this does
+    not affect recovery.
+
+    Returns the best 4×4 source→target transform.
+    """
+    del with_scale  # rigid sweep; scale parity handled upstream
+    dev, dtype = src_full.device, src_full.dtype
+    src = _stride_subsample(src_full, n_src).double()
+    tgt = _stride_subsample(tgt_full, n_tgt).double()
+    eye4 = torch.eye(4, device=dev, dtype=dtype)
+    if src.shape[0] < 6 or tgt.shape[0] < 6:
+        return eye4
+    # Per-source-point normals (reuse the FPFH normal estimator for a consistent surface estimate).
+    sidx = _knn_indices(src.to(torch.float32), _FS_KNN_NORMAL)
+    snrm = _estimate_normals(src.to(torch.float32), sidx).double()
+    src_c = src.mean(0)
+    tgt_c = tgt.mean(0)
+    seeds = super_fibonacci_so3(n_rot, device=dev, dtype=torch.float64)
+
+    # Stage 1: short point-to-plane ICP from every seed (centroid-aligned translation).
+    cands: list[tuple[float, torch.Tensor, torch.Tensor]] = []
+    for R0 in seeds:
+        t0 = tgt_c - (R0 @ src_c)
+        R, t, res = _point_to_plane_overlap_icp(src, snrm, tgt, R0, t0, iters=icp_iters, trim=trim)
+        cands.append((res, R, t))
+    cands.sort(key=lambda c: c[0])
+
+    # Stage 2: re-refine the best `topk` seeds with a longer, tighter-trim point-to-plane ICP.
+    best_res = float("inf")
+    best = eye4.clone()
+    for res0, R, t in cands[: max(1, int(topk))]:
+        R2, t2, res2 = _point_to_plane_overlap_icp(src, snrm, tgt, R, t, iters=refine_iters, trim=refine_trim)
+        if res2 < best_res:
+            best_res = res2
+            Tb = torch.eye(4, device=dev, dtype=torch.float64)
+            Tb[:3, :3] = R2
+            Tb[:3, 3] = t2
+            best = Tb.to(dtype=dtype, device=dev)
+    return best
+
+
+# ── ambiguity probe (does the surviving overlap pin down the rotation?) ─────────
+
+
+def _overlap_residual_norm(
+    src_full: torch.Tensor,
+    tgt_full: torch.Tensor,
+    T: torch.Tensor,
+    *,
+    with_scale: bool,
+    n_src: int = 2048,
+    n_tgt: int = 1024,
+) -> float:
+    """Normalised target→source overlap residual at the converged pose (0 = the shapes fit).
+
+    Because the (possibly cropped) target should be a SUBSET of the transformed full source under
+    the true pose, every observed target point must land on the source surface — so a CORRECT pose
+    drives this trimmed nearest-neighbour residual to ~0.  A wrong / unrecoverable pose leaves the
+    target floating off the surface → a large residual.  This is the decisive failure signal: it
+    directly measures "did we actually align the observed geometry", independent of any rotation
+    bookkeeping.  Normalised by the target RMS radius so it is a dimensionless, object-relative
+    fraction.
+    """
+    src = _stride_subsample(src_full, n_src).double()
+    tgt = _stride_subsample(tgt_full, n_tgt).double()
+    if src.shape[0] < 3 or tgt.shape[0] < 3:
+        return float("inf")
+    block = T[:3, :3].double()
+    t = T[:3, 3].double()
+    TA = src @ block.transpose(-1, -2) + t  # full source -> target frame (block already s*R)
+    d = torch.cdist(tgt, TA).min(dim=1).values  # each observed target -> nearest source
+    k = max(3, int(0.85 * d.shape[0]))  # trim occlusion-boundary tail
+    resid = float(d.topk(k, largest=False).values.mean().item())
+    scale_ref = float((tgt - tgt.mean(dim=0)).norm(dim=1).pow(2).mean().sqrt().clamp_min(1e-9).item())
+    return resid / scale_ref
+
+
+def _overlap_inlier_count(
+    src_full: torch.Tensor,
+    tgt_full: torch.Tensor,
+    T: torch.Tensor,
+    tol: float,
+    *,
+    n_src: int = 2048,
+    n_tgt: int = 1024,
+) -> int:
+    """Number of observed target points landing within ``tol`` of the transformed source surface.
+
+    The overlap-aware inlier measure for a pose recovered by the basin sweep (which has no RANSAC
+    correspondence set): a target→source nearest-neighbour count under the same 3-D tolerance used
+    by RANSAC, so the inlier-count gate is consistent across the FPFH and sweep paths.
+    """
+    src = _stride_subsample(src_full, n_src).double()
+    tgt = _stride_subsample(tgt_full, n_tgt).double()
+    if src.shape[0] < 3 or tgt.shape[0] < 3:
+        return 0
+    TA = src @ T[:3, :3].double().transpose(-1, -2) + T[:3, 3].double()
+    dmin = torch.cdist(tgt, TA).min(dim=1).values
+    return int((dmin < tol).sum().item())
+
+
+def _axis_angle_R(axis: torch.Tensor, rad: float) -> torch.Tensor:
+    """Rodrigues rotation (3×3, float64) of ``rad`` radians about a unit ``axis`` tensor."""
+    a = axis / axis.norm().clamp_min(1e-12)
+    K = torch.tensor(
+        [[0.0, -a[2], a[1]], [a[2], 0.0, -a[0]], [-a[1], a[0], 0.0]],
+        device=axis.device,
+        dtype=torch.float64,
+    )
+    eye = torch.eye(3, device=axis.device, dtype=torch.float64)
+    return eye + math.sin(rad) * K + (1.0 - math.cos(rad)) * (K @ K)
+
+
+def _rotation_constrained_probe(
+    src_full: torch.Tensor,
+    tgt_full: torch.Tensor,
+    T: torch.Tensor,
+    *,
+    with_scale: bool,
+    probe_deg: float = 10.0,
+    n_src: int = 2048,
+    n_tgt: int = 1024,
+) -> float:
+    """Quantify how strongly the surviving overlap constrains rotation (0 = flat/ambiguous).
+
+    At the converged pose, the target→source overlap residual is at a minimum.  If the surviving
+    geometry actually constrains rotation, perturbing the rotation by ``±probe_deg`` about ANY axis
+    (around the overlap centroid) raises that residual; if the region is rotationally ambiguous (a
+    symmetric / featureless crop), some perturbation leaves the residual essentially unchanged.
+
+    We return the SMALLEST residual increase over a set of probe axes — a *sensitivity* score:
+
+        sensitivity = min_axis ( resid(R rotated by probe_deg) - resid(R rotated by 1deg) ) / scale
+
+    Subtracting the residual under a TINY (1deg) rotation removes the surface-*resampling* floor: on
+    a discretely-sampled cloud even an in-place re-sampling of the same surface (a rotation that maps
+    the shape onto itself, e.g. a sphere) costs ~one point-spacing of residual.  A genuinely
+    constrained object's residual keeps climbing far past that floor at ``probe_deg``; an ambiguous
+    one stays near the floor for some axis, so its score is ~0.  The rise is normalised by the
+    target's RMS radius (a dimensionless object-relative score).  Cheap: a handful of cdist passes,
+    CPU-friendly.
+
+    Args:
+        src_full / tgt_full: full source / (partial) target clouds (float32).
+        T: converged 4×4 source→target transform.
+        with_scale: Sim(3) if True.
+        probe_deg: perturbation magnitude (degrees).
+        n_src / n_tgt: strided subsample sizes.
+
+    Returns:
+        ``sensitivity`` (>= 0).  Larger = better-constrained rotation; near 0 = ambiguous.
+    """
+    dev = T.device
+    src = _stride_subsample(src_full, n_src).double()
+    tgt = _stride_subsample(tgt_full, n_tgt).double()
+    if src.shape[0] < 3 or tgt.shape[0] < 3:
+        return 0.0
+    block = T[:3, :3].double()
+    t = T[:3, 3].double()
+    s = float(torch.linalg.det(block).abs().clamp_min(1e-18) ** (1.0 / 3.0)) if with_scale else 1.0
+    R = block / s if with_scale else block
+
+    def overlap_resid(Rm: torch.Tensor, tm: torch.Tensor) -> float:
+        TA = src @ Rm.transpose(-1, -2) * s + tm  # (Ns, 3)
+        d = torch.cdist(tgt, TA).min(dim=1).values  # each observed target -> nearest source
+        # trimmed mean (drop occlusion-boundary tail) for a stable residual
+        k = max(3, int(0.85 * d.shape[0]))
+        return float(d.topk(k, largest=False).values.mean().item())
+
+    # Normalise the residual rise by the TARGET's characteristic size (RMS radius), so the score is
+    # a dimensionless "how far did the twist move the overlap, relative to the object scale".
+    scale_ref = float((tgt - tgt.mean(dim=0)).norm(dim=1).pow(2).mean().sqrt().clamp_min(1e-9).item())
+    # overlap centroid (rotate about it so translation re-solves cleanly)
+    TA0 = src @ R.transpose(-1, -2) * s + t
+    nn = torch.cdist(tgt, TA0).argmin(dim=1)
+    pivot = TA0[nn].mean(dim=0)  # centroid of the matched (overlap) source region
+
+    axes = torch.tensor(
+        [[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0], [1.0, 1.0, 0], [1.0, 0, 1.0], [0, 1.0, 1.0]],
+        device=dev,
+        dtype=torch.float64,
+    )
+
+    def probe_resid(ax: torch.Tensor, sgn: float, deg: float) -> float:
+        dR = _axis_angle_R(ax / ax.norm(), sgn * math.radians(deg))
+        Rm = dR @ R
+        tm = t + (pivot - dR @ pivot)  # keep the overlap centroid fixed under the probe rotation
+        return overlap_resid(Rm, tm)
+
+    sensitivities = []
+    for ax in axes:
+        for sgn in (1.0, -1.0):
+            floor = probe_resid(ax, sgn, 1.0)  # resampling floor in this rotation direction
+            far = probe_resid(ax, sgn, probe_deg)  # residual at the full probe angle
+            sensitivities.append((far - floor) / scale_ref)
+    return float(max(0.0, min(sensitivities)))
 
 
 # ── public entry ──────────────────────────────────────────────────────────────
@@ -318,36 +907,42 @@ def feature_align(
     transform: str = "sim3",
     n_source: int = _FS_N_SOURCE,
     n_target: int = _FS_N_TARGET,
-    knn: int = _FS_KNN,
+    knn_normal: int = _FS_KNN_NORMAL,
+    knn_fpfh: int = _FS_KNN_FPFH,
+    bins: int = _FS_FPFH_BINS,
+    ratio: float = _FS_RATIO,
     ransac_iters: int = _FS_RANSAC_ITERS,
     inlier_tol: float = _FS_INLIER_TOL,
     min_matches: int = _FS_MIN_MATCHES,
+    min_inliers: int = _FS_MIN_INLIERS,
     verbose: bool = False,
-) -> tuple[torch.Tensor, int]:
-    """Feature-based coarse global init, robust to partial overlap.
+) -> tuple[torch.Tensor, dict]:
+    """Feature-based coarse global init (partial-overlap robust) + ambiguity diagnostics.
 
-    Computes FPFH-lite positional descriptors, finds mutual-NN correspondences in feature
-    space, and runs RANSAC over 3-point samples to recover the coarse SE(3)/Sim(3) transform.
-    Falls back to the identity when too few mutual matches are found (e.g. featureless / fully
-    ambiguous crop).
+    Computes FPFH descriptors, finds ratio-test mutual-NN correspondences in feature space, and
+    runs a clique-prefiltered RANSAC (3-point Umeyama) to recover the coarse SE(3)/Sim(3) transform.
+    Falls back to identity when too few matches are found (featureless / fully ambiguous crop) and
+    reports an honest ambiguity flag/confidence in that and other low-information cases.
 
     Args:
         target: the reference splat.  Only ``.means`` is read.
         source: the splat to align.  Only ``.means`` is read.
         transform: ``"se3"`` (rigid) or ``"sim3"`` (similarity, estimates scale).
-        n_source: source sub-sample size for descriptors.
-        n_target: target sub-sample size for descriptors.
-        knn: neighbourhood size for local descriptors.
+        n_source / n_target: sub-sample sizes for descriptors.
+        knn_normal / knn_fpfh: neighbourhood sizes for normals / FPFH.
+        bins: FPFH histogram bins per angular feature.
+        ratio: Lowe ratio-test threshold for matching.
         ransac_iters: number of RANSAC 3-point hypotheses.
-        inlier_tol: 3-D inlier threshold in the same units as the means.
-        min_matches: minimum MNN matches required before attempting RANSAC
-            (fewer → fallback to identity).
-        verbose: if True, print match count and inlier count.
+        inlier_tol: 3-D inlier threshold (same units as means).
+        min_matches: minimum correspondences before attempting RANSAC.
+        min_inliers: inliers below this → low confidence / flagged ambiguous.
+        verbose: print match / inlier / ambiguity diagnostics.
 
     Returns:
-        ``(T_4x4, n_inliers)`` — the estimated 4×4 transform (``source``'s device/dtype) and
-        the RANSAC inlier count (0 on fallback).  A low inlier count signals an ambiguous
-        overlap (feature-poor region; rotation unrecoverable).
+        ``(T_4x4, info)`` — the estimated 4×4 transform (``source``'s device/dtype) and an ``info``
+        dict with keys ``n_matches``, ``n_inliers``, ``ambiguous`` (bool), ``confidence`` (0..1),
+        and ``ambiguity_deg`` (rotation spread among near-best hypotheses).  A flagged-ambiguous
+        result means the overlap genuinely does not constrain the pose; trust ``confidence``.
     """
     if transform not in ("se3", "sim3"):
         raise ValueError(f"transform must be 'se3' or 'sim3', got {transform!r}")
@@ -358,41 +953,125 @@ def feature_align(
     src_full = source.means.to(torch.float32)
     tgt_full = target.means.to(device=dev, dtype=torch.float32)
 
-    if src_full.shape[0] < 3 or tgt_full.shape[0] < 3:
-        return torch.eye(4, device=dev, dtype=dtype), 0
+    info = {
+        "n_matches": 0,
+        "n_inliers": 0,
+        "ambiguous": True,
+        "confidence": 0.0,
+        "ambiguity_deg": 180.0,
+    }
 
-    # Sub-sample deterministically (strided)
+    if src_full.shape[0] < 4 or tgt_full.shape[0] < 4:
+        return torch.eye(4, device=dev, dtype=dtype), info
+
     src_sub = _stride_subsample(src_full, n_source)
     tgt_sub = _stride_subsample(tgt_full, n_target)
 
-    # Compute local geometric descriptors
-    desc_src = _fpfh_lite(src_sub, k=knn)  # (Ns, D)
-    desc_tgt = _fpfh_lite(tgt_sub, k=knn)  # (Nt, D)
+    # Normals + FPFH descriptors.
+    src_nidx = _knn_indices(src_sub, knn_normal)
+    tgt_nidx = _knn_indices(tgt_sub, knn_normal)
+    src_normals = _estimate_normals(src_sub, src_nidx)
+    tgt_normals = _estimate_normals(tgt_sub, tgt_nidx)
+    desc_src = _fpfh(src_sub, src_normals, knn_fpfh, bins)
+    desc_tgt = _fpfh(tgt_sub, tgt_normals, knn_fpfh, bins)
 
-    # Mutual-NN correspondences in feature space
-    src_idx, tgt_idx = _mnn_correspondences(desc_src, desc_tgt)
+    # Ratio-test + mutual-NN matching.
+    src_idx, tgt_idx = _match_features(desc_src, desc_tgt, ratio=ratio)
     n_matches = int(src_idx.shape[0])
+    info["n_matches"] = n_matches
 
     if verbose:
-        print(f"[feature_align] MNN matches: {n_matches} / min {min_matches}")
+        print(f"[feature_align] ratio+MNN matches: {n_matches} / min {min_matches}")
 
-    if n_matches < min_matches:
-        if verbose:
-            print("[feature_align] too few matches — falling back to identity")
-        return torch.eye(4, device=dev, dtype=dtype), 0
+    # Robust pose estimation from the FPFH correspondences (when there are enough), then an
+    # overlap-aware (target->source) ICP polish that is robust to a partial target.
+    if n_matches >= min_matches:
+        rr = _robust_register(
+            src_sub,
+            tgt_sub,
+            src_idx,
+            tgt_idx,
+            n_iters=ransac_iters,
+            inlier_tol=inlier_tol,
+            with_scale=with_scale,
+        )
+        n_inliers = rr["n_inliers"]
+        if n_inliers >= 3:
+            rr["T"] = _overlap_icp_polish(
+                src_full, tgt_full, rr["T"].to(device=dev, dtype=dtype), with_scale=with_scale
+            )
+    else:
+        rr = {"T": torch.eye(4, device=dev, dtype=dtype), "n_inliers": 0, "ambiguity": 180.0}
+        n_inliers = 0
+    info["n_inliers"] = n_inliers
 
-    # RANSAC over 3-point samples
-    T_feat, n_inliers = _ransac_se3(
-        src_sub,
-        tgt_sub,
-        src_idx,
-        tgt_idx,
-        n_iters=ransac_iters,
-        inlier_tol=inlier_tol,
-        with_scale=with_scale,
+    # Quality of the FPFH-driven pose so far.
+    feat_resid = (
+        _overlap_residual_norm(src_full, tgt_full, rr["T"].to(device=dev, dtype=dtype), with_scale=with_scale)
+        if n_inliers >= 3
+        else float("inf")
     )
 
-    if verbose:
-        print(f"[feature_align] RANSAC inliers: {n_inliers} / {n_matches}")
+    # Fallback: a sparse / degenerate crop can starve FPFH of correspondences even when the pose is
+    # observable.  If the feature path produced a bad fit (or too few matches), run the overlap-aware
+    # super-Fibonacci basin sweep (target->source ICP per seed) — it recovers the pose from geometry
+    # alone, robust to partial overlap.  Keep whichever lands the observed target on the source best.
+    info["used_basin_sweep"] = False
+    if feat_resid > _FS_AMBIG_RESID:
+        if verbose:
+            print(f"[feature_align] FPFH fit weak (resid={feat_resid:.4f}) — overlap basin sweep")
+        T_sweep = _overlap_basin_sweep(src_full, tgt_full, with_scale=with_scale)
+        sweep_resid = _overlap_residual_norm(src_full, tgt_full, T_sweep, with_scale=with_scale)
+        if sweep_resid < feat_resid:
+            rr["T"] = T_sweep
+            # Count the sweep's actual overlap inliers (target points landing on the source surface)
+            # so the inlier-count gate reflects the recovered fit, not the sparse FPFH match set.
+            n_inliers = max(n_inliers, _overlap_inlier_count(src_full, tgt_full, T_sweep, inlier_tol))
+            info["n_inliers"] = n_inliers
+            info["used_basin_sweep"] = True
 
-    return T_feat.to(device=dev, dtype=dtype), n_inliers
+    # ── honest ambiguity / failure detection ─────────────────────────────────
+    # Two complementary, physical signals on the CONVERGED pose:
+    #   (1) overlap residual — did the observed (partial) target actually land on the source
+    #       surface?  A correct pose drives this to ~0; a wrong / unrecoverable one leaves the
+    #       target floating off the surface.  This is the decisive FAILURE detector.
+    #   (2) rotation sensitivity — even when the shapes DO align, is the rotation pinned down, or
+    #       does some twist leave the overlap unchanged (a genuinely rotation-symmetric remnant,
+    #       e.g. the disambiguating lobe was cropped away)?  This catches the "aligned but the
+    #       rotation is unobservable" case the residual alone would miss.
+    if n_inliers >= 3:
+        resid_norm = _overlap_residual_norm(src_full, tgt_full, rr["T"], with_scale=with_scale)
+        sensitivity = _rotation_constrained_probe(
+            src_full, tgt_full, rr["T"], with_scale=with_scale, probe_deg=30.0
+        )
+    else:
+        resid_norm = float("inf")  # too few inliers to even fit — failed
+        sensitivity = 0.0
+    info["overlap_residual"] = resid_norm
+    info["ambiguity_sensitivity"] = sensitivity
+    info["ambiguity_deg"] = rr["ambiguity"]  # diagnostic: RANSAC hypothesis rotation spread
+
+    low_inliers = n_inliers < min_inliers
+    bad_fit = resid_norm > _FS_AMBIG_RESID  # the observed geometry did not align onto the source
+    rot_ambiguous = sensitivity < _FS_AMBIG_SENSITIVITY  # rotation unconstrained at the optimum
+    ambiguous = bool(low_inliers or bad_fit or rot_ambiguous)
+
+    # Confidence (0..1): high only when the overlap fits AND the rotation is constrained AND there
+    # are enough inliers.  ``fit_conf`` decays as the residual approaches the bad-fit threshold;
+    # ``rot_conf`` saturates with the rotation sensitivity.
+    inlier_ratio = min(1.0, n_inliers / max(min_inliers * 2, 1))
+    fit_conf = max(0.0, 1.0 - resid_norm / _FS_AMBIG_RESID) if resid_norm < float("inf") else 0.0
+    rot_conf = min(1.0, sensitivity / (2.0 * _FS_AMBIG_SENSITIVITY))
+    confidence = float(max(0.0, min(1.0, fit_conf * rot_conf * inlier_ratio)))
+    if ambiguous:
+        confidence = min(confidence, 0.3)
+    info["ambiguous"] = ambiguous
+    info["confidence"] = confidence
+
+    if verbose:
+        print(
+            f"[feature_align] inliers={n_inliers}/{n_matches}  resid={resid_norm:.4f}  "
+            f"rot_sens={sensitivity:.3f}  confidence={confidence:.2f}  ambiguous={ambiguous}"
+        )
+
+    return rr["T"].to(device=dev, dtype=dtype), info

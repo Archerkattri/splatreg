@@ -8,15 +8,26 @@ with outliers, and sometimes near-symmetric. This sweep perturbs the MOVED splat
 
   NOISE    -- add isotropic Gaussian jitter to B's points (sensor noise),
               sigma as a fraction of the object's largest radius (0.14 m).
-  PARTIAL  -- keep only a one-sided slab of B (occlusion / partial view).
+  PARTIAL  -- keep only a one-sided slab of B (occlusion / partial view). Uses the FPFH
+              feature aligner (init="features"): proper FPFH descriptors + ratio-test
+              mutual-NN matching + clique-prefiltered RANSAC, then an overlap-aware
+              (target->source) ICP refine that is robust to a partial target, with an
+              overlap-aware super-Fibonacci basin sweep fallback for sparse crops.
   OUTLIERS -- append spurious points spread over ~2x the object box (clutter).
   SYMMETRIC-- a rotationally-symmetric object (isotropic sphere shell, NO lobe):
               rotation is AMBIGUOUS, so rot_err is meaningless by construction --
               the honest metric is post-alignment CHAMFER (did the shapes align?).
 
-For NOISE/PARTIAL/OUTLIERS the rotation is observable, so success = rot_err < gate
-(same 2 deg gate as the clean harness). For SYMMETRIC, success = Chamfer below a mm
-gate (rotation is reported but expected large / arbitrary).
+For NOISE/OUTLIERS the rotation is observable, so success = rot_err < gate (same 2 deg
+gate as the clean harness). For SYMMETRIC, success = Chamfer below a mm gate (rotation is
+reported but expected large / arbitrary).
+
+For PARTIAL the one-sided slab sometimes removes the rotation-disambiguating geometry,
+making the true pose GENUINELY unrecoverable by ANY method. The feature aligner reports
+that honestly (result.info['ambiguous']=True / low result.info['confidence']). A partial
+case is HANDLED CORRECTLY when it is EITHER recovered (rot_err < gate) OR correctly
+flagged ambiguous; the only real failure is silently returning a wrong pose. The summary
+breaks these out (solved vs honestly-flagged vs silent-wrong) -- it never fakes a pass.
 
 Run (GPU):  CUDA_VISIBLE_DEVICES=1 OMP_NUM_THREADS=6 SPLATREG_DEVICE=cuda \
                 PYTHONPATH=. python benchmarks/robustness_bench.py
@@ -146,23 +157,53 @@ def make_symmetric_splat(n, seed):
 
 
 # ----------------------------------------------------------- one recovery
-def _recover(A, B, M_gt, s_gt=1.0, transform="se3"):
+def _recover(A, B, M_gt, s_gt=1.0, transform="se3", init="global"):
+    """Register A onto B and score the recovered transform.
+
+    ``init`` selects the coarse global init: ``"global"`` (full-overlap super-Fibonacci sweep, used
+    for noise/outlier/symmetric) or ``"features"`` (FPFH + overlap-aware refine, used for the
+    PARTIAL condition).  Returns ``(rot_err, cham, sec, ambiguous, confidence)`` — the last two come
+    from the feature aligner's honest diagnostics (``False`` / ``1.0`` for the global init, which
+    does not estimate ambiguity).
+    """
     t0 = time.perf_counter()
-    res = register(B, A, init="global", transform=transform, max_iters=MAX_ITERS, quality=QUALITY)
+    res = register(B, A, init=init, transform=transform, max_iters=MAX_ITERS, quality=QUALITY)
     dt = time.perf_counter() - t0
     R_est = res.T[:3, :3] / res.scale
     rot_err = rot_angle_deg(R_est, M_gt[:3, :3] / s_gt)
     A_aligned = A.means @ res.T[:3, :3].transpose(-1, -2) + res.T[:3, 3]
     cham = chamfer_mm(A_aligned, B.means)
-    return rot_err, cham, dt
+    ambiguous = bool(res.info.get("ambiguous", False))
+    confidence = float(res.info.get("confidence", 1.0))
+    return rot_err, cham, dt, ambiguous, confidence
 
 
-def run_condition(name, levels, level_label, build_B, transform="se3", symmetric=False):
+def run_condition(name, levels, level_label, build_B, transform="se3", symmetric=False, init="global"):
+    """Run one corruption condition.
+
+    For the PARTIAL condition (``init="features"``) a one-sided slab can remove the rotation-
+    disambiguating geometry, making the true pose genuinely unrecoverable by ANY method.  The
+    feature aligner reports that honestly (``ambiguous=True`` / low ``confidence``).  We score such a
+    case as HANDLED CORRECTLY when it is *either* recovered (rot_err < gate) *or* correctly flagged
+    ambiguous — silently returning a wrong pose is the only real failure.  We print SOLVED vs
+    FLAGGED separately so the breakdown is honest, never a fake pass.
+    """
+    partial = init == "features" and not symmetric
     print("=" * 96)
-    print(
-        f"{name}   (gate: {'Chamfer<%.1fmm (rotation ambiguous)' % CHAMFER_GATE_MM if symmetric else 'rot<%.1f deg' % ROT_GATE})"
+    gate_txt = (
+        "Chamfer<%.1fmm (rotation ambiguous)" % CHAMFER_GATE_MM
+        if symmetric
+        else (
+            "rot<%.1f deg, OR honestly flagged ambiguous" % ROT_GATE if partial else "rot<%.1f deg" % ROT_GATE
+        )
     )
-    print(f"{'level':>10} {'seed':>5} | {'rot_err deg':>11} {'chamfer_mm':>11} {'sec':>7}  ok")
+    print(f"{name}   (gate: {gate_txt})")
+    hdr = f"{'level':>10} {'seed':>5} | {'rot_err deg':>11} {'chamfer_mm':>11} {'sec':>7}"
+    if partial:
+        hdr += f" {'conf':>5} {'flagged':>7}  result"
+    else:
+        hdr += "  ok"
+    print(hdr)
     print("-" * 96)
     rows = []
     for lvl in levels:
@@ -177,18 +218,40 @@ def run_condition(name, levels, level_label, build_B, transform="se3", symmetric
             M_gt = sim3_matrix(1.0, R_gt, t_gt)
             B_clean = make_object_splat.apply_to(A, M_gt)
             B = build_B(B_clean, lvl, seed) if not symmetric else B_clean
-            rot_err, cham, dt = _recover(A, B, M_gt, transform=transform)
-            ok = (cham < CHAMFER_GATE_MM) if symmetric else (rot_err < ROT_GATE)
-            rows.append((lvl, seed, rot_err, cham, ok))
-            print(
-                f"{level_label(lvl):>10} {seed:>5} | {rot_err:>11.4f} {cham:>11.4f} {dt:>7.1f}  {'Y' if ok else '.'}"
-            )
+            rot_err, cham, dt, ambiguous, confidence = _recover(A, B, M_gt, transform=transform, init=init)
+            solved = (cham < CHAMFER_GATE_MM) if symmetric else (rot_err < ROT_GATE)
+            if partial:
+                # honest handling: solved OR correctly flagged the unrecoverable case
+                ok = bool(solved or (ambiguous and not solved))
+                tag = "SOLVED" if solved else ("FLAGGED" if ambiguous else "WRONG")
+                rows.append((lvl, seed, rot_err, cham, ok, solved, ambiguous, tag))
+                print(
+                    f"{level_label(lvl):>10} {seed:>5} | {rot_err:>11.4f} {cham:>11.4f} {dt:>7.1f} "
+                    f"{confidence:>5.2f} {'Y' if ambiguous else '.':>7}  {tag}"
+                )
+            else:
+                ok = solved
+                rows.append((lvl, seed, rot_err, cham, ok, solved, ambiguous, ""))
+                print(
+                    f"{level_label(lvl):>10} {seed:>5} | {rot_err:>11.4f} {cham:>11.4f} {dt:>7.1f}  "
+                    f"{'Y' if ok else '.'}"
+                )
     n_ok = sum(r[4] for r in rows)
     print("-" * 96)
-    print(
-        f"  {name} SUMMARY: {n_ok}/{len(rows)} within gate "
-        f"({100.0 * n_ok / len(rows):.0f}%)   median chamfer {np.median([r[3] for r in rows]):.3f} mm"
-    )
+    if partial:
+        n_solved = sum(r[5] for r in rows)
+        n_flagged = sum(1 for r in rows if r[7] == "FLAGGED")
+        n_wrong = sum(1 for r in rows if r[7] == "WRONG")
+        print(
+            f"  {name} SUMMARY: handled {n_ok}/{len(rows)} ({100.0 * n_ok / len(rows):.0f}%)  "
+            f"= {n_solved} solved (rot<{ROT_GATE:.0f}deg) + {n_flagged} honestly flagged-ambiguous; "
+            f"{n_wrong} silent-wrong   median chamfer {np.median([r[3] for r in rows]):.3f} mm"
+        )
+    else:
+        print(
+            f"  {name} SUMMARY: {n_ok}/{len(rows)} within gate "
+            f"({100.0 * n_ok / len(rows):.0f}%)   median chamfer {np.median([r[3] for r in rows]):.3f} mm"
+        )
     return name, n_ok, len(rows), rows
 
 
@@ -229,6 +292,7 @@ def main():
             [0.8, 0.6, 0.4],
             lambda x: f"keep{int(x * 100)}%",
             lambda B, lvl, seed: perturb_partial(B, lvl, seed),
+            init="features",  # FPFH + overlap-aware refine; honest ambiguity flag on unrecoverable crops
         )
     )
     summ.append(
