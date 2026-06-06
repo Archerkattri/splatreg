@@ -139,7 +139,7 @@ Two real bugs the audit caught and fixed:
 |---|---|
 | **Noise** (sensor jitter 0.5–2%) | ✅ **9 / 9 = 100%** (rot_err < 0.72°) |
 | **Outliers** (+10–50% clutter) | ✅ **9 / 9 = 100%** (ignores clutter) |
-| **Symmetric** (sphere) | ✅ **9 / 9 = 100%** with `init="features"` (8/9 with global init) |
+| **Symmetric** (sphere) | ⚠️ **7 / 9** — a featureless sphere is rotationally ambiguous; 2 poses miss the Chamfer gate |
 | **Partial overlap** (20–60% removed) | ⚠️ **0 / 9** — partly *inherent*, see Limitations |
 
 ### 5 · Test suite + CI

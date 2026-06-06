@@ -72,7 +72,7 @@ is scale + implicit-field robustness, and it costs ~80× in SE(3) (see limitatio
 |---|---|
 | **Noise** (sensor jitter 0.5–2%) | **9/9 = 100%** (rot_err < 0.72°) |
 | **Outliers** (+10–50% clutter) | **9/9 = 100%** (ignores clutter, rot_err ≈ 0°) |
-| Symmetric (sphere) | **9/9 = 100%** with `init="features"` (8/9 with global init) |
+| Symmetric (sphere) | **7/9** (rotation is ambiguous on a featureless sphere; 2 of 9 poses miss the <2 mm Chamfer gate) |
 | **Partial overlap** (20–60% removed) | **0/9** — see limitations (a real + partly *inherent* gap) |
 
 ## 5. Test suite (library-bar rigor)
