@@ -1,178 +1,191 @@
-<h1 align="center">splatreg</h1>
+<div align="center">
 
-<p align="center">
-  <b>Composable geometry-first SE(3)/Sim(3) registration for 3D Gaussian Splatting.</b><br>
-  <i>gsplat renders your Gaussians; splatreg registers against them.</i>
-</p>
+# splatreg
 
-<p align="center">
-  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"></a>
-  <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-blue.svg">
-  <img alt="status: alpha" src="https://img.shields.io/badge/status-alpha-orange.svg">
-</p>
+### Register Gaussian splats — align & merge two 3DGS scans into one SE(3)/Sim(3) frame.
+
+*The inverse of [gsplat](https://github.com/nerfstudio-project/gsplat): gsplat **renders** Gaussians, splatreg **registers** against them.* Pure PyTorch — no meshing, no CUDA extension, no point-cloud detour.
+
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![PyTorch](https://img.shields.io/badge/pure-PyTorch-ee4c2c.svg)](https://pytorch.org)
+[![tests](https://img.shields.io/badge/tests-30%20passing-brightgreen.svg)](tests)
+[![Jacobian audit](https://img.shields.io/badge/Jacobian%20audit-8%2F8-brightgreen.svg)](tests/test_jacobians.py)
+[![recovery](https://img.shields.io/badge/synthetic%20recovery-36%2F36-brightgreen.svg)](RESULTS.md)
+
+<img src="docs/assets/registration_demo.png" alt="splatreg before/after registration" width="92%">
+
+</div>
 
 ---
 
-**splatreg is the inverse of gsplat.** gsplat takes Gaussians and a camera and produces an
-image; splatreg takes two Gaussians (or a splat and an observation) and produces the **Sim(3)
-transform that aligns them** — rotation, translation, **and scale**. It is the splat-to-splat
-registration that [SuperSplat](https://github.com/playcanvas/supersplat),
-[INRIA `graphdeco #990`](https://github.com/graphdeco-inria/gaussian-splatting/issues/990), and
-Cesium / geospatial users keep asking for, where today's tooling punts with "use the manual
-gizmo."
+## What it is
 
-It **composes, it does not compete**:
+A 3D Gaussian Splat is a cloud of oriented Gaussians that already traces an object's surface. **splatreg takes two such splats and finds the rigid (SE(3)) or similarity (Sim(3), +scale) transform that aligns them** — then optionally merges + dedupes them into one. It is the missing *registration* half of the Gaussian-splatting toolchain — the splat-to-splat alignment that SuperSplat / INRIA / geospatial users keep asking for, where today's tooling punts to a manual gizmo.
 
-- **[gsplat](https://github.com/nerfstudio-project/gsplat)** — bring your renderer. splatreg
-  consumes gsplat tensors directly and delegates the photometric residual to gsplat's CUDA
-  rasteriser. It does not reimplement rendering.
-- **[PyPose](https://pypose.org/) / [Theseus](https://github.com/facebookresearch/theseus) /
-  [GTSAM](https://gtsam.org/)** — bring your solver. The Levenberg–Marquardt loop is pluggable
-  via `backend=`; the built-in solver is pure-Python and dependency-light.
-- **It is a library, not a SLAM system.** Pairwise registration and merge are the wedge;
-  loop-closure and global bundle adjustment stay where they belong (GTSAM). Keeping splatreg a
-  composable *library* is what keeps it distinct.
+The pipeline is two stages:
 
-The differentiator is the **Gaussian-derived SDF residual**: instead of treating a splat as a
-bag of points (ICP-only, like the existing `GaussianSplattingRegistration` / `splatalign`
-tools), splatreg scores the source splat against the *density field* the target's Gaussians
-define — the same trick the [GaussianFeels](https://github.com/KrishiAttriSNU/Gaussianfeels)
-tracker uses to register observations against a frozen object map.
+```mermaid
+flowchart LR
+    A["splat A<br/>(target)"]:::s --> G
+    B["splat B<br/>(source)"]:::s --> G
+    G["<b>Global aligner</b><br/>super-Fibonacci SO(3) seeds<br/>+ batched trimmed ICP<br/><i>(or FPFH features)</i>"]:::g --> L
+    L["<b>Levenberg–Marquardt</b><br/>multi-residual:<br/>ICP + Gaussian-SDF<br/>SE(3) / Sim(3)"]:::l --> T["T*  (4×4)<br/>+ merge / dedupe"]:::o
+    classDef s fill:#e8f6f8,stroke:#17becf,color:#0b3d44;
+    classDef g fill:#fff1ee,stroke:#ff6b5b,color:#5a1a12;
+    classDef l fill:#eef7ee,stroke:#2e8b57,color:#143d22;
+    classDef o fill:#f3eefc,stroke:#7d52c7,color:#2c1654;
+```
+
+1. **Global init** — a coarse pose from a dense super-Fibonacci rotation sweep + batched trimmed ICP (no local-minimum trap), with an optional **FPFH feature + RANSAC** path for harder cases.
+2. **Refinement** — a from-scratch **Levenberg–Marquardt** core over a stack of residuals: classic **ICP** (point-to-point / point-to-plane) *and* splatreg's flagship **Gaussian-SDF** residual, solving the full SE(3) or Sim(3) tangent.
+
+It **composes, it doesn't compete**: bring gsplat tensors directly; the LM loop and residual stack are pluggable.
+
+### The differentiator — the Gaussian-SDF residual
+
+No competitor packages this. splatreg derives a smooth, queryable **signed-distance field directly from the target Gaussians** — no mesh, no marching cubes — and drives registration by it:
+
+```
+w_i(p) = exp(−‖p − q_i‖² / 2σ²)              # Gaussian kernel weight per anchor
+q̃(p)   = Σ w_i q_i / Σ w_i                    # kernel-weighted centroid
+ñ(p)   = Σ w_i n_i / ‖Σ w_i n_i‖              # kernel-weighted surface normal
+d(p)   = (p − q̃(p)) · ñ(p)                    # signed distance — the residual
+```
+
+`d(p)` vanishes exactly when the source points land on the target's surface. It has a **closed-form, audited Jacobian** (see below) and is a standalone, reusable implicit-field primitive: `gaussian_sdf(splat, points, sigma=...) → (sdf, normal)`.
+
+---
 
 ## Install
 
 ```bash
-pip install splatreg
+git clone https://github.com/Archerkattri/splatreg.git
+cd splatreg
+pip install -e .          # pure PyTorch + numpy; pip install -e ".[test]" for the test extras
 ```
-
-Core install is light — just `torch` and `numpy`. Optional extras pull in the heavier,
-swappable pieces:
-
-```bash
-pip install "splatreg[render]"    # gsplat: the Photometric residual + splatreg.render
-pip install "splatreg[pypose]"    # PyPose solver backend
-pip install "splatreg[theseus]"   # Theseus differentiable-solver backend
-pip install "splatreg[all]"       # gsplat + pypose + theseus
-```
-
-PLY I/O works out of the box with the built-in binary-PLY codec (zero extra deps). Installing
-the optional `plyfile` package additionally enables ASCII / non-standard PLY headers.
 
 ## Quickstart
 
-Register two overlapping Gaussian splats and merge them into a single `.ply`:
+```python
+from splatreg.api import register, merge
+
+# two Gaussian splats of the same object, in unknown relative pose/scale.
+# register aligns `source` onto the reference `target` (target is the first arg).
+result = register(target, source, transform="sim3")
+print(result.T)         # recovered 4×4 similarity [[s·R, t], [0, 1]] — maps source -> target
+print(result.scale)     # recovered scale s  (1.0 for transform="se3")
+print(result.converged) # solver convergence flag
+
+# register + dedupe a list of splats into one fused splat (registers internally)
+fused = merge([source, target], transform="sim3")
+```
+
+The Gaussian-SDF field on its own:
 
 ```python
-import splatreg
-
-a = splatreg.io.load_ply("scan_a.ply")           # standard 3DGS .ply
-b = splatreg.io.load_ply("scan_b.ply")
-result = splatreg.register(a, b)                  # Sim(3): rotation, translation, scale
-merged = splatreg.merge([a, b])                   # aligns all to ref, concatenates, dedupes
-splatreg.io.save_ply(merged, "merged.ply")        # the single .ply SuperSplat users want
+from splatreg.geometry.gaussian_sdf import gaussian_sdf, gaussian_sdf_grad
+sdf, normal = gaussian_sdf(target, query_points, sigma=0.02)      # signed distance + surface normal
+sdf, grad   = gaussian_sdf_grad(target, query_points, sigma=0.02) # signed distance + EXACT ∇_p d
 ```
 
-`splatreg.register` returns a `RegisterResult` with the 4×4 transform and diagnostics:
+---
 
-```python
-result.T                                          # (4, 4) transform aligning source -> target
-result.scale                                      # the recovered Sim(3) scale factor
-result.converged                                  # bool
-result.info["rmse"], result.info["overlap"], result.info["n_iters"]
+## Validation & benchmarks
+
+> splatreg is held to the validation bar of the libraries it sits beside — **gsplat / Theseus / GTSAM / SymForce**. Every number below is reproducible (commands at the bottom); the full record is in [`RESULTS.md`](RESULTS.md), the bar itself in [`docs/04_validation_roadmap.md`](docs/04_validation_roadmap.md).
+
+### 1 · Synthetic recovery — the core accuracy test
+
+Apply a *known* Sim(3)/SE(3) to a realistic object splat, recover it, measure the error. 3 seeds × {5°, 30°, 90°} × {0.8, 1.0, 1.3} scale (`examples/validate_recovery.py`).
+
+| Block | Success | median rot | median trans | median scale err | median Chamfer |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **SE(3)** (rigid) | **9 / 9 = 100%** | **0.000°** | 0.10 mm | — | 0.076 mm |
+| **Sim(3)** (+scale) | **27 / 27 = 100%** | **0.259°** | 2.93 mm | 0.34% | 0.575 mm |
+| **Overall** | **36 / 36 = 100%** | worst rot 0.43° | | | |
+
+### 2 · Jacobian correctness — the audit that found a real bug
+
+Every serious geometric-optimisation library checks each analytic Jacobian against a tangent-space numerical one. splatreg ships that audit (`tests/test_jacobians.py`, float64) **and a reusable `assert_residual_jacobian`** so every future residual gets it (the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS` equivalent).
+
+| Residual / op | Result |
+|---|---|
+| ICP point-to-point / point-to-plane | ✅ correct (max\|Δ\| ~3e-9 / 4e-11) |
+| **Gaussian-SDF** | ✅ **closed-form exact** (~1e-8 vs numerical, in-support) |
+| SE(3)/Sim(3) exp·log, group invariants, near-π, `so3_project` | ✅ all correct |
+
+Two real bugs the audit caught and fixed:
+- **SDF gradient.** The field returned the surface *normal* `ñ` as its gradient, but the true `∇d` carries a first-order `∂q̃/∂p` term (the kernel-weighted centroid moves with `p`) that `ñ` drops — a materially wrong pose gradient (`max|Δ|≈10.8`). Now an **exact closed-form gradient** (`gaussian_sdf_grad`): `∇d = ñ − (1/σ²)·Cov_w·ñ − (1/(σ²‖Sₙ‖))·Σᵢwᵢ(nᵢ·x)aᵢ`, with no autograd graph on the SE(3) path.
+- **Near-π SO(3) log.** `se3_log` recovered the axis from the antisymmetric part `(R−Rᵀ)`, which vanishes at θ=π — losing the axis for ~180° rotations. Fixed with the standard robust branch (symmetric-part axis + `atan2`); roundtrip now exact to **~1e-13** across the interior.
+
+### 3 · vs. plain ICP + residual ablation
+
+`benchmarks/icp_baseline_bench.py` — identical recovery cells, splatreg vs ICP baselines.
+
+| Method | SE(3) success | **Sim(3) success** |
+|---|:---:|:---:|
+| **splatreg (full)** | 9 / 9 | **27 / 27 = 100%** |
+| ICP (centroid init) | 9 / 9 | 9 / 27 = 33% |
+| ICP (super-Fib init) | 9 / 9 | 9 / 27 = 33% |
+
+**splatreg wins Sim(3) decisively** — plain ICP cannot estimate scale, so it fails every non-unit-scale cell; the global init alone doesn't rescue it, so the **LM Sim(3) solve is load-bearing.** *Honest trade:* on rigid SE(3) both reach 100% and ICP is far faster — the SDF residual buys scale + implicit-field robustness at a real compute cost (see Limitations).
+
+### 4 · Robustness sweep
+
+`benchmarks/robustness_bench.py`, 3 seeds.
+
+| Condition | Result |
+|---|---|
+| **Noise** (sensor jitter 0.5–2%) | ✅ **9 / 9 = 100%** (rot_err < 0.72°) |
+| **Outliers** (+10–50% clutter) | ✅ **9 / 9 = 100%** (ignores clutter) |
+| **Symmetric** (sphere) | ✅ **9 / 9 = 100%** with `init="features"` (8/9 with global init) |
+| **Partial overlap** (20–60% removed) | ⚠️ **0 / 9** — partly *inherent*, see Limitations |
+
+### 5 · Test suite + CI
+
+`pytest tests/` → **30 passing**: the Jacobian audit, Lie-group ops (exp·log roundtrips, group invariants, hat/vee, near-π stability, a 10k-sample SymForce-style Jacobian sweep), and the LM solver (`CheckLinearError`, singular-system handling, GT recovery, Sim(3) scale). CI runs `black` + `mypy` + `pytest` (Python 3.10/3.11, CUDA-skip), with pre-commit and `py.typed`.
+
+### 6 · Real-data benchmark — *GPU run pending* ⏳
+
+The external anchor: the **GaussReg** protocol (ECCV 2024) on **ScanNet-GSReg** real splat pairs, plus the local **GaussianFeels**-tracker splats splatreg descends from.
+
+| Benchmark | RRE | RTE | RSE | Success | Wall-time |
+|---|:---:|:---:|:---:|:---:|:---:|
+| ScanNet-GSReg vs HLoc+ICP | _pending_ | _pending_ | _pending_ | _pending_ | _pending_ |
+| **SE(3) speed vs GaussianFeels tracker** | — | — | — | — | _pending_ |
+
+> *splatreg derives from a real-time SE(3) Gaussian tracker, so speed is a first-class goal. The closed-form SDF gradient (above) is the correctness half of that work; the wall-time numbers land here once the GPUs free up.*
+
+---
+
+## Limitations (no overstating)
+
+- **Partial overlap (0/9).** A genuinely hard problem (feature-method territory — TEASER++/Predator). Investigated in [`docs/03_failure_analysis.md`](docs/03_failure_analysis.md): the one-sided slab crop conflates *fixable* partial overlap with *inherently-ambiguous* partial overlap (the crop deletes the rotation-disambiguating feature → unrecoverable by **any** method, full FPFH included). A feature-based aligner (`align_features.py`, `init="features"`) is shipped and helps the symmetric case; large partial overlap is **WIP**. **`merge` is reliable for high-overlap captures.**
+- **SE(3) speed.** The Gaussian-SDF residual costs more than nearest-neighbour ICP; the closed-form gradient + normal caching are landed, the full wall-time + truncation tuning are the GPU follow-up.
+
+---
+
+## Reproduce
+
+```bash
+pip install -e ".[test]"
+python -m pytest tests/ -q                       # 30 passing: audit + Lie + solver
+python tests/test_jacobians.py                   # the numerical-vs-analytic Jacobian audit
+SPLATREG_DEVICE=cuda python examples/validate_recovery.py --device cuda   # recovery 36/36
+SPLATREG_DEVICE=cuda python benchmarks/icp_baseline_bench.py --device cuda
+SPLATREG_DEVICE=cuda python benchmarks/robustness_bench.py  --device cuda
+python examples/make_readme_figure.py            # regenerate the hero figure
 ```
 
-Everything is configurable — choose the residual stack, the initialisation, SE(3) vs Sim(3),
-and the solver backend:
+## Roadmap
 
-```python
-result = splatreg.register(
-    a, b,                                                   # target, source
-    residuals=[splatreg.residuals.SDF(1.0),                # Gaussian-SDF (the differentiator)
-               splatreg.residuals.ICP(0.5)],               # + point-to-plane ICP
-    init="global",                                          # "global" coarse init | "identity" | a Sim3
-    transform="sim3",                                       # "sim3" (default) | "se3"
-    backend="builtin",                                      # | "pypose" | "theseus" | "gtsam"
-    quality="full",                                         # "full" (default) | "balanced" | "low" | "auto" | 0..1
-)
-```
+- [ ] Real-data GaussReg / ScanNet-GSReg benchmark (RRE/RTE/RSE/success/time)
+- [ ] SE(3) wall-time benchmark vs the GaussianFeels tracker + SDF truncation speed-ups
+- [ ] Feature-based partial-overlap aligner to publication strength (FPFH + TEASER)
+- [ ] 6-DoF object-pose mode + FoundationPose/YCB benchmark
+- [ ] PyPI release
 
-Add a custom residual by subclassing `splatreg.Residual` (a single SE(3)/Sim(3) cost — reads
-like math, not factor-graph boilerplate); add `splatreg.residuals.Photometric` to fold in
-gsplat-rendered appearance.
+## License & layout
 
-### gsplat interop
-
-A splatreg `Gaussians` round-trips with the gsplat rasteriser, so you can register and then
-render with no glue code:
-
-```python
-from gsplat import rasterization
-g = splatreg.io.from_gsplat(means, quats, scales, opacities, colors)   # wrap gsplat tensors
-render, alpha, _ = rasterization(viewmats=viewmats, Ks=Ks,
-                                 width=W, height=H, **splatreg.io.to_gsplat(g))
-```
-
-### Quality & hardware adaptivity
-
-The Sim(3) refine autodiffs its Gaussian-SDF residual, whose reverse-mode Jacobian is the
-memory hot-spot. `register` / `merge` / `Tracker` take a single `quality=` knob so the same code
-runs full-fidelity on a big GPU **and** (at reduced fidelity) on a small GPU or a CPU-only laptop
-without OOM. **Full quality is the default — it is never silently lowered.**
-
-```python
-splatreg.register(a, b)                       # quality="full" — all source anchors, full fidelity
-splatreg.register(a, b, quality="balanced")   # bounded source sample (faster, smaller)
-splatreg.register(a, b, quality="low")        # smallest sample
-splatreg.register(a, b, quality=0.5)          # 0..1 scale (1.0 == full)
-splatreg.register(a, b, quality="auto")       # detect free GPU/CPU memory, pick the largest that FITS
-```
-
-Two kinds of knob sit behind it, and they are kept separate on purpose:
-
-- **Accuracy** (`n_points` — the source-anchor sample size, plus `knn` / iteration count) is what
-  `"full"` / `"balanced"` / `"low"` / a `0..1` scale actually trade. `"full"` keeps it maximal
-  (every source anchor); `"auto"` keeps it maximal too unless the detected memory can't hold it.
-- **Peak memory** (the autodiff row-chunk + the SDF forward block) is *numerically lossless* — a
-  chunked Jacobian is bit-for-bit the unchunked one — so it is **always** auto-fitted to the
-  available memory, even in `"full"` mode. That is what lets full quality run on a 2 GB GPU at
-  well under 1 GB peak with identical results to a 32 GB card.
-
-`"auto"` reads `torch.cuda.mem_get_info` on CUDA (or `psutil` / `os.sysconf` RAM on CPU) at call
-time and sizes the work to fit. For total control, build a `splatreg.QualityConfig` yourself and
-pass it as `quality=` (it is then used verbatim — you own the memory budget). The resolved policy
-is recorded in `result.info["quality"]`.
-
-## Status
-
-**Alpha — registration-first v0.1.** Pairwise Sim(3) splat-to-splat registration + merge. Camera
-localization, object-6DoF tracking, and multi-splat bundle registration are deferred by
-milestone. See [`docs/`](docs/) for the MVP spec, the pose-convention reference, and the
-synthetic Sim(3)-recovery validation protocol.
-
-## Acknowledgements & Citation
-
-splatreg carves out and generalises the registration core of
-[**GaussianFeels**](https://github.com/KrishiAttriSNU/Gaussianfeels): the composable SE(3)
-Levenberg–Marquardt solver and the Gaussian-derived SDF residual
-(`signed_distance_via_gaussian_density`), extended here with the Sim(3) scale degree of freedom.
-The PLY and tensor contracts are [**gsplat**](https://github.com/nerfstudio-project/gsplat)-native.
-
-If you use splatreg in academic work, please cite:
-
-```bibtex
-@software{attri2026splatreg,
-  author  = {Krishi Attri},
-  title   = {splatreg: Composable SE(3)/Sim(3) registration for 3D Gaussian Splatting},
-  year    = {2026},
-  url     = {https://github.com/KrishiAttriSNU/splatreg},
-  note    = {Built on the GaussianFeels SE(3)-LM and Gaussian-SDF; gsplat-native}
-}
-```
-
-and the works splatreg builds on — [gsplat](https://github.com/nerfstudio-project/gsplat) and
-the original 3D Gaussian Splatting
-([Kerbl et al., SIGGRAPH 2023](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/)).
-
-## License
-
-[Apache License 2.0](LICENSE) — Copyright 2026 Krishi Attri.
+Apache-2.0. `splatreg/` — library (`api`, `align`, `align_features`, `core/lie`, `geometry/gaussian_sdf`, `residuals/`, `solvers/lm`). `tests/` · `benchmarks/` · `examples/` · `docs/` (`03` failure analysis, `04` validation roadmap). Full validation record: [`RESULTS.md`](RESULTS.md).

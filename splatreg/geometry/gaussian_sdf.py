@@ -26,9 +26,10 @@ on the soft surface. The second return ``n~(p)`` is the unit surface **normal** 
 centroid ``q~(p)`` and normal ``n~(p)`` themselves depend on ``p``, and ``∂q~/∂p`` is a
 *first-order* term (it does not vanish as ``p`` approaches the surface). A numerical Jacobian
 audit (``splatreg/tests/test_jacobians.py``) confirmed that treating ``n~`` as the gradient
-gives a materially wrong Jacobian, so the SDF residual computes the EXACT gradient ``∇d`` by
-autodiff through ``d(p)`` (the field is fully differentiable w.r.t. ``points``). Use ``n~`` as
-the surface normal; use the autodiff ``∇d`` as the gradient.
+gives a materially wrong Jacobian, so the SDF residual uses the EXACT gradient ``∇d`` — in
+CLOSED FORM via :func:`gaussian_sdf_grad` (the field is also fully differentiable w.r.t.
+``points``, so autodiff through ``d(p)`` agrees). Use ``n~`` as the surface normal; use
+``gaussian_sdf_grad`` (or autodiff ``∇d``) as the gradient.
 
 Assumptions / knobs
 -------------------

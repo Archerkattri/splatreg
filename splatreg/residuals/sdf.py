@@ -21,20 +21,20 @@ Jacobian
     r_k = sdf_target(p_k)              (signed distance, from gaussian_sdf)
 
 Under the right-perturbation ``T @ exp(xi)`` the transformed point moves (to first order) by
-``dp_k = R . (v + w x s_k)`` where ``R`` is ``T``'s rotation and ``xi = [v | w]``. The SDF's
-spatial gradient at ``p_k`` is its surface normal ``n_k`` (returned by ``gaussian_sdf``), so by
-the chain rule::
+``dp_k = R . (v + w x s_k)`` where ``R`` is ``T``'s rotation and ``xi = [v | w]``. The chain rule
+then needs the SDF's TRUE spatial gradient ``g_k = ∇_p d(p_k)`` — which is **not** the proxy
+surface normal ``n~`` that ``gaussian_sdf`` also returns: ``n~`` drops the first-order
+``∂q~/∂p`` term of the kernel-weighted centroid (a numerical audit, ``tests/test_jacobians.py``,
+measured ``max|Δ|≈10.8`` from using ``n~``). The exact ``g_k`` is computed in CLOSED FORM by
+``gaussian_sdf_grad`` (non-truncated path — one fused pass, no autograd graph; the fast SE(3)
+path) or by autodiff (truncated path). Chaining it through the pose Jacobian::
 
-    d r_k / d v = n_k^T R                         (translation block, 1x3)
-    d r_k / d w = -n_k^T R [s_k]_x = (R^T n_k) x s_k   (rotation block, 1x3)
+    d r_k / d v = g_k^T R                          (translation block, 1x3)
+    d r_k / d w = -g_k^T R [s_k]_x = (R^T g_k) x s_k    (rotation block, 1x3)
 
-stacked as ``J_k = [ n_k^T R | (R^T n_k) x s_k ]`` (shape ``(N, 6)``). This is the same
-gradient-times-pose-Jacobian chain the seed used, re-derived for the contract's *forward*
-transform (the seed optimised the inverse-direction object frame, hence its ``-n`` translation
-block; here ``T`` moves the source points directly). Curvature of the soft surface (the
-implicit dependence of the SDF normal on the query point) is dropped, exactly as the proxy's
-gradient is defined as ``n~`` — this is the standard Gauss-Newton SDF linearisation and keeps
-the step cheap and stable.
+stacked as ``J_k = [ g_k^T R | (R^T g_k) x s_k ]`` (shape ``(N, 6)``) — the same gradient-times-
+pose-Jacobian chain the ICP residual uses (numerically verified there), now with the EXACT field
+gradient rather than the dropped-curvature ``n~`` proxy.
 """
 
 from __future__ import annotations
