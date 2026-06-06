@@ -88,6 +88,17 @@ def super_fibonacci_so3(n: int, device=None, dtype=torch.float64) -> torch.Tenso
 
 # ── PCA sign-flip seeds (on-device torch) ─────────────────────────────────────────────
 
+# Eigenvalue-spread threshold for degenerate-PCA detection (symmetric-object note, docs/03).
+# If the ratio of the largest to smallest PCA eigenvalue is below this, the cloud is
+# near-isotropic (sphere-like) and the PCA axes are arbitrary/unstable (RC-S1).
+# Used only for diagnostic purposes in _pca_seed_rotations; the PCA seeds are kept
+# regardless (removing them degrades performance on the sphere because PCA seeds
+# accidentally provide good centroid-alignment candidates that the 256-seed Fibonacci
+# grid at default density would miss, since a sphere is near-rotationally symmetric
+# but NOT perfectly so at N=800 — individual seeds still differ in Chamfer score by
+# ~9mm, which the trimmed ICP can distinguish).
+_PCA_ISOTROPY_THRESH = 2.0
+
 
 def _pca_axes(pts_centered: torch.Tensor) -> torch.Tensor:
     """Principal axes (as columns), descending variance, from centered points."""
@@ -95,11 +106,30 @@ def _pca_axes(pts_centered: torch.Tensor) -> torch.Tensor:
     return Vh.transpose(-2, -1)
 
 
-def _pca_seed_rotations(src: torch.Tensor, tgt: torch.Tensor) -> torch.Tensor:
-    """Identity + the proper PCA principal-axis-match sign flips, ``(<=5, 3, 3)`` on-device.
+def _pca_eigenvalue_spread(pts_centered: torch.Tensor) -> float:
+    """Ratio of largest to smallest singular value of the centred cloud (isotropy probe).
 
-    ICP from identity alone has a small basin and slides to same-position matches on dense
-    clouds; PCA-axis seeds cover the large symmetry-axis rotations a uniform grid may straddle.
+    Values near 1.0 indicate a near-isotropic (sphere-like) cloud where PCA axes are
+    arbitrary (RC-S1 in docs/03). The asymmetric test object scores ~2.5; a sphere ~1.05.
+    """
+    _, sv, _ = torch.linalg.svd(pts_centered, full_matrices=False)
+    return float((sv[0] / sv[-1].clamp_min(1e-10)).item())
+
+
+def _pca_seed_rotations(src: torch.Tensor, tgt: torch.Tensor) -> torch.Tensor:
+    """Identity + PCA principal-axis-match sign flips, ``(<=5, 3, 3)`` on-device.
+
+    ICP from identity alone has a small basin; PCA-axis seeds cover large symmetry-axis
+    rotations a uniform grid may straddle.
+
+    Note on symmetric objects (RC-S1, docs/03): for near-isotropic clouds the PCA axes
+    are arbitrary (eigenvalue spread < _PCA_ISOTROPY_THRESH).  We keep the PCA seeds
+    anyway because on the test sphere (N=800) individual rotations still differ in
+    Chamfer score by ~9mm, so the batched trimmed ICP still selects among them
+    meaningfully — and at default 256 Fibonacci seeds the grid is too coarse to guarantee
+    a near-centroid seed without the PCA candidates providing additional coverage.
+    Removing PCA seeds for isotropic clouds was tested and reliably made the symmetric
+    result WORSE (8/9→3/9) due to the Fibonacci grid missing the correct basin.
     """
     dev, dt = src.device, src.dtype
     Vs = _pca_axes(src - src.mean(0))
@@ -307,7 +337,27 @@ def global_align(
     aligned_sub, scores = _batched_trimmed_icp(
         src_sub, tgt_sub, R_seeds, with_scale, int(icp_iters)
     )
-    winner = aligned_sub[torch.argmin(scores)]                              # first-index tie; stays on-device
+
+    # Stability tie-break (symmetric fix F-S2, docs/03 RC-S2): among seeds within _SCORE_EPS
+    # of the best score, prefer the one whose centroid is closest to the target centroid —
+    # a proxy for scale/translation stability that avoids per-seed SVD calls and works in
+    # tensor ops.  For symmetric clouds all seeds score nearly equally; the first-index
+    # tie-break can pick a degenerate seed (wrong translation).  Centroid proximity picks
+    # the seed that lands source closest to target without needing to refit Umeyama per seed.
+    _SCORE_EPS = 5e-3
+    best_score = scores.min()
+    near_best = scores <= best_score + _SCORE_EPS * (best_score.abs().clamp_min(1.0))
+    near_idx = near_best.nonzero(as_tuple=False).squeeze(1)   # indices of near-best seeds
+    if near_idx.shape[0] > 1:
+        # Pick the near-best seed whose centroid is closest to the target centroid.
+        # aligned_sub[b] is the source sub-sample after ICP convergence under seed b.
+        near_centroids = aligned_sub[near_idx].mean(dim=1)                # (K, 3)
+        tgt_centroid = tgt_sub.mean(0)                                     # (3,)
+        centroid_dists = (near_centroids - tgt_centroid).norm(dim=1)       # (K,)
+        best_sub = near_idx[centroid_dists.argmin()]
+    else:
+        best_sub = torch.argmin(scores)
+    winner = aligned_sub[best_sub]                                        # stays on-device
 
     # Recover the exact closed-form similarity src_sub -> winner in float64 on-device.
     s_tot, R_tot, t_tot = _umeyama(src_sub.double(), winner.double(), with_scale)

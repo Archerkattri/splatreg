@@ -62,6 +62,27 @@ def _global_init(target, source: Any, transform: str, device, dtype) -> torch.Te
     return T.to(device=device, dtype=dtype)
 
 
+def _feature_init(target, source: Any, transform: str, device, dtype) -> torch.Tensor:
+    """Coarse 4x4 LM seed from :func:`splatreg.align_features.feature_align`.
+
+    Feature-based (FPFH-lite descriptors + mutual-NN + RANSAC) coarse init designed for
+    partial-overlap scenarios.  Falls back to identity if the feature module is unavailable or
+    too few correspondences are found (logged at DEBUG level).  When the RANSAC inlier count is
+    low (< 6) the result is a poor init; callers needing reliability should combine this with
+    a subsequent ``init="global"`` pass or check the returned inlier count directly via
+    :func:`splatreg.align_features.feature_align`.
+    """
+    try:
+        from splatreg.align_features import feature_align
+    except Exception as exc:  # pragma: no cover
+        _log.info("init='features' requested but splatreg.align_features is unavailable (%s); "
+                  "falling back to identity init.", exc)
+        return _identity(device, dtype)
+    T, n_inliers = feature_align(target, source, transform=transform)
+    _log.debug("feature_align: %d RANSAC inliers", n_inliers)
+    return T.to(device=device, dtype=dtype)
+
+
 def _infer_device_dtype(*objs) -> tuple:
     """Best-effort (device, dtype) from the first tensor-bearing argument; CPU/float32 default."""
     for o in objs:
@@ -169,9 +190,18 @@ def register(
         sample size / chunking from ``quality``. An explicit list is honoured unchanged (``quality``
         then only sets the autodiff row-chunk). ``None`` requires ``target`` to be a non-empty
         ``Gaussians``.
-    init : initial 4x4 transform, or ``None`` for identity, or the string ``"global"`` to coarse-init
-        from :func:`splatreg.align.global_align` (guarded — falls back to identity with a logged note
-        if that module is not yet available). The chosen transform seeds the LM.
+    init : initial 4x4 transform, or ``None`` for identity, or one of the strings:
+
+        * ``"global"`` — coarse-init from :func:`splatreg.align.global_align` (super-Fibonacci
+          SO(3) sweep + batched trimmed ICP; robust to noise/outliers and near-symmetric clouds;
+          assumes full overlap).
+        * ``"features"`` — coarse-init from :func:`splatreg.align_features.feature_align`
+          (FPFH-lite descriptors + mutual-NN correspondences + RANSAC; designed for partial-overlap
+          scenarios where the two clouds see different parts of the same object).  Falls back to
+          identity when fewer than 6 mutual matches are found (featureless / ambiguous crop).
+
+        Both string forms are guarded — fall back to identity with a logged note if the module
+        is unavailable. The chosen transform seeds the LM.
     transform : ``"se3"`` (dof 6) or ``"sim3"`` (dof 7; the scale DoF is solved, autodiffed).
     backend : only ``"builtin"`` is implemented here (the builtin LM). The ``register`` surface
         keeps the argument so external-engine backends can be wired in without changing callers.
@@ -211,9 +241,12 @@ def register(
         residuals = _default_residuals(target, q)
 
     if isinstance(init, str):
-        if init != "global":
-            raise ValueError(f"init string must be 'global', got {init!r}")
-        T0 = _global_init(target, source, transform, device, dtype)
+        if init == "global":
+            T0 = _global_init(target, source, transform, device, dtype)
+        elif init == "features":
+            T0 = _feature_init(target, source, transform, device, dtype)
+        else:
+            raise ValueError(f"init string must be 'global' or 'features', got {init!r}")
     elif init is None:
         T0 = _identity(device, dtype)
     else:

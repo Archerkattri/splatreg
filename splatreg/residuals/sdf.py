@@ -99,6 +99,12 @@ class SDF(Residual):
         # the same points across every LM iteration of a registration (variable = T only).
         self._sample_cache_key: Optional[tuple] = None
         self._sample_idx: Optional[torch.Tensor] = None
+        # Cache the TARGET anchor normals. They are constant across a registration (the target
+        # never moves), but estimating them (k-NN PCA + a per-anchor SVD) every residual/Jacobian
+        # call dominated runtime — and truncation does NOT touch it, which is why trunc gave no
+        # speed-up. Compute once per target identity, reuse on every LM iteration.
+        self._norm_cache_key: Optional[tuple] = None
+        self._norm_cache: Optional[torch.Tensor] = None
 
     # ------------------------------------------------------------------ helpers
 
@@ -134,12 +140,27 @@ class SDF(Residual):
         p = src_pts @ R.T + t                                       # (N, 3)
         return src_pts, p, R
 
+    def _resolve_normals(self, target: Gaussians):
+        """Target anchor normals — explicit if given, else estimated ONCE and cached.
+
+        The target is fixed across a registration, so its k-NN-PCA normals are constant; caching
+        avoids re-running the per-anchor SVD on every residual/Jacobian call (the dominant SDF cost;
+        truncation does not touch it). Keyed by target identity + storage pointer + count."""
+        if self.target_normals is not None:
+            return self.target_normals
+        key = (id(target), target.means.data_ptr(), int(target.means.shape[0]))
+        if self._norm_cache_key != key or self._norm_cache is None:
+            from ..geometry.gaussian_sdf import estimate_anchor_normals
+            self._norm_cache = estimate_anchor_normals(target.means, k=self.knn)
+            self._norm_cache_key = key
+        return self._norm_cache
+
     def _sdf(self, target: Gaussians, p: torch.Tensor):
         return gaussian_sdf(
             target,
             p,
             sigma=self.sigma,
-            normals=self.target_normals,
+            normals=self._resolve_normals(target),
             trunc_sigmas=self.trunc_sigmas,
             use_opacity=self.use_opacity,
             knn=self.knn,
@@ -155,12 +176,29 @@ class SDF(Residual):
 
     def jacobian(self, T: torch.Tensor, target: Gaussians, source: Any) -> Optional[torch.Tensor]:
         src_pts, p, R = self._transformed(T, source)
-        _, grad = self._sdf(target, p)                              # grad == surface normal n_k
-        # rt_n[k] = R^T n_k  (rows of (N,3) @ (3,3) are R^T applied to each normal).
-        rt_n = grad @ R                                            # (N, 3)
-        # d r / d v = n_k^T R = (R^T n_k)^T = rt_n             (translation block)
-        # d r / d w = -(R^T n_k) x s_k = cross(s_k, R^T n_k)   (rotation block; right-perturbation
-        #            T<-T@exp(d) gives dp/dw = -R[s_k]_x, and n^T(-R[s_k]_x) = -(R^T n) x s_k)
+        # EXACT field gradient g_k = ∇_p sdf(p_k), via autodiff through the field. The surface
+        # normal n~ that gaussian_sdf also returns is only a first-order *proxy* for this
+        # gradient — it drops the ∂q~/∂p term of the kernel-weighted centroid, which is itself
+        # first-order (NOT curvature). Using n~ gave a materially wrong Jacobian (numerically
+        # audited, tests/test_jacobians.py: max|Δ|≈10 vs numerical); autodiff is exact.
+        # Non-truncated path: CLOSED-FORM gradient (one fused pass, no autograd graph + no second
+        # forward — the fast SE(3) path). Truncated path: autodiff. Both are the EXACT ∇_p sdf.
+        if self.trunc_sigmas is None:
+            from ..geometry.gaussian_sdf import gaussian_sdf_grad
+            _, grad = gaussian_sdf_grad(
+                target, p, sigma=self.sigma, normals=self._resolve_normals(target),
+                use_opacity=self.use_opacity, knn=self.knn, chunk_size=self.chunk_size,
+            )
+        else:
+            pg = p.detach().requires_grad_(True)
+            with torch.enable_grad():
+                sd, _ = self._sdf(target, pg)
+                grad = torch.autograd.grad(sd.sum(), pg, create_graph=False)[0]   # (N, 3) ∇_p sdf
+            grad = grad.detach()
+        # Chain the field gradient through the pose-Jacobian of p = T·s_k — the SAME chain the
+        # ICP residual uses (numerically verified there). rt_n[k] = R^T g_k.
+        rt_n = grad @ R                                            # (N, 3)  d r/dv = g_k^T R
+        # d r/dw = -(R^T g_k) x s_k = cross(s_k, R^T g_k)   (right-perturbation rotation block)
         j_rot = torch.cross(src_pts, rt_n, dim=-1)                 # (N, 3)
         jac = torch.cat([rt_n, j_rot], dim=-1)                     # (N, 6)
         return jac * self.weight

@@ -87,16 +87,29 @@ def se3_log(T: torch.Tensor, dof: int = 6) -> torch.Tensor:
     R = T[:3, :3]
     t = T[:3, 3]
     trace = ((R[0, 0] + R[1, 1] + R[2, 2]) - 1.0) * 0.5
-    trace_c = trace.clamp(-1.0 + 1e-7, 1.0 - 1e-7)
-    theta = torch.acos(trace_c)
+    cos_t = trace.clamp(-1.0, 1.0)                         # = cos(theta)
+    I3 = torch.eye(3, device=dev, dtype=dtype)
+    asym = torch.stack([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]])  # = 2 sin(theta) axis
+    asym_norm = asym.norm()
+    sin_t = asym_norm * 0.5                                # = sin(theta) >= 0, consistent with asym
+    theta = torch.atan2(sin_t, cos_t)                     # robust theta in [0, pi] (no acos clamp)
     theta_s = theta.clamp_min(1e-12)
-    sin_t = torch.sin(theta_s)
-    cos_t = torch.cos(theta_s)
-    w_axis = torch.stack([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]]) / (2.0 * sin_t)
+    # Axis direction = NORMALISED antisymmetric part -- exact for any theta where asym != 0 (the
+    # magnitude cancels, so it is accurate right up to theta=pi). Only when R is (numerically)
+    # symmetric (theta=pi exactly -> asym -> 0) recover the axis from the symmetric part
+    # (R + I)/2 = axis (x) axis (largest-diagonal column, sign from asym). Standard robust SO(3) log.
+    axis = asym / asym_norm.clamp_min(1e-12)
+    B = (R + I3) * 0.5
+    diagB = torch.stack([B[0, 0], B[1, 1], B[2, 2]])
+    kmax = torch.argmax(diagB)
+    axis_pi = B[:, kmax] / torch.sqrt(diagB[kmax].clamp_min(1e-12))
+    axis_pi = axis_pi / axis_pi.norm().clamp_min(1e-12)
+    sgn = torch.sign((asym * axis_pi).sum())
+    axis_pi = axis_pi * torch.where(sgn == 0.0, torch.ones_like(sgn), sgn)
+    w_axis = torch.where(asym_norm < 1e-8, axis_pi, axis)
     w = theta_s * w_axis
     W = skew(w_axis)
     W2 = W @ W
-    I3 = torch.eye(3, device=dev, dtype=dtype)
     # V_inv for V = I + (1-cos)/theta * W + (theta-sin)/theta^2 * W^2 (standard SE(3) log).
     # Near pi: (1+cos)/sin -> 0 via L'Hopital, so the W^2 coefficient -> 1, the correct
     # near-pi behaviour. sin_t is bounded away from 0 by the trace_c clamp above.

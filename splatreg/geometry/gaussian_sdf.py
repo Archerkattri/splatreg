@@ -21,11 +21,14 @@ bandwidth ``sigma``, define for a query point ``p``::
     d(p)   = (p - q~(p)) . n~(p)                          (signed distance to local surface)
 
 ``d(p)`` is positive outside the surface (along ``+n~``), negative inside, and crosses zero
-on the soft surface. The spatial gradient returned is ``grad(p) = n~(p)`` — the unit
-surface normal at the query. This is exact to first order: the surface is locally the plane
-through ``q~`` with normal ``n~``, so the gradient of the point-to-plane distance is ``n~``
-(the implicit dependence of ``q~`` / ``n~`` on ``p`` contributes only second-order curvature
-terms, which this proxy intentionally drops for a cheap, stable Jacobian).
+on the soft surface. The second return ``n~(p)`` is the unit surface **normal** at the query
+— a useful direction, but **NOT** the exact spatial gradient of ``d``: the kernel-weighted
+centroid ``q~(p)`` and normal ``n~(p)`` themselves depend on ``p``, and ``∂q~/∂p`` is a
+*first-order* term (it does not vanish as ``p`` approaches the surface). A numerical Jacobian
+audit (``splatreg/tests/test_jacobians.py``) confirmed that treating ``n~`` as the gradient
+gives a materially wrong Jacobian, so the SDF residual computes the EXACT gradient ``∇d`` by
+autodiff through ``d(p)`` (the field is fully differentiable w.r.t. ``points``). Use ``n~`` as
+the surface normal; use the autodiff ``∇d`` as the gradient.
 
 Assumptions / knobs
 -------------------
@@ -58,7 +61,7 @@ import torch
 
 from ..core.types import Gaussians
 
-__all__ = ["gaussian_sdf", "estimate_anchor_normals"]
+__all__ = ["gaussian_sdf", "gaussian_sdf_grad", "estimate_anchor_normals"]
 
 # Numerical floor shared by the weight-sum and normal-norm denominators.
 _EPS = 1.0e-12
@@ -223,3 +226,105 @@ def gaussian_sdf(
     if len(sd_parts) == 1:
         return sd_parts[0], grad_parts[0]
     return torch.cat(sd_parts, dim=0), torch.cat(grad_parts, dim=0)
+
+
+def gaussian_sdf_grad(
+    gaussians: Gaussians,
+    points: torch.Tensor,
+    *,
+    sigma: float,
+    normals: Optional[torch.Tensor] = None,
+    use_opacity: bool = False,
+    knn: int = 50,
+    chunk_size: int = 2048,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Signed distance AND its EXACT spatial gradient ``∇_p d``, computed in closed form.
+
+    Same proxy as :func:`gaussian_sdf`, but the second return is the TRUE field gradient ``∇_p d``
+    analytically — so the SE(3) SDF-residual path needs neither an autograd graph nor a second
+    forward (this is the fast path; :func:`gaussian_sdf` + autodiff is the truncated fallback).
+    Derivation (``u = p - q~``, ``a_i = p - q_i``, ``c_i = q_i - q~``)::
+
+        ∂q~/∂p = (1/σ²) Cov_w,   Cov_w = (1/W) Σ_i w_i c_i c_iᵀ   (weighted anchor covariance)
+        ∇_p d  = n~ - (1/σ²) Cov_w n~ - (1/(σ²‖S_n‖)) Σ_i w_i (n_i·x) a_i,   x = u - d n~
+
+    EXACT (~1e-8 vs central-difference numerical) wherever the field has anchor support — the
+    entire regime where the SDF is meaningful and where the registration residual operates
+    (residual audit ``tests/test_jacobians.py`` 8/8). At degenerate far queries (the weight-sum
+    clamp activates, the field itself is undefined) it falls back to the bounded surface normal
+    ``n~`` rather than the blown-up un-clamped expression. Non-truncated support only. Returns
+    ``(sdf (N,), grad (N, 3))`` where ``grad`` is ``∇_p d`` — NOT the surface normal ``n~``.
+    """
+    means = gaussians.means
+    m = int(means.shape[0])
+    if m == 0:
+        raise ValueError("gaussian_sdf_grad: the splat has no Gaussians (means is empty).")
+    if points.dim() != 2 or points.shape[-1] != 3:
+        raise ValueError(f"gaussian_sdf_grad: points must be (N, 3), got {tuple(points.shape)}.")
+    if not (sigma > 0.0):
+        raise ValueError(f"gaussian_sdf_grad: sigma must be > 0, got {sigma}.")
+
+    device, dtype = points.device, points.dtype
+    anchors = means.to(device=device, dtype=dtype)
+    if normals is None:
+        normals = estimate_anchor_normals(anchors, k=knn)
+    else:
+        normals = normals.to(device=device, dtype=dtype)
+        if normals.shape != anchors.shape:
+            raise ValueError(
+                f"gaussian_sdf_grad: normals must match means {tuple(anchors.shape)}, "
+                f"got {tuple(normals.shape)}."
+            )
+    anchor_normals = normals / normals.norm(dim=1, keepdim=True).clamp_min(_EPS)
+
+    two_sigma_sq = 2.0 * float(sigma) * float(sigma)
+    sig_sq = float(sigma) * float(sigma)
+    opa: Optional[torch.Tensor] = None
+    if use_opacity:
+        opa = gaussians.opacities.to(device=device, dtype=dtype).reshape(-1)
+        if opa.shape[0] != m:
+            raise ValueError(f"gaussian_sdf_grad: opacities length {opa.shape[0]} != n_gaussians {m}.")
+
+    n = int(points.shape[0])
+    chunk = max(1, int(chunk_size))
+    sd_parts: list = []
+    g_parts: list = []
+    for start in range(0, n, chunk):
+        block = points[start : start + chunk]                       # (c, 3)
+        diff = block[:, None, :] - anchors[None, :, :]              # (c, M, 3) = a_i = p - q_i
+        dist_sq = (diff * diff).sum(dim=-1)                         # (c, M)
+        w = torch.exp(-dist_sq / two_sigma_sq)                     # (c, M)
+        if opa is not None:
+            w = w * opa[None, :]
+        raw_w = w.sum(dim=-1, keepdim=True)                       # (c, 1) before clamp
+        w_sum = raw_w.clamp_min(_EPS)                             # (c, 1) = W
+        q_tilde = (w @ anchors) / w_sum                           # (c, 3)
+        n_sum = w @ anchor_normals                                # (c, 3) = S_n
+        raw_n = n_sum.norm(dim=-1, keepdim=True)                  # (c, 1) before clamp
+        n_norm = raw_n.clamp_min(_EPS)                            # (c, 1) = ‖S_n‖
+        n_tilde = n_sum / n_norm                                  # (c, 3)
+        u = block - q_tilde                                       # (c, 3)
+        d = (u * n_tilde).sum(dim=-1)                             # (c,)
+
+        # ∂q~/∂p = (1/σ²) Cov_w  ->  Cov_w n~ = (1/W) Σ_i w_i (c_i·n~) c_i
+        cvec = anchors[None, :, :] - q_tilde[:, None, :]          # (c, M, 3) = c_i
+        ci_dot_n = (cvec * n_tilde[:, None, :]).sum(dim=-1)       # (c, M)
+        cov_n = ((w * ci_dot_n).unsqueeze(-1) * cvec).sum(dim=1) / w_sum   # (c, 3)
+        # (∂n~/∂p)ᵀ u  ->  -(1/(σ²‖S_n‖)) Σ_i w_i (n_i·x) a_i,  x = u - d n~
+        x = u - d.unsqueeze(-1) * n_tilde                         # (c, 3)
+        ni_dot_x = (anchor_normals[None, :, :] * x[:, None, :]).sum(dim=-1)  # (c, M)
+        last = ((w * ni_dot_x).unsqueeze(-1) * diff).sum(dim=1)            # (c, 3)
+        grad = n_tilde - cov_n / sig_sq - last / (sig_sq * n_norm)        # (c, 3) = ∇_p d
+        # Degenerate query (the weight/normal-sum clamp is active -> no anchor support, the field
+        # and its gradient are ill-defined): fall back to the bounded surface normal n~. The
+        # residual's regime (source points near the target surface) never triggers this; the guard
+        # only keeps the standalone primitive from returning a blown-up gradient far from anchors.
+        bad = (raw_w < _EPS) | (raw_n < _EPS)                            # (c, 1)
+        grad = torch.where(bad, n_tilde, grad)
+
+        sd_parts.append(d)
+        g_parts.append(grad)
+
+    if len(sd_parts) == 1:
+        return sd_parts[0], g_parts[0]
+    return torch.cat(sd_parts, dim=0), torch.cat(g_parts, dim=0)
