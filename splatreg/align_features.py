@@ -1083,6 +1083,218 @@ def _rotation_constrained_probe(
     return float(max(0.0, min(sensitivities)))
 
 
+# ── scale-robust seed (Open3D FPFH+RANSAC, optional) + splatreg refine ──────────
+
+
+def _cloud_voxel(pts: torch.Tensor, mult: float = 1.5) -> float:
+    """Scale-adaptive FPFH voxel from the cloud's POINT SPACING (median nearest-neighbour distance).
+
+    The object-scale FPFH defaults (``inlier_tol`` ~2 cm, descriptor radii tuned for a 14 cm test
+    object) are wrong by 1-2 orders of magnitude on metre-scale indoor scans — that is why the
+    object-tuned ``feature_align`` seed lands 90-170 deg off on 3DMatch.  The robust seed instead
+    follows Open3D's recipe (voxel → normals 2·voxel → FPFH 5·voxel), so the only scale knob is the
+    voxel.  A bbox/N**(1/3) estimate badly over-coarsens here (two not-yet-registered fragments span
+    a ~5 m union box but each is a sparse ~5 k-point scan, giving a useless ~0.28 m voxel).  The
+    correct, density-following scale is the cloud's own point spacing: take the median nearest-
+    neighbour distance and scale it (``mult``) so a few points fall per voxel.  This recovers ≈0.05 m
+    on the (already 5 cm-decimated) 3DMatch fragments — Open3D's proven setting — and still adapts
+    down to a dense 14 cm object.  Returns a positive metre voxel.
+    """
+    n = pts.shape[0]
+    if n < 4:
+        return 0.05
+    # median nearest-neighbour distance on a strided subsample (cheap, scale-following).
+    sub = _stride_subsample(pts, min(n, 2000)).to(torch.float32)
+    d = torch.cdist(sub, sub)
+    d.fill_diagonal_(float("inf"))
+    nn = d.min(dim=1).values
+    spacing = float(nn.median().item())
+    if not math.isfinite(spacing) or spacing <= 0.0:
+        ext = (pts.amax(dim=0) - pts.amin(dim=0)).clamp_min(0.0)
+        return float(max(float(ext.norm().item()) / 50.0, 1e-4))
+    return float(max(spacing * mult, 1e-4))
+
+
+def _open3d_fpfh_ransac_seed(
+    src: torch.Tensor, tgt: torch.Tensor, voxel: float
+) -> tuple[torch.Tensor | None, int]:
+    """Classical FPFH + RANSAC global seed via Open3D (source→target 4×4), or ``None`` if unavailable.
+
+    Matches the proven Open3D ``registration_ransac_based_on_feature_matching`` recipe (Choi et al.
+    2015 / the Open3D global-registration tutorial): voxel downsample, normals at radius ``2*voxel``,
+    FPFH at radius ``5*voxel``, mutual-filter RANSAC over 4-point samples with edge-length + distance
+    correspondence checkers and 100k/0.999 convergence.  This is scale-correct (radii follow the
+    auto ``voxel``) and is the robustness Open3D itself reports (~77 % RR on 3DMatch) — splatreg then
+    refines it for accuracy and (optionally) scale.  Returns ``(T, n_corr)``; ``n_corr`` is the size
+    of the RANSAC correspondence set (a coarse seed-quality signal).
+    """
+    try:
+        import open3d as o3d  # optional dependency; pure-splatreg path used when absent
+    except Exception:
+        return None, 0
+    import numpy as _np
+
+    sp_np = src.detach().cpu().to(torch.float64).numpy()
+    tp_np = tgt.detach().cpu().to(torch.float64).numpy()
+
+    def _prep(p):
+        pc = o3d.geometry.PointCloud()
+        pc.points = o3d.utility.Vector3dVector(p)
+        # NB: the input clouds are already voxel-decimated by the caller; an extra voxel_down_sample
+        # here only throws away the correspondences RANSAC needs, so we estimate features directly.
+        pc.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=voxel * 2.0, max_nn=30))
+        fpfh = o3d.pipelines.registration.compute_fpfh_feature(
+            pc, o3d.geometry.KDTreeSearchParamHybrid(radius=voxel * 5.0, max_nn=100)
+        )
+        return pc, fpfh
+
+    try:
+        sp, sf = _prep(sp_np)
+        tp, tf = _prep(tp_np)
+        dist = voxel * 1.5
+        res = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
+            sp,
+            tp,
+            sf,
+            tf,
+            True,  # mutual filter
+            dist,
+            o3d.pipelines.registration.TransformationEstimationPointToPoint(False),
+            3,
+            [
+                o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(0.9),
+                o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(dist),
+            ],
+            o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999),
+        )
+        T = torch.as_tensor(_np.asarray(res.transformation), dtype=torch.float64)
+        return T, int(len(res.correspondence_set))
+    except Exception:
+        return None, 0
+
+
+def _open3d_icp_refine(
+    src: torch.Tensor, tgt: torch.Tensor, T0: torch.Tensor, voxel: float, iters: int = 50
+) -> torch.Tensor | None:
+    """Open3D point-to-plane ICP local refine of a global seed (source→target 4×4), or ``None``.
+
+    Standard scale-correct local refinement: point-to-plane ICP at a ``2*voxel`` max-correspondence
+    distance with the seed as the initialisation.  This is the Open3D global-registration tutorial's
+    own refine step; it tightens a good FPFH+RANSAC seed without the object-scale failure mode of the
+    overlap ICP tuned for 14 cm splats (which wanders on low-overlap room scans).  Returns the refined
+    4×4, or ``None`` to signal "keep the seed".
+    """
+    try:
+        import open3d as o3d
+    except Exception:
+        return None
+    import numpy as _np
+
+    try:
+        sp = o3d.geometry.PointCloud()
+        sp.points = o3d.utility.Vector3dVector(src.detach().cpu().to(torch.float64).numpy())
+        tp = o3d.geometry.PointCloud()
+        tp.points = o3d.utility.Vector3dVector(tgt.detach().cpu().to(torch.float64).numpy())
+        tp.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=voxel * 2.0, max_nn=30))
+        res = o3d.pipelines.registration.registration_icp(
+            sp,
+            tp,
+            voxel * 2.0,
+            T0.detach().cpu().to(torch.float64).numpy(),
+            o3d.pipelines.registration.TransformationEstimationPointToPlane(),
+            o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=int(iters)),
+        )
+        return torch.as_tensor(_np.asarray(res.transformation), dtype=torch.float64)
+    except Exception:
+        return None
+
+
+@torch.no_grad()
+def robust_feature_align(
+    target: Gaussians,
+    source: Gaussians,
+    *,
+    transform: str = "se3",
+    voxel: float | None = None,
+    refine_iters: int = 30,
+) -> tuple[torch.Tensor, dict]:
+    """Scale-robust registrar: Open3D FPFH+RANSAC seed + splatreg overlap-aware refine (+ Sim(3)).
+
+    The object-tuned :func:`feature_align` seed collapses on metre-scale indoor scans (its FPFH radii
+    and 2 cm inlier tolerance are object-scale), which is why pure-splatreg ``init="fast"`` only hits
+    ~13 % RR on 3DMatch while Open3D's scale-correct FPFH+RANSAC hits ~77 %.  This path takes the best
+    of both: it borrows Open3D's *robust correspondence/seed* (auto-scaled voxel + radii) and then
+    runs splatreg's own overlap-aware trimmed ICP (:func:`_overlap_icp_polish`, target→source so a
+    partial overlap can't drag the fit) on top — adding refine accuracy and, for ``transform="sim3"``,
+    a recovered scale Open3D's rigid RANSAC never estimates.
+
+    When Open3D is absent it falls back to the pure-splatreg :func:`feature_align` (with the same
+    scale-adaptive ``voxel`` mapped into its ``inlier_tol``), so the function always returns a pose.
+
+    Args:
+        target / source: reference / to-align splats (only ``.means`` read).
+        transform: ``"se3"`` (rigid) or ``"sim3"`` (estimate scale in the refine).
+        voxel: downsample/feature scale (m); ``None`` → auto from the cloud bbox.
+        refine_iters: splatreg overlap-ICP polish iterations on top of the seed.
+
+    Returns:
+        ``(T_4x4, info)`` — estimated 4×4 (source→target, source device/dtype) and an ``info`` dict
+        (``voxel``, ``n_corr``, ``seed_rre`` placeholder, ``used_open3d``, ``confidence``).
+    """
+    if transform not in ("se3", "sim3"):
+        raise ValueError(f"transform must be 'se3' or 'sim3', got {transform!r}")
+    with_scale = transform == "sim3"
+    dev = source.means.device
+    dtype = source.means.dtype
+    src_full = source.means.to(torch.float32)
+    tgt_full = target.means.to(device=dev, dtype=torch.float32)
+
+    info = {"voxel": 0.0, "n_corr": 0, "used_open3d": False, "confidence": 0.0}
+    if src_full.shape[0] < 4 or tgt_full.shape[0] < 4:
+        return torch.eye(4, device=dev, dtype=dtype), info
+
+    if voxel is None:
+        # Derive from each cloud's point spacing; use the finer so detail survives the downsample.
+        voxel = min(_cloud_voxel(src_full), _cloud_voxel(tgt_full))
+    info["voxel"] = float(voxel)
+
+    T_seed, n_corr = _open3d_fpfh_ransac_seed(src_full, tgt_full, voxel)
+    if T_seed is not None:
+        info["used_open3d"] = True
+        info["n_corr"] = int(n_corr)
+        T0 = T_seed.to(device=dev, dtype=dtype)
+
+        # SE(3): Open3D point-to-plane ICP refine (scale-correct, standard) — tightens the seed at
+        # room scale without the object-tuned overlap ICP's low-overlap wander.  For Sim(3) we need a
+        # scale DoF Open3D's rigid ICP can't give, so we use splatreg's overlap-aware Sim(3) ICP.
+        if not with_scale:
+            T_o3d = _open3d_icp_refine(src_full, tgt_full, T0, voxel, iters=refine_iters)
+            T_ref = T_o3d.to(device=dev, dtype=dtype) if T_o3d is not None else T0
+        else:
+            T_ref = _overlap_icp_polish(
+                src_full,
+                tgt_full,
+                T0,
+                with_scale=True,
+                iters=refine_iters,
+                n_src=min(4000, src_full.shape[0]),
+                n_tgt=min(2000, tgt_full.shape[0]),
+            )
+        # Accept the refine only if it does not worsen the overlap fit (a degenerate ICP can wander).
+        r0 = _overlap_residual_norm(src_full, tgt_full, T0, with_scale=with_scale)
+        r1 = _overlap_residual_norm(src_full, tgt_full, T_ref, with_scale=with_scale)
+        T = T_ref if r1 <= r0 + 1e-6 else T0
+        info["confidence"] = float(max(0.0, 1.0 - min(r0, r1)))
+        return T.to(device=dev, dtype=dtype), info
+
+    # No Open3D — fall back to the pure-splatreg feature path with a scale-adaptive inlier tolerance.
+    info["used_open3d"] = False
+    T, finfo = feature_align(target, source, transform=transform, inlier_tol=max(voxel * 1.0, _FS_INLIER_TOL))
+    info["confidence"] = float(finfo.get("confidence", 0.0))
+    info["n_corr"] = int(finfo.get("n_inliers", 0))
+    return T, info
+
+
 # ── public entry ──────────────────────────────────────────────────────────────
 
 

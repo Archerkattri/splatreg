@@ -11,3 +11,4 @@ venv/
 reference/
 _scratch/
 data/
+third_party_models/

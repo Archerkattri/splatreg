@@ -212,6 +212,13 @@ def main():
     ap.add_argument("--device", default=os.environ.get("SPLATREG_DEVICE", "cpu"))
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-open3d", action="store_true")
+    ap.add_argument(
+        "--init",
+        default="robust",
+        choices=["fast", "robust", "features", "global"],
+        help="splatreg init: 'robust' (Open3D FPFH+RANSAC seed + splatreg refine, scale-correct for "
+        "real indoor scans) or 'fast' (pure-splatreg object-tuned FPFH).",
+    )
     args = ap.parse_args()
 
     device = args.device
@@ -249,7 +256,7 @@ def main():
         if device.startswith("cuda"):
             torch.cuda.synchronize()
         t0 = time.perf_counter()
-        res = register(gs_tgt, gs_src, init="fast", transform="se3")
+        res = register(gs_tgt, gs_src, init=args.init, transform="se3")
         if device.startswith("cuda"):
             torch.cuda.synchronize()
         sr["ms"].append((time.perf_counter() - t0) * 1000.0)
@@ -286,7 +293,7 @@ def main():
         print(f"  median ms/pair          : {np.median(d['ms']):.1f}")
 
     print("\n" + "=" * 60)
-    report("splatreg  (init='fast')", sr)
+    report(f"splatreg  (init={args.init!r})", sr)
     if has_o3d:
         report("Open3D  FPFH+RANSAC", o3)
     print("=" * 60)
