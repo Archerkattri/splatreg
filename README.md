@@ -157,14 +157,13 @@ splatreg is honest about its edges (full detail in [`RESULTS.md`](RESULTS.md)):
 
 ## Roadmap
 
-Shipped: official 3DMatch + 3DLoMatch (Choi/Zeng, 91.5% / 74.4% pooled, matching GeoTransformer); pluggable `fast`/`robust`/`learned` init backends; CI regression gates (determinism + worst-case + PR-comment benchmark); the real-splat merge demo (`examples/merge_demo.py`); the head-to-head vs `splatalign` / `GaussianSplattingRegistration` (only tool recovering Sim(3) scale); the seeded-RANSAC determinism fix; and the partial-overlap basin sweep (4/9 → 6/9 solved). Remaining:
+Shipped: official 3DMatch + 3DLoMatch (Choi/Zeng, 91.5% / 74.4% pooled, matching GeoTransformer); pluggable `fast`/`robust`/`learned` init backends; CI regression gates (determinism + worst-case + PR-comment benchmark); the real-splat merge demo (`examples/merge_demo.py`); the head-to-head vs `splatalign` / `GaussianSplattingRegistration` (only tool recovering Sim(3) scale); the seeded-RANSAC determinism fix; the partial-overlap basin sweep (4/9 → 6/9 solved); and the **v1.0 release** — BSD-3-Clause, public, on PyPI (`pip install splatreg`). Remaining:
 
 - [ ] **Heavy partial overlap (keep ≤ 40%) to publication.** The moderate keep ≈ 60% crops now solve; the heavy one-sided crops are correctly flagged ambiguous but still unsolved. Needs an overlap-region-restricted descriptor / learned overlap prior to push past the geometry-only basin ambiguity.
 - [ ] **Tighten Sim(3) scale under low overlap.** The scale line-search helps but a thin shared band leaves a wide scale valley; a multi-scale or descriptor-anchored scale constraint is the next step.
 - [ ] Close the gap to GeoTransformer's full coarse-to-fine matcher with splatreg's *own* dense correspondence (not just a borrowed seed).
 - [ ] 6-DoF object-pose mode + FoundationPose/YCB benchmark (v0.2)
 - [ ] Camera localization in a splat (v0.2)
-- [ ] PyPI release
 
 ## License & layout
 
