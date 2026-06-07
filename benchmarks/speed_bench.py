@@ -39,6 +39,7 @@ for _p in (_ROOT, _EX):
         sys.path.insert(0, _p)
 
 from splatreg import register  # noqa: E402
+from splatreg.residuals import ICP  # noqa: E402
 
 from _example_utils import (  # noqa: E402
     axis_angle_R,
@@ -82,17 +83,22 @@ def _acc(T: torch.Tensor, R_gt: torch.Tensor, s_gt: float, transform: str):
     return rot, scl, ok
 
 
-def run(init: str, transform: str, n: int, max_iters: int, quality: str = "full"):
+def run(init: str, transform: str, n: int, max_iters: int, quality: str = "full", light: bool = False):
+    """Time ``register`` over ``n`` pairs. ``light`` uses an ICP-only few-iter LM (the headline fast
+    config: the feature seed is near-exact, so a heavy SDF+autodiff full-quality polish is wasted)."""
+    residuals = [ICP(point_to_plane=False, weight=1.0)] if light else None
     times, rots, oks = [], [], 0
     # warmup (CUDA kernels / autograd graph).
     A, B, R, s = _make_pair(0, transform)
-    register(B, A, init=init, transform=transform, max_iters=max_iters, quality=quality)
+    register(B, A, residuals=residuals, init=init, transform=transform, max_iters=max_iters, quality=quality)
     _sync()
     for idx in range(n):
         A, B, R, s = _make_pair(idx, transform)
         _sync()
         t0 = time.perf_counter()
-        res = register(B, A, init=init, transform=transform, max_iters=max_iters, quality=quality)
+        res = register(
+            B, A, residuals=residuals, init=init, transform=transform, max_iters=max_iters, quality=quality
+        )
         _sync()
         times.append((time.perf_counter() - t0) * 1e3)
         rot, scl, ok = _acc(res.T, R, s, transform)
@@ -100,8 +106,9 @@ def run(init: str, transform: str, n: int, max_iters: int, quality: str = "full"
         oks += int(ok)
     times = np.array(times)
     rots = np.array(rots)
+    cfg = f"{init}+{'ICP-only' if light else 'default'}/{max_iters}it"
     print(
-        f"  init={init:7s} {transform}: "
+        f"  {cfg:24s} {transform}: "
         f"median {np.median(times):7.1f} ms   p90 {np.percentile(times, 90):7.1f} ms   "
         f"| rot med {np.median(rots):6.2f}° max {rots.max():6.2f}°  recov {oks}/{n}"
     )
@@ -115,25 +122,31 @@ def main():
     global N_POINTS
     ap = argparse.ArgumentParser(description="splatreg from-scratch registration speed benchmark.")
     ap.add_argument("--n", type=int, default=50, help="pairs per (init, transform) block (default 50)")
-    ap.add_argument("--iters", type=int, default=60, help="LM iters (default 60)")
     ap.add_argument("--n-points", type=int, default=1400, help="object anchor count (default 1400)")
-    ap.add_argument("--quality", default="full", help="quality policy passed to register (default full)")
     ap.add_argument(
-        "--inits",
-        default="fast,global",
-        help="comma list of inits to bench (default 'fast,global'; e.g. 'fast')",
+        "--mode",
+        default="all",
+        choices=["all", "fast", "robust"],
+        help="'fast'=headline ICP-only few-iter config; 'robust'=full-quality 60-iter; 'all'=both + "
+        "the global-sweep baseline (default all)",
     )
     args = ap.parse_args()
     N_POINTS = args.n_points
-    inits = [s.strip() for s in args.inits.split(",") if s.strip()]
 
     print(
-        f"\nsplatreg from-scratch speed bench — N={args.n} pairs/block, LM iters={args.iters}, "
+        f"\nsplatreg from-scratch speed bench — N={args.n} pairs/block, "
         f"N_points={N_POINTS}, device={DEVICE.upper()}\n"
+        "  FAST   = init='fast' (FPFH+batched-RANSAC) + ICP-only LM, 6 iters  (target median < 50 ms)\n"
+        "  ROBUST = init='fast' + the default full-quality SDF+ICP LM, 60 iters\n"
+        "  GLOBAL = init='global' (blind super-Fibonacci sweep) + default LM, 60 iters (slow fallback)\n"
     )
     for transform in ("se3", "sim3"):
-        for init in inits:
-            run(init, transform, args.n, args.iters, quality=args.quality)
+        if args.mode in ("all", "fast"):
+            run("fast", transform, args.n, max_iters=6, quality="full", light=True)
+        if args.mode in ("all", "robust"):
+            run("fast", transform, args.n, max_iters=60, quality="full", light=False)
+        if args.mode == "all":
+            run("global", transform, args.n, max_iters=60, quality="full", light=False)
         print()
 
 

@@ -613,10 +613,11 @@ def _overlap_icp_polish(
     T0: torch.Tensor,
     *,
     with_scale: bool,
-    iters: int = 20,
+    iters: int = 10,
     trim: float = 0.85,
     n_src: int = 2048,
     n_tgt: int = 1024,
+    conv_tol: float = 1e-5,
 ) -> torch.Tensor:
     """Refine ``T`` (source→target) by matching TARGET→SOURCE — robust to a partial target.
 
@@ -667,7 +668,16 @@ def _overlap_icp_polish(
             break
         if not (torch.isfinite(R_new).all() and torch.isfinite(t_new).all()):
             break
+        # Early-exit on convergence: the FPFH+RANSAC seed is already close, so the trimmed
+        # re-fit settles in a couple of iterations.  Measure the incremental change in the
+        # (R, s, t) estimate; once it is below ``conv_tol`` further iterations only repeat the
+        # same cdist/Umeyama at no benefit, so we stop and save the per-iter cost.
+        dR = float((R_new - R).abs().max().item())
+        dt = float((t_new - t).abs().max().item())
+        ds = abs(float(s_new) - s)
         R, s, t = R_new, float(s_new), t_new
+        if dR < conv_tol and dt < conv_tol and ds < conv_tol:
+            break
     T = torch.eye(4, device=dev, dtype=torch.float64)
     T[:3, :3] = s * R
     T[:3, 3] = t

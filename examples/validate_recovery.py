@@ -80,6 +80,10 @@ MAX_ITERS = 60  # LM iterations for the fine refine
 # Quality / machine-adaptivity policy passed to `register` (CLI `--quality`, default "full"):
 # "full" | "balanced" | "low" | "auto" | a 0..1 float. "auto" sizes the work to detected memory.
 QUALITY: object = "full"
+# Coarse-init policy (CLI `--init`, default "global"): "global" (blind super-Fibonacci sweep, the
+# robust default this harness validates) or "fast" (FPFH + GPU-batched RANSAC seed — the fast path;
+# use this to validate that the fast init recovers the SAME 36/36 on the identical grid).
+INIT: str = "global"
 
 # Known-offset grid. Rotation about a fixed oblique axis at three magnitudes (small / medium /
 # large), three scale factors, and a fixed-direction translation scaled with the object (~object
@@ -103,7 +107,7 @@ def recover_once(A, M_gt, s_gt, transform):
     B = make_object_splat.apply_to(A, M_gt)  # B = M_gt . A (points + scales transformed)
     t0 = time.perf_counter()
     res = register(
-        B, A, init="global", transform=transform, max_iters=MAX_ITERS, quality=QUALITY
+        B, A, init=INIT, transform=transform, max_iters=MAX_ITERS, quality=QUALITY
     )  # residuals=None -> default set sized by quality
     dt = time.perf_counter() - t0
 
@@ -213,7 +217,7 @@ def _peak_report():
 
 
 def main():
-    global DEVICE, QUALITY, N_POINTS, MAX_ITERS
+    global DEVICE, QUALITY, N_POINTS, MAX_ITERS, INIT
     ap = argparse.ArgumentParser(description="splatreg synthetic Sim(3)/SE(3) recovery harness.")
     ap.add_argument(
         "--quality",
@@ -223,7 +227,15 @@ def main():
     ap.add_argument("--device", default=DEVICE, help="cpu|cuda (default: $SPLATREG_DEVICE or cpu)")
     ap.add_argument("--n", type=int, default=N_POINTS, help=f"object anchor count (default {N_POINTS})")
     ap.add_argument("--iters", type=int, default=MAX_ITERS, help=f"LM iters (default {MAX_ITERS})")
+    ap.add_argument(
+        "--init",
+        default=INIT,
+        choices=["global", "fast", "features"],
+        help="coarse-init policy: 'global' (blind sweep, default), 'fast' (FPFH+batched-RANSAC), "
+        "or 'features' (feature-only registration, no LM polish)",
+    )
     args = ap.parse_args()
+    INIT = args.init
 
     DEVICE = args.device
     if DEVICE.startswith("cuda") and not torch.cuda.is_available():
