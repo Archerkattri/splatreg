@@ -192,6 +192,59 @@ pre-existing object-pose `Photometric` residual's inverse-compositional analytic
 to have the same narrow/sign-sensitive basin on these synthetic scenes — which is why the v0.2
 camera path uses differentiable rendering instead.
 
+## 5h. Multi-splat joint / bundle registration (v0.3)
+
+`bundle_register(splats, ref=0, pairs="auto")` (`tests/test_bundle.py`) — register `N` overlapping
+splats *jointly* into one loop-consistent frame. It builds a relative-pose constraint `T_ij` per
+overlapping pair (each via the existing `register`), then optimises all `N` **absolute** poses over a
+**pose graph** — Gauss-Newton in the SE(3)/Sim(3) tangent (edge residual
+`e_ij = log((T_i T_ij)^{-1} T_j)`, Jacobians autodiffed through `core/lie`'s `exp`/`log`), with the
+reference pose pinned to fix the gauge. The sequential merge-to-ref chains the edges, so on a *loop*
+it dumps all accumulated drift onto the loop-closure edge; the joint optimum spreads it.
+
+Validated on a synthetic **ring** of 5 noisy captures (the same object placed at known poses around a
+loop, with per-capture footprint-scale jitter so the pairwise solves carry real error):
+
+| | max pairwise inconsistency | mean |
+|---|---|---|
+| Sequential chain (merge-style) | 3.7e-2 | 7.5e-3 |
+| **Joint bundle** | **7.5e-3** | 7.5e-3 |
+| | **~5× lower max** | (≈ equal) |
+
+The headline is the **~5× drop in the worst-edge inconsistency** — the loop closes. The *mean* edge
+error is essentially unchanged, which is the honest, correct behaviour: the joint solve is a
+least-squares optimum that *redistributes* the same total measurement error off the worst (loop-
+closure) edge and across the graph; it does not reduce the total residual (the pairwise measurements
+themselves carry the noise floor). `fuse=True` returns one merged splat baked from the jointly
+optimised poses. *Scope:* synthetic loop only; a single bad pairwise edge currently enters the graph
+un-gated (no robust edge rejection yet).
+
+## 5i. Scene-scale spatial index (v0.3)
+
+`SpatialIndex` / `build_index(splat)` (`tests/test_spatial_index.py`) — a voxel-hash grid over the
+Gaussian means supporting **exact** `knn` / `radius` / `region` queries, so the SDF / dedupe / merge
+query path scales past the brute-force `cdist`. Wired as an **opt-in acceleration** (brute force stays
+the default/fallback): `gaussian_sdf(..., index=idx)` serves the truncated-SDF support, and
+`knn_dedupe(..., use_index=True)` serves the cross-splat overlap dedupe.
+
+* **Correctness:** `knn` / `radius` / `region` return identical sets to a brute-force scan (the grid
+  only prunes which anchors are distance-tested). The index-accelerated SDF matches the brute path to
+  float32 tolerance (sdf max-Δ ≈ 4e-6).
+* **Speedup (cross-splat radius dedupe, the O(N²) case, CPU, 2 threads):**
+
+  | anchors N | brute `cdist` | index | speedup |
+  |---|---|---|---|
+  | 48,000 | 12.1 s | 2.6 s | **4.6×** |
+  | ~115,000 | ~48 s | ~4 s | **~12×** |
+
+  Survivor set identical up to a negligible float-boundary fraction (~8e-5 — a couple of
+  exactly-on-the-radius duplicate pairs round across the two distance kernels; honest FP ties, not a
+  logic difference).
+
+*Scope:* the query loop is per-query Python, so on a *small* cloud (object-scale knn in warm-start
+tracking) the heavily-vectorised brute `cdist` still wins; the index is the scene-scale path. A
+vectorised multi-query gather is the next step.
+
 ## 6. Honest limitations (no overstating)
 
 - **Partial overlap (6/9 solved + 3 flagged, 0 silent-wrong).** The `init="features"` aligner —

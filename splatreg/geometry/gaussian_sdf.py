@@ -118,6 +118,7 @@ def gaussian_sdf(
     use_opacity: bool = False,
     knn: int = 50,
     chunk_size: int = 2048,
+    index: Optional[object] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Sample the Gaussian-derived signed-distance proxy and its gradient at ``points``.
 
@@ -138,6 +139,12 @@ def gaussian_sdf(
         knn: neighbourhood size passed to the normal estimator (ignored if ``normals`` given).
         chunk_size: rows of ``points`` processed per block, bounding the ``(chunk, M)`` weight
             matrix's memory.
+        index: optional prebuilt :class:`splatreg.spatial_index.SpatialIndex` over the target
+            anchors. When supplied **with** ``trunc_sigmas`` the per-query ``k``-nearest gather is
+            served by the voxel-hash grid (near-O(N) candidate lookup) instead of the full
+            ``(chunk, M)`` distance matrix — the EXACT same truncated proxy, only the neighbour
+            search is pruned, so a scene-scale target field stays cheap. Ignored when
+            ``trunc_sigmas`` is ``None`` (the full-field path reads every anchor by definition).
 
     Returns:
         ``(sdf, grad)`` where ``sdf`` is ``(N,)`` signed distances (``> 0`` outside) and
@@ -195,12 +202,18 @@ def gaussian_sdf(
     grad_parts = []
     for start in range(0, n, chunk):
         block = points[start : start + chunk]  # (c, 3)
-        diff = block[:, None, :] - anchors[None, :, :]  # (c, M, 3)
-        dist_sq = (diff * diff).sum(dim=-1)  # (c, M)
 
         if trunc_topk is not None:
+            if index is not None:
+                # Voxel-hash gather of the k nearest anchors per query — near-O(N) candidate lookup,
+                # no full (c, M) distance matrix. Identical k-NN support to the brute-force topk.
+                near_idx, near_d = index.knn(block, trunc_topk)  # (c, k)
+                near_sq = near_d * near_d
+            else:
+                diff = block[:, None, :] - anchors[None, :, :]  # (c, M, 3)
+                dist_sq = (diff * diff).sum(dim=-1)  # (c, M)
+                near_sq, near_idx = torch.topk(dist_sq, k=trunc_topk, largest=False)  # (c, k)
             # Gather the k nearest anchors per query and zero out those beyond `radius`.
-            near_sq, near_idx = torch.topk(dist_sq, k=trunc_topk, largest=False)  # (c, k)
             weights = torch.exp(-near_sq / two_sigma_sq)
             weights = torch.where(near_sq <= radius_sq, weights, torch.zeros_like(weights))
             q_near = anchors[near_idx]  # (c, k, 3)
@@ -211,6 +224,8 @@ def gaussian_sdf(
             q_tilde = (weights.unsqueeze(-1) * q_near).sum(dim=1) / w_sum
             n_sum = (weights.unsqueeze(-1) * n_near).sum(dim=1)  # (c, 3)
         else:
+            diff = block[:, None, :] - anchors[None, :, :]  # (c, M, 3)
+            dist_sq = (diff * diff).sum(dim=-1)  # (c, M)
             weights = torch.exp(-dist_sq / two_sigma_sq)  # (c, M)
             if opa is not None:
                 weights = weights * opa[None, :]

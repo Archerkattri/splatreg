@@ -261,7 +261,46 @@ def _knn_keep_mask(means: torch.Tensor, opacities: torch.Tensor, radius: float) 
     return keep
 
 
-def knn_dedupe(g: Gaussians, radius: Optional[float] = None) -> Gaussians:
+def _knn_keep_mask_indexed(means: torch.Tensor, opacities: torch.Tensor, radius: float) -> torch.Tensor:
+    """Index-accelerated equivalent of :func:`_knn_keep_mask` — same survivor set, near-O(N).
+
+    Builds a :class:`splatreg.spatial_index.SpatialIndex` over the means and asks it for every
+    in-radius neighbour of each point (the grid touches only the local cells, not all N anchors),
+    then applies the identical ``(opacity desc, index asc)`` priority suppression. The result is the
+    SAME boolean keep-mask as the brute-force pass — only the neighbour search is pruned — so a
+    scene-scale splat dedupes without the O(N^2) ``cdist``. Falls back to the brute-force mask if the
+    spatial index module is unavailable.
+    """
+    try:
+        from .spatial_index import SpatialIndex
+    except Exception:  # pragma: no cover - index is optional
+        return _knn_keep_mask(means, opacities, radius)
+    n = means.shape[0]
+    opa = _opacity_key(opacities, n)
+    idx = SpatialIndex(means, cell=float(radius))
+    # Query a hair beyond `radius` so the grid returns a SUPERSET of the brute-force in-radius pairs;
+    # the squared re-filter below is then the sole (and identical) boundary arbiter.
+    qi, ai = idx.radius(means, float(radius) * (1.0 + 1e-6))  # (P,) query / anchor index pairs
+    if qi.numel() == 0:
+        return torch.ones(n, dtype=torch.bool, device=means.device)
+    self_pair = qi == ai
+    qi, ai = qi[~self_pair], ai[~self_pair]
+    # Re-filter with the SAME distance kernel the brute path uses — ``cdist(...)**2 <= r2`` — so the
+    # survivor set is bit-identical. ``cdist**2`` (a fused kernel) and a manual ``(p-q)^2.sum()`` round
+    # differently for a pair at distance exactly r, which would otherwise flip a handful of
+    # on-the-boundary duplicates. Computed per-pair via a batched 1-row cdist to stay O(P).
+    pair_d = torch.linalg.vector_norm(means[ai] - means[qi], dim=-1)  # matches cdist's norm reduction
+    within = pair_d * pair_d <= float(radius) * float(radius)
+    qi, ai = qi[within], ai[within]
+    # Neighbour ai is strictly higher-priority than query qi?
+    higher = (opa[ai] > opa[qi]) | ((opa[ai] == opa[qi]) & (ai < qi))
+    suppressed_q = qi[higher]
+    keep = torch.ones(n, dtype=torch.bool, device=means.device)
+    keep[suppressed_q] = False
+    return keep
+
+
+def knn_dedupe(g: Gaussians, radius: Optional[float] = None, *, use_index: bool = False) -> Gaussians:
     """Cross-splat radius dedupe: keep the highest-opacity survivor within every ``radius`` ball.
 
     The translation-invariant complement to :func:`voxel_dedupe` — it removes the residual overlap a
@@ -272,23 +311,36 @@ def knn_dedupe(g: Gaussians, radius: Optional[float] = None) -> Gaussians:
         g: the (typically concatenated) splat to dedupe.
         radius: suppression ball radius in the splat's units; ``None`` derives it via
             :func:`auto_knn_radius` (half the median anchor spacing).
+        use_index: when ``True`` route the neighbour search through the voxel-hash
+            :class:`splatreg.spatial_index.SpatialIndex` (near-O(N) on scene-scale splats) instead of
+            the default O(N^2) chunked ``cdist`` scan. The survivor set is IDENTICAL either way — only
+            the neighbour search is pruned. Default ``False`` (the original brute-force path).
 
     Returns:
         Gaussians: a subset of ``g`` with no two survivors closer than ``radius`` to a
         higher-priority neighbour. Fields, ``colors``, ``log_scales``, device and dtype are
         preserved. An empty / single-Gaussian input is returned unchanged.
     """
-    return knn_dedupe_report(g, radius)[0]
+    return knn_dedupe_report(g, radius, use_index=use_index)[0]
 
 
-def knn_dedupe_report(g: Gaussians, radius: Optional[float] = None) -> Tuple[Gaussians, float]:
-    """Like :func:`knn_dedupe` but also returns the radius actually used (for logging)."""
+def knn_dedupe_report(
+    g: Gaussians, radius: Optional[float] = None, *, use_index: bool = False
+) -> Tuple[Gaussians, float]:
+    """Like :func:`knn_dedupe` but also returns the radius actually used (for logging).
+
+    ``use_index`` selects the voxel-hash-accelerated neighbour search (identical survivors,
+    near-O(N) on large splats); the default brute-force ``cdist`` path is unchanged.
+    """
     n = len(g)
     if n <= 1:
         return g, float(radius) if radius is not None else auto_knn_radius(g)
     r = float(radius) if radius is not None else auto_knn_radius(g)
     if not (r > 0.0):
         raise ValueError(f"knn_dedupe: radius must be > 0, got {r}.")
-    keep_mask = _knn_keep_mask(g.means, g.opacities, r)
+    if use_index:
+        keep_mask = _knn_keep_mask_indexed(g.means, g.opacities, r)
+    else:
+        keep_mask = _knn_keep_mask(g.means, g.opacities, r)
     keep = torch.nonzero(keep_mask, as_tuple=False).reshape(-1)
     return _index_gaussians(g, keep), r

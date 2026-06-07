@@ -40,6 +40,16 @@ try:
 except ImportError:  # gsplat not installed
     CameraPhotometric = localize_camera = None  # type: ignore
 
+# v0.3: multi-splat joint/bundle registration + scene-scale spatial index (pure torch).
+try:
+    from .bundle import bundle_register, pairwise_consistency, BundleResult  # noqa: F401
+except ImportError:  # pragma: no cover
+    bundle_register = pairwise_consistency = BundleResult = None  # type: ignore
+try:
+    from .spatial_index import SpatialIndex, build_index  # noqa: F401
+except ImportError:  # pragma: no cover
+    SpatialIndex = build_index = None  # type: ignore
+
 __version__ = "0.0.1"
 __all__ = [
     "register",
@@ -64,4 +74,11 @@ __all__ = [
     # v0.2 camera localization
     "CameraPhotometric",
     "localize_camera",
+    # v0.3 multi-splat bundle registration
+    "bundle_register",
+    "pairwise_consistency",
+    "BundleResult",
+    # v0.3 scene-scale spatial index
+    "SpatialIndex",
+    "build_index",
 ]
