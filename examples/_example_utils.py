@@ -28,6 +28,7 @@ __all__ = [
     "axis_angle_R",
     "rot_angle_deg",
     "chamfer_mm",
+    "overlap_fraction",
     "sim3_matrix",
     "make_object_splat",
 ]
@@ -76,6 +77,27 @@ def chamfer_mm(a: torch.Tensor, b: torch.Tensor, *, max_pts: int = 4000) -> floa
     d_ab = d.min(dim=1).values.mean()
     d_ba = d.min(dim=0).values.mean()
     return 1000.0 * float(0.5 * (d_ab + d_ba))
+
+
+def overlap_fraction(a: torch.Tensor, b: torch.Tensor, eps: float, *, max_pts: int = 8000) -> float:
+    """Fraction of points in ``b`` that have an ``a``-point within ``eps`` (a -> reference cloud).
+
+    This is the "did the two clouds actually land on top of each other" metric: after a good
+    registration the moved cloud's surface sits within ``eps`` of the reference surface in the
+    shared region, so the fraction is high; a misaligned (naive-cat) cloud sits ``eps`` away and
+    the fraction collapses. Both sides are deterministically strided to ``max_pts`` to bound the
+    pairwise distance. ``eps`` is in the same units as the inputs (metres here).
+    """
+
+    def sub(x):
+        if x.shape[0] <= max_pts:
+            return x
+        sel = torch.linspace(0, x.shape[0] - 1, max_pts, device=x.device).round().long()
+        return x[sel]
+
+    a, b = sub(a), sub(b)
+    nn = torch.cdist(b, a).min(dim=1).values  # nearest a-point distance for each b-point
+    return float((nn <= eps).float().mean())
 
 
 def sim3_matrix(s: float, R: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
