@@ -507,6 +507,103 @@ def _robust_register(
     return out
 
 
+def _robust_register_batched(
+    src_pts: torch.Tensor,
+    tgt_pts: torch.Tensor,
+    src_idx: torch.Tensor,
+    tgt_idx: torch.Tensor,
+    *,
+    n_iters: int,
+    inlier_tol: float,
+    with_scale: bool,
+    rng_seed: int = 42,
+) -> dict:
+    """GPU-batched 3-point RANSAC — the vectorised equivalent of :func:`_robust_register`.
+
+    Same contract (returns ``T`` / ``n_inliers`` / ``n_matches`` / ``ambiguity`` / ``hypotheses``)
+    but evaluates **all** ``n_iters`` minimal hypotheses in one shot: a single batched closed-form
+    Umeyama (:func:`_batched_umeyama`) over ``(n_iters, 3, 3)`` triplets, then one batched inlier
+    score against the whole clique-filtered correspondence set — no Python per-iteration loop, no
+    per-iter CPU ``randperm`` / GPU sync.  This is the fast path the per-pair init uses; it removes
+    the ~1.4 s Python RANSAC loop that dominated ``feature_align``.  Deterministic given ``rng_seed``.
+    """
+    dev = src_pts.device
+    dtype = src_pts.dtype
+    eye4 = torch.eye(4, device=dev, dtype=dtype)
+    M0 = int(src_idx.shape[0])
+    out = {"T": eye4.clone(), "n_inliers": 0, "n_matches": M0, "ambiguity": 180.0, "hypotheses": 0}
+    if M0 < 3:
+        return out
+
+    cs_all = src_pts[src_idx].float()  # (M0, 3)
+    ct_all = tgt_pts[tgt_idx].float()
+
+    keep = _clique_prefilter(cs_all.double(), ct_all.double(), tol=inlier_tol)
+    cs = cs_all[keep]
+    ct = ct_all[keep]
+    M = cs.shape[0]
+    if M < 3:
+        cs, ct, M = cs_all, ct_all, M0
+
+    # All minimal samples at once: B triplets of distinct indices (argsort of a random matrix on the
+    # correspondence axis gives a per-row permutation; take the first 3 columns). RNG on-device,
+    # seeded for determinism.
+    B = int(n_iters)
+    gen = torch.Generator(device=dev)
+    gen.manual_seed(rng_seed)
+    tri = torch.argsort(torch.rand(B, M, device=dev, generator=gen), dim=1)[:, :3]  # (B, 3)
+    Xs = cs[tri]  # (B, 3, 3) source triplets
+    Ys = ct[tri]  # (B, 3, 3) target triplets
+    w = torch.ones(B, 3, device=dev, dtype=Xs.dtype)
+    s_b, R_b, t_b = _batched_umeyama(Xs, Ys, w, with_scale)  # (B,), (B,3,3), (B,3)
+
+    # Batched inlier score: transform every correspondence under every hypothesis.
+    # cs_t[b] = s_b[b] * (cs @ R_b[b]^T) + t_b[b]  -> (B, M, 3)
+    cs_t = s_b[:, None, None] * torch.einsum("mi,bji->bmj", cs, R_b) + t_b[:, None, :]
+    res = (cs_t - ct.unsqueeze(0)).norm(dim=2)  # (B, M)
+    finite = torch.isfinite(R_b).all(dim=(1, 2)) & torch.isfinite(t_b).all(dim=1)  # (B,)
+    inl = (res < inlier_tol) & finite[:, None]  # (B, M)
+    n_in = inl.sum(dim=1)  # (B,)
+    # mean inlier residual (inf where no inliers) for the tie-break.
+    masked = torch.where(inl, res, torch.full_like(res, float("inf")))
+    mean_res = torch.where(
+        n_in > 0, masked.sum(dim=1) / n_in.clamp_min(1), torch.full_like(s_b, float("inf"))
+    )
+
+    best = int(torch.argmax(n_in - 1e-6 * mean_res.clamp_max(1e6)).item())
+    best_n = int(n_in[best].item())
+    if best_n < 3:
+        return out
+
+    # Refine the winner on ALL its inliers (Umeyama on the consensus set), in float64.
+    mask = inl[best]
+    s_r, R_r, t_r = _umeyama(cs[mask].double(), ct[mask].double(), with_scale)
+    T_ref = torch.eye(4, device=dev, dtype=torch.float64)
+    T_ref[:3, :3] = s_r * R_r
+    T_ref[:3, 3] = t_r
+    out["T"] = T_ref.to(dtype=dtype, device=dev)
+    out["n_inliers"] = best_n
+
+    # ── ambiguity probe (batched geodesic spread among near-best hypotheses) ──
+    thresh = _FS_HYP_SCORE_SLACK * best_n
+    near_mask = (n_in >= thresh) & (n_in >= 3)
+    near_idx = near_mask.nonzero(as_tuple=False).squeeze(1)
+    if near_idx.numel() > _FS_TOPK_HYP:
+        order = torch.argsort(n_in[near_idx], descending=True)
+        near_idx = near_idx[order[:_FS_TOPK_HYP]]
+    if near_idx.numel() >= 2:
+        Rs = R_b[near_idx].to(torch.float64)  # (H, 3, 3)
+        rel = torch.einsum("aij,bkj->abik", Rs, Rs)
+        tr = rel[..., 0, 0] + rel[..., 1, 1] + rel[..., 2, 2]
+        cosang = ((tr - 1.0) * 0.5).clamp(-1.0, 1.0)
+        out["ambiguity"] = float(torch.rad2deg(torch.arccos(cosang)).max().item())
+        out["hypotheses"] = int(Rs.shape[0])
+    else:
+        out["ambiguity"] = 0.0
+        out["hypotheses"] = int(near_idx.numel())
+    return out
+
+
 # ── overlap-aware ICP polish (partial-overlap safe) ─────────────────────────────
 
 
@@ -996,6 +1093,7 @@ def feature_align(
     min_matches: int = _FS_MIN_MATCHES,
     min_inliers: int = _FS_MIN_INLIERS,
     verbose: bool = False,
+    batched_ransac: bool = True,
 ) -> tuple[torch.Tensor, dict]:
     """Feature-based coarse global init (partial-overlap robust) + ambiguity diagnostics.
 
@@ -1066,7 +1164,8 @@ def feature_align(
     # Robust pose estimation from the FPFH correspondences (when there are enough), then an
     # overlap-aware (target->source) ICP polish that is robust to a partial target.
     if n_matches >= min_matches:
-        rr = _robust_register(
+        _ransac = _robust_register_batched if batched_ransac else _robust_register
+        rr = _ransac(
             src_sub,
             tgt_sub,
             src_idx,

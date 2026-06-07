@@ -10,3 +10,4 @@ venv/
 *.ckpt
 reference/
 _scratch/
+data/

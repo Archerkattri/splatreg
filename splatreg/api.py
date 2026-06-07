@@ -105,6 +105,28 @@ def _feature_init(target, source: Any, transform: str, device, dtype) -> tuple[t
     return T.to(device=device, dtype=dtype), info
 
 
+def _fast_init(target, source: Any, transform: str, device, dtype) -> torch.Tensor:
+    """Coarse 4x4 LM seed from the FAST feature path (FPFH + GPU-batched RANSAC), or identity.
+
+    Same FPFH-descriptor + batched-RANSAC registrar as ``init="features"`` (so it inherits the
+    feature path's full-rotation robustness) but returns ONLY the 4x4 seed — the caller's LM then
+    polishes it.  This is the default ``register`` init: ~20-35 ms versus the ~0.8-1.4 s blind
+    super-Fibonacci sweep of ``init="global"``.  Guarded: falls back to ``init="global"`` (then
+    identity) if the feature module is unavailable.
+    """
+    try:
+        from splatreg.align_features import feature_align
+    except Exception as exc:  # pragma: no cover
+        _log.info(
+            "init='fast' requested but splatreg.align_features is unavailable (%s); "
+            "falling back to init='global'.",
+            exc,
+        )
+        return _global_init(target, source, transform, device, dtype)
+    T, _info = feature_align(target, source, transform=transform)
+    return T.to(device=device, dtype=dtype)
+
+
 def _infer_device_dtype(*objs) -> tuple:
     """Best-effort (device, dtype) from the first tensor-bearing argument; CPU/float32 default."""
     for o in objs:
@@ -215,6 +237,10 @@ def register(
         ``Gaussians``.
     init : initial 4x4 transform, or ``None`` for identity, or one of the strings:
 
+        * ``"fast"`` — the recommended fast coarse-init: FPFH descriptors + GPU-batched 3-point
+          RANSAC (:func:`splatreg.align_features.feature_align`), returning ONLY the seed for the LM
+          to polish. ~20-35 ms vs the ~0.8-1.4 s blind sweep, with the feature path's full-rotation
+          robustness. Falls back to ``"global"`` then identity if the feature module is unavailable.
         * ``"global"`` — coarse-init from :func:`splatreg.align.global_align` (super-Fibonacci
           SO(3) sweep + batched trimmed ICP; robust to noise/outliers and near-symmetric clouds;
           assumes full overlap).
@@ -287,12 +313,17 @@ def register(
     if isinstance(init, str):
         if init == "global":
             T0 = _global_init(target, source, transform, device, dtype)
+        elif init == "fast":
+            T0 = _fast_init(target, source, transform, device, dtype)
         elif init == "features":
             T0, feature_info = _feature_init(target, source, transform, device, dtype)
         else:
-            raise ValueError(f"init string must be 'global' or 'features', got {init!r}")
+            raise ValueError(f"init string must be 'fast', 'global', or 'features', got {init!r}")
     elif init is None:
-        T0 = _identity(device, dtype)
+        # Default to the FAST feature init (FPFH + GPU-batched RANSAC, ~20-35 ms) so a bare
+        # register(target, source) is fast out of the box; it self-falls-back to global->identity
+        # if the feature module is unavailable.
+        T0 = _fast_init(target, source, transform, device, dtype)
     else:
         T0 = init.to(device=device, dtype=dtype)
 
