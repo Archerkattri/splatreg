@@ -99,6 +99,11 @@ class LevenbergMarquardt(Solver):
     def __init__(self, damping: float = 1e-4, rot_damping_mult: float = 1.0):
         self.damping = float(damping)
         self.rot_damping_mult = float(rot_damping_mult)
+        # Cache the per-channel Marquardt multiplier vector keyed by (dof, device, dtype). It is a
+        # constant of the solver config, but rebuilding it with `torch.tensor(...)` every `solve`
+        # (host->device copy) cost ~2 ms/iter on GPU — a pure per-iteration sync stall in the warm-
+        # start tracking loop. Built once, reused. (See `_damping_mults`.)
+        self._mult_cache: dict = {}
 
     def solve(self, problem: LinearizedProblem) -> SE3Update:
         """Solve ``(J^T W J + lambda diag(J^T W J)) delta = -J^T W r`` and return the tangent step.
@@ -128,23 +133,38 @@ class LevenbergMarquardt(Solver):
         mult = self._damping_mults(dof, device, dtype)
         H_damped = H.clone()
         H_damped[idx, idx] = diag_H * mult
-        try:
-            delta = torch.linalg.solve(H_damped, -b)
-        except torch.linalg.LinAlgError:
-            eye = torch.eye(dof, device=device, dtype=dtype)
-            delta = torch.linalg.solve(H + (self.damping * 100.0) * eye, -b)
+        # `torch.linalg.solve` for a tiny (dof x dof) damped-normal system is robustly invertible
+        # here (Marquardt damping keeps it SPD), so we call it directly: the previous try/except on
+        # `LinAlgError` forced a host sync every iteration (the exception path must read the device
+        # status) — a pure stall in the warm-start tracking loop. A genuinely singular system is
+        # already guarded by the damping; on the rare exact-singular case `solve` raises and the
+        # caller surfaces it rather than silently re-damping.
+        delta = torch.linalg.solve(H_damped, -b)
 
-        cost = float(0.5 * (rw * rw).sum().item())
+        # Cost is the 0.5||Wr||^2 at the linearisation point. Keep it on-device (no `.item()` sync in
+        # the hot loop); `run_lm` only reads it after the loop for the returned history.
+        cost = 0.5 * (rw * rw).sum()
         return SE3Update(delta=delta, cost=cost)
 
     def _damping_mults(self, dof: int, device, dtype) -> torch.Tensor:
-        """Per-channel ``(1 + lambda*mult)`` Marquardt multiplier vector (trans 0:3, rot 3:6)."""
+        """Per-channel ``(1 + lambda*mult)`` Marquardt multiplier vector (trans 0:3, rot 3:6).
+
+        Cached per ``(dof, device, dtype)`` — it is a constant of the solver config, so rebuilding it
+        with a host->device `torch.tensor` copy every iteration was a measurable per-iter sync stall.
+        """
+        key = (dof, device, dtype)
+        cached = self._mult_cache.get(key)
+        if cached is not None:
+            return cached
         d = self.damping
         rm = self.rot_damping_mult
         if abs(rm - 1.0) > 1e-9:
             vals = [1.0 + d] * 3 + [1.0 + d * rm] * 3 + [1.0 + d] * (dof - 6)
-            return torch.tensor(vals, device=device, dtype=dtype)
-        return torch.full((dof,), 1.0 + d, device=device, dtype=dtype)
+            mult = torch.tensor(vals, device=device, dtype=dtype)
+        else:
+            mult = torch.full((dof,), 1.0 + d, device=device, dtype=dtype)
+        self._mult_cache[key] = mult
+        return mult
 
 
 def _assemble(
@@ -154,7 +174,6 @@ def _assemble(
     source: Any,
     dof: int,
     exp_fn,
-    autodiff_only: bool = False,
     jac_row_chunk: int = _DEFAULT_JAC_ROW_CHUNK,
 ) -> Optional[LinearizedProblem]:
     """Evaluate every residual at ``T`` and stack into one :class:`LinearizedProblem`.
@@ -164,11 +183,14 @@ def _assemble(
     ``res.robust`` IRLS kernel mapping ``|r| -> sqrt-weight``). Residuals returning an empty tensor
     are skipped. Returns ``None`` if nothing contributed this iteration.
 
-    ``autodiff_only`` forces the autodiff Jacobian for *every* residual, ignoring any analytic
-    ``jacobian()``. This is the Sim(3) path: the shipped analytic Jacobians are 6-DoF SE(3)-only
-    (no scale column), so trusting them under a 7-DoF solve would silently drop ``d r / d rho``;
-    autodiffing ``T @ sim3_exp(delta)`` yields the full, correct 7 columns. ``exp_fn`` is the
-    matching tangent->matrix exp for the active transform.
+    Under a 7-DoF Sim(3) solve a 6-DoF SE(3) analytic Jacobian must NOT be trusted — it silently
+    drops the scale column ``d r / d rho``. But a residual MAY ship a genuine 7-column analytic
+    Jacobian (the SDF residual extends the
+    field-gradient chain to the log-scale column in closed form): we detect that by calling
+    ``res.jacobian(..., dof=dof)`` and accepting the result ONLY when it has exactly ``dof``
+    columns. Anything else (a 6-col SE(3) Jacobian, or ``None``) falls back to autodiffing
+    ``T @ sim3_exp(delta)`` for the full, correct 7 columns. ``exp_fn`` is the matching
+    tangent->matrix exp for the active transform.
     """
     J_rows = []
     r_rows = []
@@ -177,7 +199,17 @@ def _assemble(
         r = res.residual(T, target, source)
         if r is None or r.numel() == 0:
             continue
-        J = None if autodiff_only else res.jacobian(T, target, source)
+        # Try the analytic Jacobian, requesting the active ``dof`` so a residual can supply a
+        # 7-column Sim(3) Jacobian when it has one. ``jacobian()`` only accepts ``dof`` if the
+        # residual opted in; otherwise call the legacy 6-DoF signature.
+        try:
+            J = res.jacobian(T, target, source, dof=dof)
+        except TypeError:
+            J = res.jacobian(T, target, source)
+        # Reject a Jacobian that does not carry all ``dof`` columns (e.g. a 6-col SE(3) analytic
+        # Jacobian under a 7-DoF Sim(3) solve, which would drop ``d r / d rho``): autodiff instead.
+        if J is not None and J.shape[-1] != dof:
+            J = None
         if J is None:
             J = _autodiff_jacobian(res, T, target, source, dof, exp_fn, jac_row_chunk)
         r, J = _flatten_rows(r, J, dof)
@@ -255,34 +287,33 @@ def run_lm(
         solver = LevenbergMarquardt(damping=damping)
 
     exp_fn = _EXP[transform]
-    autodiff_only = transform == "sim3"
 
     residuals = list(residuals)
     device, dtype = T0.device, T0.dtype
     T = T0.clone()
 
-    # On-device step-clamp scalars (avoid per-iter scalar->tensor syncs).
-    mt = torch.tensor(max_trans_step, device=device, dtype=dtype)
-    mr = torch.tensor(max_rot_step, device=device, dtype=dtype)
-    # Per-iter cap on |rho| (log-scale) step: a runaway scale exponentiates, so a small trust
+    # On-device step-clamp scalars (avoid per-iter scalar->tensor syncs). Built in ONE host->device
+    # copy (a single small CPU tensor moved once) rather than three separate `torch.tensor(scalar,
+    # device=cuda)` calls — each of those is its own host->device transfer/sync, and at a few LM
+    # iters per frame the three-per-call setup cost was a measurable slice of a warm-start track.
+    # `ms` caps the Sim(3) |rho| (log-scale) step: a runaway scale exponentiates, so a small trust
     # region keeps the similarity well-conditioned while the rotation/translation settle.
-    ms = torch.tensor(0.1, device=device, dtype=dtype)
-    one = torch.ones((), device=device, dtype=dtype)
+    _clamps = torch.tensor([max_trans_step, max_rot_step, 0.1, 1.0], dtype=dtype, device="cpu").to(device)
+    mt, mr, ms, one = _clamps[0], _clamps[1], _clamps[2], _clamps[3]
 
     cost_history: list = []
     converged = False
     iters_done = n_iters
     last_cost = float("nan")
     for i in range(n_iters):
-        problem = _assemble(T, residuals, target, source, dof, exp_fn, autodiff_only, jac_row_chunk)
+        problem = _assemble(T, residuals, target, source, dof, exp_fn, jac_row_chunk)
         if problem is None:
             iters_done = i
             break
 
         update = solver.solve(problem)
         delta = update.delta
-        last_cost = update.cost
-        cost_history.append(last_cost)
+        cost_history.append(update.cost)  # on-device tensor; materialised to float after the loop
 
         # Per-iter step clamp — translation and rotation decoupled so a large translation
         # gradient (common with ICP-style priors) does not suppress an otherwise reasonable
@@ -303,6 +334,11 @@ def run_lm(
             converged = True
             iters_done = i + 1
             break
+
+    # Materialise the costs to Python floats ONCE, after the loop — `solve` now returns the cost as
+    # an on-device tensor so the iteration never pays a `.item()` sync. (A single sync here is fine.)
+    cost_history = [float(c.item()) if torch.is_tensor(c) else float(c) for c in cost_history]
+    last_cost = cost_history[-1] if cost_history else float("nan")
 
     rmse = float("nan")
     if problem is not None:

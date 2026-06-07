@@ -75,7 +75,9 @@ class SE3Update:
     """A tangent-space step returned by a Solver (se(3) or sim(3))."""
 
     delta: torch.Tensor  # (dof,) tangent  [tx,ty,tz, rx,ry,rz, (log_s)]
-    cost: float = 0.0
+    # float, or an on-device 0-dim tensor (the LM hot loop keeps cost on-GPU to avoid a per-iter
+    # `.item()` sync; run_lm materialises it once after the loop). Either is accepted.
+    cost: "float | torch.Tensor" = 0.0
 
 
 @dataclass

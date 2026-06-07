@@ -9,9 +9,12 @@ the source points land on the target's surface, i.e. when the two splats are ali
 No competitor packages this — registration here is driven by an implicit field derived straight
 from the target Gaussians, with no mesh and no correspondences.
 
-Convention: right-perturbation ``T_new = T @ exp(xi)``, ``xi = [tx, ty, tz, rx, ry, rz]``.
-The analytic Jacobian below covers these six SE(3) columns; a Sim(3) (7-DOF) solve, whose 7th
-tangent is a log-scale, must autodiff the residual (or extend the chain) for that extra column.
+Convention: right-perturbation ``T_new = T @ exp(xi)``, ``xi = [tx, ty, tz, rx, ry, rz, (rho)]``.
+The analytic Jacobian below covers the six SE(3) columns AND — when ``dof=7`` — the Sim(3)
+log-scale (7th) column in closed form: under ``T @ sim3_exp(xi)`` the source scales by
+``s = exp(rho)``, so ``dp_k/drho = R_T s_k = p_k - t`` and ``d r_k/drho = g_k^T (p_k - t)`` chains
+the SAME exact field gradient ``g_k`` used by the rigid columns. The Sim(3) solve therefore stays
+on the fast analytic path and never autodiffs the residual.
 
 Jacobian
 --------
@@ -174,39 +177,57 @@ class SDF(Residual):
         sd, _ = self._sdf(target, p)
         return sd * self.weight
 
-    def jacobian(self, T: torch.Tensor, target: Gaussians, source: Any) -> Optional[torch.Tensor]:
+    def jacobian(
+        self, T: torch.Tensor, target: Gaussians, source: Any, *, dof: int = 6
+    ) -> Optional[torch.Tensor]:
+        # ``dof`` selects SE(3) (6 cols) or Sim(3) (7 cols, the analytic log-scale column). The
+        # Sim(3) 7th column is derived in closed form below — the SE(3) field-gradient chain
+        # extends to scale with no autodiff, so the 7-DOF solve keeps the fast analytic path.
+        if dof not in (6, 7):
+            raise ValueError(f"SDF.jacobian: dof must be 6 or 7, got {dof}.")
         src_pts, p, R = self._transformed(T, source)
         # EXACT field gradient g_k = ∇_p sdf(p_k), via autodiff through the field. The surface
         # normal n~ that gaussian_sdf also returns is only a first-order *proxy* for this
         # gradient — it drops the ∂q~/∂p term of the kernel-weighted centroid, which is itself
         # first-order (NOT curvature). Using n~ gave a materially wrong Jacobian (numerically
         # audited, tests/test_jacobians.py: max|Δ|≈10 vs numerical); autodiff is exact.
-        # Non-truncated path: CLOSED-FORM gradient (one fused pass, no autograd graph + no second
-        # forward — the fast SE(3) path). Truncated path: autodiff. Both are the EXACT ∇_p sdf.
-        if self.trunc_sigmas is None:
-            from ..geometry.gaussian_sdf import gaussian_sdf_grad
+        # CLOSED-FORM gradient on BOTH paths — one fused pass, no autograd graph + no second forward.
+        # ``gaussian_sdf_grad`` now carries the same per-query top-k truncation as ``gaussian_sdf``,
+        # computing the EXACT analytic gradient of the *truncated* proxy over the k nearest anchors
+        # (N*k, not N*M). This is the warm-start tracking fast path: a tight ``trunc_sigmas`` makes
+        # the SDF Jacobian cheap WITHOUT dropping to autodiff. ``trunc_sigmas=None`` is the full field.
+        from ..geometry.gaussian_sdf import gaussian_sdf_grad
 
-            _, grad = gaussian_sdf_grad(
-                target,
-                p,
-                sigma=self.sigma,
-                normals=self._resolve_normals(target),
-                use_opacity=self.use_opacity,
-                knn=self.knn,
-                chunk_size=self.chunk_size,
-            )
-        else:
-            pg = p.detach().requires_grad_(True)
-            with torch.enable_grad():
-                sd, _ = self._sdf(target, pg)
-                grad = torch.autograd.grad(sd.sum(), pg, create_graph=False)[0]  # (N, 3) ∇_p sdf
-            grad = grad.detach()
+        _, grad = gaussian_sdf_grad(
+            target,
+            p,
+            sigma=self.sigma,
+            normals=self._resolve_normals(target),
+            use_opacity=self.use_opacity,
+            knn=self.knn,
+            chunk_size=self.chunk_size,
+            trunc_sigmas=self.trunc_sigmas,
+        )
         # Chain the field gradient through the pose-Jacobian of p = T·s_k — the SAME chain the
         # ICP residual uses (numerically verified there). rt_n[k] = R^T g_k.
         rt_n = grad @ R  # (N, 3)  d r/dv = g_k^T R
         # d r/dw = -(R^T g_k) x s_k = cross(s_k, R^T g_k)   (right-perturbation rotation block)
         j_rot = torch.cross(src_pts, rt_n, dim=-1)  # (N, 3)
-        jac = torch.cat([rt_n, j_rot], dim=-1)  # (N, 6)
+        cols = [rt_n, j_rot]  # SE(3) translation + rotation blocks (N, 3) each
+        if dof == 7:
+            # Sim(3) log-scale (7th) column — closed form, NO autodiff. Under the right
+            # perturbation T @ sim3_exp(xi) with xi=[v|w|rho] (rho = log-scale), sim3_exp scales
+            # the source by s = exp(rho); at the linearisation point (xi = 0, s = 1, R_inner = I)
+            #   d p_k / d rho = R_T @ s_k = (p_k - t),
+            # i.e. the rotated+scaled source point measured from T's translation. Chaining the
+            # EXACT field gradient g_k (same g_k as the SE(3) columns) through that motion:
+            #   d r_k / d rho = g_k^T (p_k - t).
+            # This is the Sim(3) analogue of the translation/rotation chain above — one extra
+            # dot product, so the 7-DOF solve never autodiffs the residual.
+            t = T[:3, 3].to(dtype=p.dtype)
+            j_scale = (grad * (p - t)).sum(dim=-1, keepdim=True)  # (N, 1)
+            cols.append(j_scale)
+        jac = torch.cat(cols, dim=-1)  # (N, dof)
         return jac * self.weight
 
     def dim(self) -> int:

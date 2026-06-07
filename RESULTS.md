@@ -72,8 +72,8 @@ is scale + implicit-field robustness, and it costs ~80× in SE(3) (see limitatio
 |---|---|
 | **Noise** (sensor jitter 0.5–2%) | **9/9 = 100%** (rot_err < 0.72°) |
 | **Outliers** (+10–50% clutter) | **9/9 = 100%** (ignores clutter, rot_err ≈ 0°) |
-| Symmetric (sphere) | **7/9** (rotation is ambiguous on a featureless sphere; 2 of 9 poses miss the <2 mm Chamfer gate) |
-| **Partial overlap** (20–60% removed) | **3/9 solved + 6 flagged-ambiguous** (0 silent-wrong) — mild crops solve at 0.00°; heavy crops honestly flagged |
+| Symmetric (sphere) | **9/9 = 100%** (a global-init convergence fix lands the featureless sphere correctly at all poses) |
+| **Partial overlap** (20–60% removed) | **4/9 solved + 5 flagged-ambiguous** (0 silent-wrong) — mild + some moderate crops solve at 0.00°; the rest honestly flagged |
 
 ## 5. Test suite (library-bar rigor)
 
@@ -84,23 +84,28 @@ residual gets the numerical audit — the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS
 
 ## 6. Honest limitations (no overstating)
 
-- **Partial overlap (3/9 solved + 6 flagged, 0 silent-wrong).** The `init="features"` aligner —
+- **Partial overlap (4/9 solved + 5 flagged, 0 silent-wrong).** The `init="features"` aligner —
   an overlap-aware **point-to-plane** trimmed ICP (target→source, so the partial slab slides to
   its true tangential position) driven by a super-Fibonacci SO(3) sweep, plus FPFH — now **solves
-  the mild crops** (keep ≥ 80%) at rot_err 0.00°. The heavier crops are *inherently-ambiguous*:
+  the mild crops** (keep ≥ 80%) plus keep60-seed0 at rot_err 0.00°. The remaining heavier crops are *inherently-ambiguous*:
   the one-sided slab deletes the disambiguating geometry, leaving the true pose only ~0.005 below
   a forest of near-equal wrong basins. There the aligner returns an **honest ambiguity flag**
   (`result.info['ambiguous']` / `['confidence']`) rather than a silent wrong pose — verified 0
   silent-wrong. Reliably solving the moderate keep60% crops is open work (a heavy standalone
   config recovered one but was not reproducible through the library, so it was not shipped).
   **`merge` is reliable for high-overlap captures.**
-- **SE(3) speed.** Dominated by the SDF field evaluation. The **closed-form gradient is now
-  landed** (no autograd graph + no second forward on the SE(3) path — the correctness half of the
-  speed work); the wall-time benchmark vs the GaussianFeels tracker + SDF truncation
-  (`trunc_sigmas`, N×k instead of N×M) are the GPU follow-up.
-- **Real-scan data.** Validation so far is synthetic-known-transform + robustness corruptions;
-  a real-scan benchmark (GaussReg's ScanNet-GSReg protocol — RRE/RTE/RSE/success/time) is the
-  next external anchor.
+- **Speed — DONE (the headline).** Warm-start `track()` runs **~17 ms/frame** (< 40 ms goal, faster
+  than the ~45 ms GaussianFeels tracker; `benchmarks/tracking_speed_bench.py`, rot 0.43°), via
+  skip-global-init + closed-form-Jacobian LM + SDF truncation (`trunc_sigmas`, N×k). The full Sim(3)
+  *registration* also dropped **19.7 → 2.4 s/cell** (closed-form gradient extended to the scale
+  column). The 780 ms from-scratch SE(3) registration is global-init-dominated — a tracker never
+  pays it, so it is irrelevant to the real-time goal.
+- **Real splat data (`benchmarks/realdata_bench.py`, 12,463 real `.ply` exports).** CLEAN real
+  geometry → Sim(3) recovery near-perfect (rot 0.03–0.06°, scale 0.04–0.14%, Chamfer 0.04–0.08 mm
+  ≈ synthetic). NOISY second-capture (footprint-scale noise + 60% subsample) on near-symmetric
+  objects → **global-aligner fragility** (1/9; flips into ~180° basins — NOT a Sim(3) bug, SE(3)
+  fails identically). This blind-search-under-noise robustness is the **main open item**; the
+  external GaussReg/ScanNet-GSReg head-to-head is the next anchor.
 
 ## 7. Reproduce
 

@@ -41,7 +41,14 @@ from .core.types import Gaussians
 
 # Defaults tuned (A/B-bench) for 0 failures on the hardest case — a near-featureless sphere
 # under an arbitrary uniform-SO(3) transform.
-DEFAULT_N_ROTATIONS = 256  # super-Fibonacci SO(3) seeds (~26deg covering); + a few PCA seeds
+DEFAULT_N_ROTATIONS = 1024  # super-Fibonacci SO(3) seeds (~16deg covering); + a few PCA seeds.
+# Why 1024 (was 256): on a near-isotropic sphere shell the PCA axes are degenerate (eigenvalue
+# spread ~1.06) so the sign-flip seeds collapse to a single identity seed, and a 256-seed (~26deg)
+# covering is too coarse for any point-to-point-ICP seed to fall into the (tiny but real) correct
+# basin — every seed plateaus at Chamfer ~7 mm (a genuinely WRONG pose, not symmetry ambiguity).
+# A 1024-seed (~16deg) covering puts a seed inside that basin, driving the trimmed-ICP score from
+# 0.0056 to 0.00003 and the Chamfer to <0.06 mm at every symmetric cell. GPU-affordable (the
+# batched ICP sweep is chunked at _SEED_BATCH); verified to keep NOISE/OUTLIERS at 9/9.
 DEFAULT_ICP_ITERS = 40  # trimmed-ICP iterations per seed
 DEFAULT_N_POINTS = 12288  # deterministic strided target subsample for the fit (denser -> lower floor)
 _SUB_SOURCE = 4096  # deterministic strided source subsample driving the fit

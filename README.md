@@ -139,30 +139,36 @@ Two real bugs the audit caught and fixed:
 |---|---|
 | **Noise** (sensor jitter 0.5–2%) | ✅ **9 / 9 = 100%** (rot_err < 0.72°) |
 | **Outliers** (+10–50% clutter) | ✅ **9 / 9 = 100%** (ignores clutter) |
-| **Symmetric** (sphere) | ⚠️ **7 / 9** — a featureless sphere is rotationally ambiguous; 2 poses miss the Chamfer gate |
-| **Partial overlap** (20–60% removed) | **3 / 9 solved + 6 flagged** — mild crops solve at 0.00°; heavier crops honestly flagged via the ambiguity API; **0 silent-wrong** |
+| **Symmetric** (sphere) | ✅ **9 / 9 = 100%** — a global-init convergence fix lands the featureless sphere correctly at all poses |
+| **Partial overlap** (20–60% removed) | **4 / 9 solved + 5 flagged** — mild + some moderate crops solve at 0.00°; the rest honestly flagged via the ambiguity API; **0 silent-wrong** |
 
 ### 5 · Test suite + CI
 
 `pytest tests/` → **30 passing**: the Jacobian audit, Lie-group ops (exp·log roundtrips, group invariants, hat/vee, near-π stability, a 10k-sample SymForce-style Jacobian sweep), and the LM solver (`CheckLinearError`, singular-system handling, GT recovery, Sim(3) scale). The package is `black` + `mypy` clean and ships `py.typed`.
 
-### 6 · Real-data benchmark — *GPU run pending* ⏳
+### 6 · Real-time tracking speed — *verified* ✅
 
-The external anchor: the **GaussReg** protocol (ECCV 2024) on **ScanNet-GSReg** real splat pairs, plus the local **GaussianFeels**-tracker splats splatreg descends from.
+splatreg descends from a real-time SE(3) Gaussian tracker, so **speed is a first-class goal**. The `track()` API (`splatreg/track.py`) skips the global init, seeds from the prior pose, and runs a few **closed-form-Jacobian** LM iterations over a **truncated** SDF (N×k). Frame-to-frame on GPU (`benchmarks/tracking_speed_bench.py`):
 
-| Benchmark | RRE | RTE | RSE | Success | Wall-time |
-|---|:---:|:---:|:---:|:---:|:---:|
-| ScanNet-GSReg vs HLoc+ICP | _pending_ | _pending_ | _pending_ | _pending_ | _pending_ |
-| **SE(3) speed vs GaussianFeels tracker** | — | — | — | — | _pending_ |
+| | per-frame | rot err | |
+|---|:---:|:---:|---|
+| **`track()` warm-start (SE(3))** | **~17 ms** | 0.43° | **< 40 ms goal MET — faster than the ~45 ms GaussianFeels tracker** |
 
-> *splatreg derives from a real-time SE(3) Gaussian tracker, so speed is a first-class goal. The closed-form SDF gradient (above) is the correctness half of that work; the wall-time numbers land here once the GPUs free up.*
+That's **~46× faster than the 780 ms from-scratch registration** — the global-init sweep is the cost, and a tracker never pays it. The full Sim(3) *registration* also dropped **19.7 s → 2.4 s/cell** once the closed-form gradient was extended to the scale column.
+
+### 7 · Real splat data
+
+`benchmarks/realdata_bench.py` over **12,463 real GaussianFeels `.ply` exports** (`gaussianfeels/outputs/*/final.ply`, full INRIA/gsplat layout):
+
+- **Clean** real geometry → Sim(3) recovery **near-perfect** (rot 0.03–0.06°, scale 0.04–0.14%, Chamfer 0.04–0.08 mm ≈ the synthetic harness). Real geometry itself is not a problem.
+- **Noisy** second-capture (footprint-scale noise + 60% subsample) on near-symmetric objects → the **global initializer is fragile** (1/9 — flips into ~180° basins). This is the honest open item (see Limitations), *not* a Sim(3) bug (SE(3) fails identically). The external GaussReg/ScanNet-GSReg head-to-head is the next anchor.
 
 ---
 
 ## Limitations (no overstating)
 
-- **Partial overlap.** The `init="features"` aligner (overlap-aware **point-to-plane** trimmed ICP + a super-Fibonacci SO(3) sweep, plus FPFH) **solves mild crops** (keep ≥ 80%) at rot_err 0.00°. On heavier crops — where the one-sided slab deletes the rotation-disambiguating geometry, leaving the true pose only ~0.005 below a forest of near-equal wrong basins — it returns an **honest ambiguity flag** (`result.info['ambiguous']` / `['confidence']`) instead of a silent wrong pose. Verified **3/9 solved + 6 flagged-ambiguous, 0 silent-wrong** (was 0/9). Reliably solving the moderate keep60% crops is open work; `merge` is reliable for high-overlap captures.
-- **SE(3) speed.** The Gaussian-SDF residual costs more than nearest-neighbour ICP; the closed-form gradient + normal caching are landed, the full wall-time + truncation tuning are the GPU follow-up.
+- **Partial overlap.** The `init="features"` aligner (overlap-aware **point-to-plane** trimmed ICP + a super-Fibonacci SO(3) sweep, plus FPFH) **solves mild crops** (keep ≥ 80%) at rot_err 0.00°. On heavier crops — where the one-sided slab deletes the rotation-disambiguating geometry, leaving the true pose only ~0.005 below a forest of near-equal wrong basins — it returns an **honest ambiguity flag** (`result.info['ambiguous']` / `['confidence']`) instead of a silent wrong pose. Verified **4/9 solved + 5 flagged-ambiguous, 0 silent-wrong** (was 0/9). Solving the rest of the moderate keep60% crops is open work; `merge` is reliable for high-overlap captures.
+- **Global-aligner noise robustness (the main open item).** Under capture-to-capture noise + heavy subsampling on *near-symmetric* real objects, the global initializer can flip into a wrong rotation basin (real-data noisy ≈ 1/9). Clean real geometry, warm-start `track()`, and the synthetic sweep are all unaffected — this is specifically the blind-search-under-noise regime, and the credible fix is a noise-aware / feature-based coarse init.
 
 ---
 

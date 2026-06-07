@@ -237,6 +237,7 @@ def gaussian_sdf_grad(
     use_opacity: bool = False,
     knn: int = 50,
     chunk_size: int = 2048,
+    trunc_sigmas: Optional[float] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Signed distance AND its EXACT spatial gradient ``∇_p d``, computed in closed form.
 
@@ -252,8 +253,18 @@ def gaussian_sdf_grad(
     entire regime where the SDF is meaningful and where the registration residual operates
     (residual audit ``tests/test_jacobians.py`` 8/8). At degenerate far queries (the weight-sum
     clamp activates, the field itself is undefined) it falls back to the bounded surface normal
-    ``n~`` rather than the blown-up un-clamped expression. Non-truncated support only. Returns
-    ``(sdf (N,), grad (N, 3))`` where ``grad`` is ``∇_p d`` — NOT the surface normal ``n~``.
+    ``n~`` rather than the blown-up un-clamped expression. Returns ``(sdf (N,), grad (N, 3))``
+    where ``grad`` is ``∇_p d`` — NOT the surface normal ``n~``.
+
+    Truncation (the tracking fast path)
+    -----------------------------------
+    ``trunc_sigmas`` (default ``None`` = every anchor) restricts each query to its ``k`` nearest
+    anchors via a per-query top-k gather, then zeros the weight of any beyond ``trunc_sigmas*sigma``
+    — exactly the support :func:`gaussian_sdf` uses. Because all the closed-form sums above
+    (``q~``, ``S_n``, ``Cov_w n~``, the normal-derivative term) are computed over the SAME truncated
+    anchor set, the gradient stays the EXACT analytic field gradient of the *truncated* proxy with
+    NO autodiff — so warm-start tracking with a tight sigma costs ``N*k`` not ``N*M``. ``k`` is
+    sized from ``knn`` (clamped to the cloud), the same convention as :func:`gaussian_sdf`.
     """
     means = gaussians.means
     m = int(means.shape[0])
@@ -285,21 +296,50 @@ def gaussian_sdf_grad(
         if opa.shape[0] != m:
             raise ValueError(f"gaussian_sdf_grad: opacities length {opa.shape[0]} != n_gaussians {m}.")
 
+    # Truncation: per-query top-k gather (k nearest anchors), beyond-radius weights zeroed. The
+    # closed-form gradient below is then computed over the gathered (c, k, 3) set instead of the
+    # full (c, M, 3) one — identical formula, k-sized support, no autodiff (the tracking fast path).
+    trunc_topk: Optional[int] = None
+    radius_sq = 0.0
+    if trunc_sigmas is not None:
+        radius = float(trunc_sigmas) * float(sigma)
+        trunc_topk = max(1, min(m, int(knn)))
+        radius_sq = radius * radius
+
     n = int(points.shape[0])
     chunk = max(1, int(chunk_size))
     sd_parts: list = []
     g_parts: list = []
     for start in range(0, n, chunk):
         block = points[start : start + chunk]  # (c, 3)
-        diff = block[:, None, :] - anchors[None, :, :]  # (c, M, 3) = a_i = p - q_i
-        dist_sq = (diff * diff).sum(dim=-1)  # (c, M)
-        w = torch.exp(-dist_sq / two_sigma_sq)  # (c, M)
-        if opa is not None:
-            w = w * opa[None, :]
+        if trunc_topk is not None:
+            # Distances to ALL anchors, then keep only the k nearest per query (the gather that
+            # turns the cost N*M -> N*k). q/n gathered to (c, k, 3); a_i = block - q_near.
+            d_all = torch.cdist(block, anchors)  # (c, M)
+            near_sq, near_idx = torch.topk(d_all * d_all, k=trunc_topk, largest=False)  # (c, k)
+            q_near = anchors[near_idx]  # (c, k, 3)
+            n_near = anchor_normals[near_idx]  # (c, k, 3)
+            diff = block[:, None, :] - q_near  # (c, k, 3) = a_i
+            dist_sq = near_sq  # (c, k)
+            w = torch.exp(-dist_sq / two_sigma_sq)  # (c, k)
+            w = torch.where(dist_sq <= radius_sq, w, torch.zeros_like(w))
+            if opa is not None:
+                w = w * opa[near_idx]
+            anchors_blk = q_near  # (c, k, 3)
+            normals_blk = n_near  # (c, k, 3)
+        else:
+            diff = block[:, None, :] - anchors[None, :, :]  # (c, M, 3) = a_i = p - q_i
+            dist_sq = (diff * diff).sum(dim=-1)  # (c, M)
+            w = torch.exp(-dist_sq / two_sigma_sq)  # (c, M)
+            if opa is not None:
+                w = w * opa[None, :]
+            anchors_blk = anchors[None, :, :]  # (1, M, 3) broadcastable
+            normals_blk = anchor_normals[None, :, :]  # (1, M, 3)
+
         raw_w = w.sum(dim=-1, keepdim=True)  # (c, 1) before clamp
         w_sum = raw_w.clamp_min(_EPS)  # (c, 1) = W
-        q_tilde = (w @ anchors) / w_sum  # (c, 3)
-        n_sum = w @ anchor_normals  # (c, 3) = S_n
+        q_tilde = (w.unsqueeze(-1) * anchors_blk).sum(dim=1) / w_sum  # (c, 3)
+        n_sum = (w.unsqueeze(-1) * normals_blk).sum(dim=1)  # (c, 3) = S_n
         raw_n = n_sum.norm(dim=-1, keepdim=True)  # (c, 1) before clamp
         n_norm = raw_n.clamp_min(_EPS)  # (c, 1) = ‖S_n‖
         n_tilde = n_sum / n_norm  # (c, 3)
@@ -307,12 +347,12 @@ def gaussian_sdf_grad(
         d = (u * n_tilde).sum(dim=-1)  # (c,)
 
         # ∂q~/∂p = (1/σ²) Cov_w  ->  Cov_w n~ = (1/W) Σ_i w_i (c_i·n~) c_i
-        cvec = anchors[None, :, :] - q_tilde[:, None, :]  # (c, M, 3) = c_i
-        ci_dot_n = (cvec * n_tilde[:, None, :]).sum(dim=-1)  # (c, M)
+        cvec = anchors_blk - q_tilde[:, None, :]  # (c, *, 3) = c_i
+        ci_dot_n = (cvec * n_tilde[:, None, :]).sum(dim=-1)  # (c, *)
         cov_n = ((w * ci_dot_n).unsqueeze(-1) * cvec).sum(dim=1) / w_sum  # (c, 3)
         # (∂n~/∂p)ᵀ u  ->  -(1/(σ²‖S_n‖)) Σ_i w_i (n_i·x) a_i,  x = u - d n~
         x = u - d.unsqueeze(-1) * n_tilde  # (c, 3)
-        ni_dot_x = (anchor_normals[None, :, :] * x[:, None, :]).sum(dim=-1)  # (c, M)
+        ni_dot_x = (normals_blk * x[:, None, :]).sum(dim=-1)  # (c, *)
         last = ((w * ni_dot_x).unsqueeze(-1) * diff).sum(dim=1)  # (c, 3)
         grad = n_tilde - cov_n / sig_sq - last / (sig_sq * n_norm)  # (c, 3) = ∇_p d
         # Degenerate query (the weight/normal-sum clamp is active -> no anchor support, the field
