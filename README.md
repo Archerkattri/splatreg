@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/logo.png" alt="splatreg" width="170">
+
 # splatreg
 
 ### Register Gaussian splats — align & merge two 3DGS scans into one SE(3)/Sim(3) frame.
