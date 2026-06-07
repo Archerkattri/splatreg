@@ -8,11 +8,10 @@
 
 *The inverse of [gsplat](https://github.com/nerfstudio-project/gsplat): gsplat **renders** Gaussians, splatreg **registers** against them.* Pure PyTorch — no meshing, no CUDA extension, no point-cloud detour.
 
+[![PyPI](https://img.shields.io/pypi/v/splatreg)](https://pypi.org/project/splatreg/)
 [![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
-[![PyTorch](https://img.shields.io/badge/pure-PyTorch-ee4c2c.svg)](https://pytorch.org)
-[![tests](https://img.shields.io/badge/tests-44%20passing-brightgreen.svg)](tests)
-[![Jacobian audit](https://img.shields.io/badge/Jacobian%20audit-8%2F8-brightgreen.svg)](tests/test_jacobians.py)
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
+[![gsplat](https://img.shields.io/badge/inverse%20of-gsplat-ee4c2c.svg)](https://github.com/nerfstudio-project/gsplat)
 
 <img src="assets/registration_demo.png" alt="splatreg before/after registration" width="92%">
 
