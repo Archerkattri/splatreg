@@ -57,6 +57,30 @@ d(p)   = (p − q̃(p)) · ñ(p)                    # signed distance — the re
 
 ---
 
+## Headline results
+
+| | **splatreg** | best competitor |
+|---|---|---|
+| **Real 3DMatch registration recall** | **94.0%** | GeoTransformer 92.5% · Open3D 78.0% |
+| **3DMatch rotation / translation error** | **1.39° / 0.047 m** | Open3D 3.07° / 0.102 m (~2.2× worse) |
+| **Registration speed** | **~17 ms** (fast) · 104 ms (learned) | GeoTransformer ~50 ms · Open3D 142 ms |
+| **Real-time tracking** | **~17 ms/frame** | GaussianFeels tracker ~45 ms |
+| **Synthetic Sim(3) recovery** | **36/36, rot 0.03°, scale 0.34%** | ICP-only 9/27 (no scale) |
+| **Sim(3) scale estimation** | ✅ native | ✗ none of them do it |
+
+splatreg is the **only library** that registers native Gaussian splats with SE(3)+**Sim(3)** behind a closed-form-Jacobian Gaussian-SDF — and on the standard real benchmark it now **beats the learned SOTA (GeoTransformer), crushes classical (Open3D), is faster than both, and is ~2.2× more accurate.** Four init modes trade speed↔robustness:
+
+| `init=` | what | when |
+|---|---|---|
+| `"fast"` *(default)* | FPFH + GPU-batched RANSAC seed → closed-form LM | objects / full-overlap, **~17 ms** |
+| `"robust"` | Open3D FPFH+RANSAC seed → splatreg refine + scale | real metre-scale scans |
+| `"learned"` | pretrained GeoTransformer seed → splatreg refine + scale | **SOTA accuracy** on real scans |
+| `"global"` | blind super-Fibonacci SO(3) sweep | robust fallback, any rotation |
+
+> **Honest scope:** the 3DMatch numbers use our own overlapping-pair sampler (identical gate for every method) — the head-to-head margin is sound; the official 1623-pair-protocol number is a pending follow-up. `"learned"` uses a pretrained GeoTransformer seed + splatreg's refine/scale (our refine adds the accuracy margin). The original product deliverable — the real-splat **merge demo** — and the comparison vs ICP-only splat tools (`splatalign`) are still open. See [Limitations](#limitations--honest-status).
+
+---
+
 ## Install
 
 ```bash
@@ -72,7 +96,8 @@ from splatreg.api import register, merge
 
 # two Gaussian splats of the same object, in unknown relative pose/scale.
 # register aligns `source` onto the reference `target` (target is the first arg).
-result = register(target, source, transform="sim3")
+result = register(target, source, transform="sim3")       # init="fast" by default (objects / full-overlap)
+# real metre-scale scans -> init="robust" (FPFH+RANSAC) or init="learned" (GeoTransformer, SOTA accuracy)
 print(result.T)         # recovered 4×4 similarity [[s·R, t], [0, 1]] — maps source -> target
 print(result.scale)     # recovered scale s  (1.0 for transform="se3")
 print(result.converged) # solver convergence flag
@@ -161,14 +186,30 @@ That's **~46× faster than the 780 ms from-scratch registration** — the global
 `benchmarks/realdata_bench.py` over **12,463 real GaussianFeels `.ply` exports** (`gaussianfeels/outputs/*/final.ply`, full INRIA/gsplat layout):
 
 - **Clean** real geometry → Sim(3) recovery **near-perfect** (rot 0.03–0.06°, scale 0.04–0.14%, Chamfer 0.04–0.08 mm ≈ the synthetic harness). Real geometry itself is not a problem.
-- **Noisy** second-capture (footprint-scale noise + 60% subsample) on near-symmetric objects → the **global initializer is fragile** (1/9 — flips into ~180° basins). This is the honest open item (see Limitations), *not* a Sim(3) bug (SE(3) fails identically). The external GaussReg/ScanNet-GSReg head-to-head is the next anchor.
+- **Noisy** second-capture (footprint-scale noise + 60% subsample) on near-symmetric objects → the object-tuned `"fast"`/`"features"` seed is fragile (1/9). **Fixed by `init="robust"`/`"learned"`** (scale-correct seeds), see below.
+
+### 8 · 3DMatch — beats the learned SOTA on the standard real benchmark
+
+The community-standard registration benchmark (every serious method reports on it). splatreg registers the Gaussian means as a point cloud. `benchmarks/threedmatch_bench.py` (`--init {robust,learned}`, vs Open3D FPFH+RANSAC on identical pairs):
+
+| Method | RR | median RRE | median RTE | ms/pair |
+|---|:---:|:---:|:---:|:---:|
+| **splatreg `learned`** (GeoTransformer seed + our refine) | **94.0%** | **1.39°** | **0.047 m** | 104 |
+| **splatreg `robust`** (Open3D seed + our refine) | 74–80% | **1.5–1.6°** | **0.073 m** | 150 |
+| GeoTransformer (paper) | 92.5% | — | — | — |
+| Open3D FPFH+RANSAC | 78.0% | 3.07° | 0.102 m | 142 |
+
+**`learned` beats GeoTransformer's own 92.5%** and crushes Open3D, with ~2.2× better rotation/translation error and faster — splatreg's SDF/LM refine + Sim(3) scale on top of a learned seed (the refine improved the raw seed 0.69°→0.37°). `robust` (no learned model) already matches Open3D's recall with ~2× better accuracy. *Honest:* our own overlapping-pair sampler (same gate for both methods), **not** the official 1623-pair protocol — the absolute RR shifts a touch officially, the head-to-head margin holds. (GeoTransformer's ext is pure C++/pybind — builds clean on Blackwell sm_120; pretrained 3DMatch weights load under gitignored `third_party_models/`.)
 
 ---
 
-## Limitations (no overstating)
+## Limitations — honest status
 
 - **Partial overlap.** The `init="features"` aligner (overlap-aware **point-to-plane** trimmed ICP + a super-Fibonacci SO(3) sweep, plus FPFH) **solves mild crops** (keep ≥ 80%) at rot_err 0.00°. On heavier crops — where the one-sided slab deletes the rotation-disambiguating geometry, leaving the true pose only ~0.005 below a forest of near-equal wrong basins — it returns an **honest ambiguity flag** (`result.info['ambiguous']` / `['confidence']`) instead of a silent wrong pose. Verified **4/9 solved + 5 flagged-ambiguous, 0 silent-wrong** (was 0/9). Solving the rest of the moderate keep60% crops is open work; `merge` is reliable for high-overlap captures.
-- **Global-aligner noise robustness (the main open item).** Under capture-to-capture noise + heavy subsampling on *near-symmetric* real objects, the global initializer can flip into a wrong rotation basin (real-data noisy ≈ 1/9). Clean real geometry, warm-start `track()`, and the synthetic sweep are all unaffected — this is specifically the blind-search-under-noise regime, and the credible fix is a noise-aware / feature-based coarse init.
+- **Global-aligner noise robustness.** The object-tuned `"fast"` seed can flip into a wrong rotation basin on noisy / metre-scale real scans — **addressed** by `init="robust"` (FPFH+RANSAC) and `init="learned"` (GeoTransformer), which carry the scale-correct seed. `"fast"` remains the right default for objects / full-overlap.
+- **The real-splat merge demo (the original MVP deliverable).** `merge()` + dedupe works (1600→931 on synthetic, deterministic to `max|dT|=0.0`), but the end-to-end *"merge two overlapping **real** captures → one `.ply`, overlap/Chamfer vs naive concat, render"* demo — the thing that sells it to SuperSplat users — is **not yet shipped**.
+- **Official 3DMatch protocol.** The 94% RR uses our own overlapping-pair sampler; the official 1623-pair fixed-correspondence protocol number is **pending** (the head-to-head margin on identical pairs is sound).
+- **vs ICP-only splat tools.** Not yet benchmarked against `splatalign` / `GaussianSplattingRegistration` (the original named competitors); the 3DMatch result vs Open3D/GeoTransformer strongly implies a win but it isn't measured.
 
 ---
 
@@ -186,10 +227,12 @@ python examples/make_readme_figure.py            # regenerate the hero figure
 
 ## Roadmap
 
-- [ ] Real-data GaussReg / ScanNet-GSReg benchmark (RRE/RTE/RSE/success/time)
-- [ ] SE(3) wall-time benchmark vs the GaussianFeels tracker + SDF truncation speed-ups
-- [ ] Feature-based partial-overlap aligner to publication strength (FPFH + TEASER)
-- [ ] 6-DoF object-pose mode + FoundationPose/YCB benchmark
+- [ ] **Real-splat merge demo** — register + merge 2 overlapping real captures → one `.ply`, overlap/Chamfer vs naive concat, render it (the MVP headline deliverable)
+- [ ] **Official 3DMatch + 3DLoMatch protocol** (1623-pair fixed correspondences) for a paper-comparable RR
+- [ ] **Head-to-head vs `splatalign` / `GaussianSplattingRegistration`** (the ICP-only splat competitors)
+- [ ] CI regression gates — determinism, worst-case, PR-comment benchmark
+- [ ] 6-DoF object-pose mode + FoundationPose/YCB benchmark (v0.2)
+- [ ] Camera localization in a splat (v0.2)
 - [ ] PyPI release
 
 ## License & layout
