@@ -133,16 +133,32 @@ bit-identical transform across runs.
 
 ## 6. Honest limitations (no overstating)
 
-- **Partial overlap (4/9 solved + 5 flagged, 0 silent-wrong).** The `init="features"` aligner —
+- **Partial overlap (6/9 solved + 3 flagged, 0 silent-wrong).** The `init="features"` aligner —
   an overlap-aware **point-to-plane** trimmed ICP (target→source, so the partial slab slides to
   its true tangential position) driven by a super-Fibonacci SO(3) sweep, plus FPFH — now **solves
-  the mild crops** (keep ≥ 80%) plus keep60-seed0 at rot_err 0.00°. The remaining heavier crops are *inherently-ambiguous*:
-  the one-sided slab deletes the disambiguating geometry, leaving the true pose only ~0.005 below
-  a forest of near-equal wrong basins. There the aligner returns an **honest ambiguity flag**
-  (`result.info['ambiguous']` / `['confidence']`) rather than a silent wrong pose — verified 0
-  silent-wrong. Reliably solving the moderate keep60% crops is open work (a heavy standalone
-  config recovered one but was not reproducible through the library, so it was not shipped).
-  **`merge` is reliable for high-overlap captures.**
+  ALL keep ≥ 60% crops at rot_err 0.00°** (previously only keep ≥ 80% + keep60-seed0; the moderate
+  keep60-seed1/2 used to flip into ~175° mirror basins). Two changes fixed them, both verified on
+  the robustness sweep: (1) the basin sweep keeps a **deeper candidate pool** (`topk` 40 → 200) and
+  refines longer (`refine_iters` 60 → 150) — at keep60 the true basin's coarse seed ranks ~80–160
+  in the cheap prefilter, so a shallow pool dropped it before the precise refine; and (2) the
+  refined seeds are ranked by a **symmetric overlap residual** (target→source *and* source→target),
+  which penalises the mirror flip the one-directional residual is blind to (true pose sym ≈ 0.000 vs
+  flip ≈ 0.014). Cost: the deeper sweep is ~22 s/cell — registration path only, never the real-time
+  tracker. The remaining heavy crops (keep ≤ 40%) are *genuinely ambiguous*: there even the true
+  pose no longer seats (symmetric residual ≈ 0.003 against a forest of ≈ 0.017 wrong basins), so the
+  aligner returns an **honest ambiguity flag** (`result.info['ambiguous']` / `['confidence']`)
+  rather than a silent wrong pose — verified 0 silent-wrong. **`merge` is reliable for high-overlap
+  captures.**
+- **Sim(3) scale under low overlap (line-search, still loose at ~20%).** A dedicated golden-section
+  **scale line-search** (`_scale_line_search`) refines the Sim(3) scale DoF after the pose solve,
+  minimising the **symmetric** overlap residual — the one-directional fit is scale-blind (shrinking
+  the source toward the overlap keeps every target point near *some* source point, so it never
+  penalises a too-small scale; the source→target term is what gives scale a real minimum). It
+  improves scale on its own objective without regressing the robustness sweep (still 36/36), but a
+  thin shared band leaves a wide scale valley, so under ~20% overlap the recovered scale can still
+  drift. Note: the real-100k-PLY merge demo's FPFH seed is non-deterministic run-to-run, so its
+  scale number is not a stable before/after — the line-search is reported on its objective, not a
+  single demo figure.
 - **Speed — DONE (the headline).** Warm-start `track()` runs **~17 ms/frame** (< 40 ms goal, faster
   than the ~45 ms GaussianFeels tracker; `benchmarks/tracking_speed_bench.py`, rot 0.43°), via
   skip-global-init + closed-form-Jacobian LM + SDF truncation (`trunc_sigmas`, N×k). The full Sim(3)

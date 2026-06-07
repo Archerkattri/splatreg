@@ -607,6 +607,51 @@ def _robust_register_batched(
 # ── overlap-aware ICP polish (partial-overlap safe) ─────────────────────────────
 
 
+def _robust_radius_scale(
+    src_matched: torch.Tensor, tgt_matched: torch.Tensor, max_pairs: int = 4096
+) -> float:
+    """Robust Sim(3) scale from the MEDIAN ratio of matched pairwise distances.
+
+    Umeyama's variance-ratio scale (``Σσ / var_src``) is least-squares and so is dragged by the
+    occlusion-boundary mismatches that survive trimming under partial overlap — there it routinely
+    overshoots (e.g. ``s_hat`` 1.18 for a true 0.93).  A scale is, by definition, the ratio of any
+    inter-point distance in the target to the corresponding distance in the source, and that ratio is
+    invariant to the (unknown) rotation/translation.  Taking the **median** over many matched pairs
+    is a high-breakdown estimator: occlusion-boundary outliers move at most ~half the pairs, so the
+    median ratio stays on the true scale.  We sample a fixed set of pair offsets (deterministic,
+    strided) rather than the full O(n²) set.
+
+    Args:
+        src_matched / tgt_matched: corresponding points ``(M, 3)`` (target ≈ s·R·src + t).
+        max_pairs: cap on the number of (i, j) pairs scored.
+
+    Returns:
+        Robust scalar scale, or ``1.0`` if too few pairs.
+    """
+    m = src_matched.shape[0]
+    if m < 4:
+        return 1.0
+    # Deterministic pair set: pair row i with row i+off for a few coprime-ish offsets, so the
+    # pairs span the whole matched extent (not just neighbours) without an O(m^2) blowup.
+    offs = [o for o in (1, 2, 3, 5, 8, 13, 21, 34) if o < m]
+    si, ti = [], []
+    for off in offs:
+        a = torch.arange(m - off, device=src_matched.device)
+        si.append(a)
+        ti.append(a + off)
+        if sum(int(x.numel()) for x in si) >= max_pairs:
+            break
+    i = torch.cat(si)[:max_pairs]
+    j = torch.cat(ti)[:max_pairs]
+    ds = (src_matched[i] - src_matched[j]).norm(dim=1)
+    dt = (tgt_matched[i] - tgt_matched[j]).norm(dim=1)
+    valid = ds > 1e-9
+    if int(valid.sum().item()) < 4:
+        return 1.0
+    ratios = (dt[valid] / ds[valid]).clamp(1e-6, 1e6)
+    return float(ratios.median().item())
+
+
 def _overlap_icp_polish(
     src_full: torch.Tensor,
     tgt_full: torch.Tensor,
@@ -851,8 +896,8 @@ def _overlap_basin_sweep(
     n_rot: int = 2048,
     icp_iters: int = 12,
     trim: float = 0.7,
-    topk: int = 40,
-    refine_iters: int = 60,
+    topk: int = 200,
+    refine_iters: int = 150,
     refine_trim: float = 0.8,
     n_src: int = 1400,
     n_tgt: int = 800,
@@ -870,9 +915,13 @@ def _overlap_basin_sweep(
        it lets the partial target slide along the smooth source surface to its true tangential
        position, so the correct basin converges to residual ~0 while wrong basins stay at ~0.005.
     2. Keep the ``topk`` lowest-residual converged seeds and re-refine each with a longer,
-       tighter-trim point-to-plane ICP.  The two-stage (broad coarse → few precise refines) recovers
-       the true basin even on MODERATE crops (keep≈60 %) where a single-pass sweep would miss it,
-       while staying CPU-affordable (only ``topk`` expensive refines instead of all ``n_rot``).
+       tighter-trim point-to-plane ICP, then pick the winner by the SYMMETRIC overlap residual (see
+       step 3).  On MODERATE crops (keep≈60 %) the true basin's coarse seed ranks DEEP in the cheap
+       prefilter (the cropped one-directional residual barely separates it from the 170-ish mirror),
+       so a shallow ``topk`` drops it before the precise refine ever sees it; the true basin also needs
+       enough refine iterations to fully descend.  ``topk=200`` + ``refine_iters=150`` keeps the true
+       seed in the pool and lets it converge — this is what lifts keep60 from 1/3 to 3/3 solved —
+       while staying GPU-affordable (the prefilter is fully batched; only ``topk`` seeds are refined).
     3. Return the lowest-residual transform.  When the crop genuinely deletes the rotation-
        disambiguating geometry (heavy crops), no seed reaches a low residual — the caller's ambiguity
        gate then honestly flags it instead of returning a confident wrong pose.
@@ -910,15 +959,34 @@ def _overlap_basin_sweep(
     # ranked seed inside the basin descends straight to residual ~0; wrong basins stay high.  Pick the
     # lowest-residual refine.  On heavy crops no seed reaches a low residual → the caller's ambiguity
     # gate honestly flags it.
-    best_res = float("inf")
-    best = eye4.clone()
+    # Collect ALL refined candidates, then rank by a SYMMETRIC residual.  The point-to-plane ICP
+    # residual is one-directional (target→source): a flipped pose on a self-similar surface can slide
+    # the partial target onto the source and so score a low one-directional residual even though a big
+    # chunk of the in-overlap SOURCE then floats off the target.  Adding the source→target term
+    # (:func:`_symmetric_overlap_residual`) penalises exactly that flip, which is what lets the
+    # MODERATE keep≈60 % crops resolve to the true basin instead of a 170-ish mirror.
+    cands: list[tuple[float, torch.Tensor, torch.Tensor]] = []
     for R0 in R_ranked:
         t0 = tgt_c - (R0 @ src_c)
         R2, t2, res2 = _point_to_plane_overlap_icp(
             src, snrm, tgt, R0, t0, iters=refine_iters, trim=refine_trim
         )
-        if res2 < best_res:
-            best_res = res2
+        cands.append((res2, R2, t2))
+    if not cands:
+        return eye4
+    # Restrict the (more expensive) symmetric re-rank to the candidates whose one-directional residual
+    # is within a small factor of the best — i.e. the genuinely competing basins — so a clearly bad
+    # converge can't win on a fluke of the symmetric term.
+    r_min = min(c[0] for c in cands)
+    contenders = [c for c in cands if c[0] <= max(r_min * 3.0, r_min + 1e-4)] or [
+        min(cands, key=lambda c: c[0])
+    ]
+    best_sym = float("inf")
+    best = eye4.clone()
+    for res2, R2, t2 in contenders:
+        sym = _symmetric_overlap_residual(src, tgt, R2, 1.0, t2)
+        if sym < best_sym:
+            best_sym = sym
             Tb = torch.eye(4, device=dev, dtype=torch.float64)
             Tb[:3, :3] = R2
             Tb[:3, 3] = t2
@@ -960,6 +1028,90 @@ def _overlap_residual_norm(
     resid = float(d.topk(k, largest=False).values.mean().item())
     scale_ref = float((tgt - tgt.mean(dim=0)).norm(dim=1).pow(2).mean().sqrt().clamp_min(1e-9).item())
     return resid / scale_ref
+
+
+def _symmetric_overlap_residual(
+    src: torch.Tensor, tgt: torch.Tensor, R: torch.Tensor, s: float, t: torch.Tensor, trim: float = 0.8
+) -> float:
+    """BIDIRECTIONAL trimmed overlap residual (already-subsampled, double clouds).
+
+    The one-directional target→source residual (:func:`_overlap_residual_norm`) is blind to scale:
+    shrinking the source toward the target region keeps every target point near *some* source point,
+    so it never penalises a too-small scale.  The scale DoF is only pinned by *also* requiring the
+    overlapping source points to land on the target — i.e. a symmetric Chamfer over the shared band.
+    This returns ``mean(trimmed tgt→src) + mean(trimmed src_overlap→tgt)``; the second term is the one
+    that makes the residual a true function of scale, so a 1-D line-search over ``s`` has a real
+    minimum at the correct scale instead of a flat valley.
+    """
+    TA = src @ R.transpose(-1, -2) * s + t  # source -> target frame
+    d_ts = torch.cdist(tgt, TA).min(dim=1).values  # each target -> nearest source
+    k_t = max(3, int(trim * d_ts.shape[0]))
+    r_ts = d_ts.topk(k_t, largest=False).values.mean()
+    # Source->target, but only the source points actually inside the overlap band (the kept target
+    # matches define which source points are in-overlap); use the trimmed nearest src→tgt.
+    d_st = torch.cdist(TA, tgt).min(dim=1).values  # each source -> nearest target
+    k_s = max(3, int(0.5 * d_st.shape[0]))  # keep the closest half (the in-overlap source)
+    r_st = d_st.topk(k_s, largest=False).values.mean()
+    return float((r_ts + r_st).item())
+
+
+def _scale_line_search(
+    src_full: torch.Tensor,
+    tgt_full: torch.Tensor,
+    T: torch.Tensor,
+    *,
+    n_src: int = 3000,
+    n_tgt: int = 1500,
+    span: float = 0.4,
+    iters: int = 28,
+) -> torch.Tensor:
+    """Golden-section line-search on the Sim(3) SCALE that minimises the SYMMETRIC overlap residual.
+
+    Under partial overlap the joint Umeyama scale is loosely pinned (the surviving matches span a
+    small one-sided extent), so the recovered ``s`` can drift ~25 %.  Holding the (well-recovered)
+    rotation fixed, we search ``s`` over ``[s0/(1+span), s0*(1+span)]`` against
+    :func:`_symmetric_overlap_residual` — whose source→target term gives scale a real gradient — and
+    recompute ``t`` for each candidate so the fit stays consistent.  Returns the corrected 4×4 (or the
+    input unchanged if the search does not improve on it).
+    """
+    dev, dtype = T.device, T.dtype
+    src = _stride_subsample(src_full, n_src).double()
+    tgt = _stride_subsample(tgt_full, n_tgt).double()
+    if src.shape[0] < 8 or tgt.shape[0] < 8:
+        return T
+    block = T[:3, :3].double()
+    s0 = float(torch.linalg.det(block).abs().clamp_min(1e-18) ** (1.0 / 3.0))
+    R = block / s0
+    src_c = src.mean(0)
+    tgt_c = tgt.mean(0)
+
+    def resid_at(s: float) -> float:
+        t = tgt_c - s * (R @ src_c)
+        return _symmetric_overlap_residual(src, tgt, R, s, t)
+
+    lo, hi = s0 / (1.0 + span), s0 * (1.0 + span)
+    r0 = resid_at(s0)
+    invphi = (math.sqrt(5.0) - 1.0) / 2.0
+    c = hi - (hi - lo) * invphi
+    d = lo + (hi - lo) * invphi
+    fc, fd = resid_at(c), resid_at(d)
+    for _ in range(iters):
+        if fc < fd:
+            hi, d, fd = d, c, fc
+            c = hi - (hi - lo) * invphi
+            fc = resid_at(c)
+        else:
+            lo, c, fc = c, d, fd
+            d = lo + (hi - lo) * invphi
+            fd = resid_at(d)
+    s_best = 0.5 * (lo + hi)
+    if resid_at(s_best) > r0:  # no improvement over the joint-solve scale → keep it
+        return T
+    t_best = tgt_c - s_best * (R @ src_c)
+    out = torch.eye(4, device=dev, dtype=torch.float64)
+    out[:3, :3] = s_best * R
+    out[:3, 3] = t_best
+    return out.to(device=dev, dtype=dtype)
 
 
 def _overlap_inlier_count(
@@ -1287,9 +1439,17 @@ def robust_feature_align(
                 n_tgt=min(2000, tgt_full.shape[0]),
             )
         # Accept the refine only if it does not worsen the overlap fit (a degenerate ICP can wander).
+        # NOTE: gate on the scale-blind one-directional residual BEFORE any scale-only correction, so
+        # the rotation/translation winner is chosen on the same footing the polish was tuned for.
         r0 = _overlap_residual_norm(src_full, tgt_full, T0, with_scale=with_scale)
         r1 = _overlap_residual_norm(src_full, tgt_full, T_ref, with_scale=with_scale)
         T = T_ref if r1 <= r0 + 1e-6 else T0
+        # Dedicated scale line-search (Sim(3) only): the joint Umeyama scale is loosely pinned under
+        # partial overlap, so AFTER the pose is chosen, refine just the scale DoF against the
+        # SYMMETRIC overlap residual (which — unlike the one-directional gate above — actually
+        # depends on scale).  Rotation/translation are untouched, so this cannot flip the basin.
+        if with_scale:
+            T = _scale_line_search(src_full, tgt_full, T)
         info["confidence"] = float(max(0.0, 1.0 - min(r0, r1)))
         return T.to(device=dev, dtype=dtype), info
 

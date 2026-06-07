@@ -6,7 +6,7 @@
 
 *The inverse of [gsplat](https://github.com/nerfstudio-project/gsplat): gsplat **renders** Gaussians, splatreg **registers** against them.* Pure PyTorch — no meshing, no CUDA extension, no point-cloud detour.
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![PyTorch](https://img.shields.io/badge/pure-PyTorch-ee4c2c.svg)](https://pytorch.org)
 [![tests](https://img.shields.io/badge/tests-44%20passing-brightgreen.svg)](tests)
@@ -129,7 +129,7 @@ Every number is reproducible; the full record — commands, seeds, and honest li
 - **Synthetic Sim(3)/SE(3) recovery** — apply a known transform, recover it: **36/36 = 100%**, median rot 0.03°, scale error 0.34%, Chamfer 0.6 mm (`examples/validate_recovery.py`).
 - **Jacobian audit** — every analytic Jacobian checked against a tangent-space numerical one in float64 (`tests/test_jacobians.py`): ICP point-to-point/plane, the **Gaussian-SDF closed-form gradient** (~1e-8 vs numerical), and SE(3)/Sim(3) exp·log incl. near-π. Ships a reusable `assert_residual_jacobian` so every future residual gets the audit.
 - **vs plain ICP** — splatreg **27/27 Sim(3)** vs ICP's **9/27** (plain ICP cannot estimate scale; the LM Sim(3) solve is load-bearing).
-- **Robustness** — sensor noise **9/9**, outlier clutter **9/9**, symmetric sphere **9/9**; partial overlap 4/9 solved + 5 honestly flagged ambiguous, **0 silent-wrong**.
+- **Robustness** — sensor noise **9/9**, outlier clutter **9/9**, symmetric sphere **9/9**; partial overlap **6/9 solved** (all keep ≥ 60% at 0.00°) + 3 honestly flagged ambiguous (heavy keep ≤ 40% crops), **0 silent-wrong**.
 - **Official 3DMatch / 3DLoMatch** — canonical Choi/Zeng protocol, 1279 pairs, covariance-weighted error (`benchmarks/threedmatch_official_bench.py`): **91.5% / 74.4%** as above.
 - **Test suite** — `pytest tests/` → **44 passing**; `black` + `mypy` clean, ships `py.typed`.
 
@@ -148,7 +148,8 @@ python examples/merge_demo.py                    # real-splat merge demo
 
 splatreg is honest about its edges (full detail in [`RESULTS.md`](RESULTS.md)):
 
-- **Partial overlap.** Mild crops (keep ≥ 80%) solve at 0.00°; heavier one-sided crops delete the rotation-disambiguating geometry, so the aligner returns an **honest ambiguity flag** (`result.info['ambiguous']` / `['confidence']`) instead of a silent wrong pose. `merge` is reliable for high-overlap captures.
+- **Partial overlap — moderate crops now solve; heavy crops are genuinely ambiguous.** The overlap basin-sweep now keeps a deep candidate pool (`topk=200`) and ranks the refined seeds by a **symmetric** overlap residual (target→source *and* source→target), so the moderate keep ≈ 60% crops resolve to the true basin instead of a ~170° mirror — robustness sweep **PARTIAL solved-count 4/9 → 6/9** (all keep ≥ 60% at 0.00°). Heavy one-sided crops (keep ≤ 40%) delete the rotation-disambiguating geometry — there *even the true pose* no longer seats cleanly (symmetric residual 0.003 vs a forest of ~0.017 wrong basins), so the aligner returns an **honest ambiguity flag** (`result.info['ambiguous']` / `['confidence']`) rather than a silent wrong pose (0 silent-wrong, verified). This deep sweep costs ~22 s/cell (registration path only, never the real-time tracker); the heavy-crop case is genuinely open.
+- **Scale is loose under low overlap.** A dedicated golden-section **scale line-search** against the symmetric overlap residual now refines the Sim(3) scale DoF after the pose solve (the one-directional fit is scale-blind). It tightens scale on its own objective, but on a thin shared band the scale still has a wide valley — under ~20% overlap the recovered scale can drift; `merge` is reliable for high-overlap captures.
 - **The 3DMatch recall is GeoTransformer's, not ours.** splatreg `learned` **matches** GeoTransformer by riding its matcher; it does not beat that matcher's recall. What splatreg adds is accuracy, the Sim(3) scale DoF, and the no-regression floor. Closing the gap with splatreg's *own* dense correspondence is open work.
 - **Cost on rigid SE(3).** Plain ICP reaches the same SE(3) success and is far faster; the SDF residual buys scale + implicit-field robustness at a real compute cost. Use `track()` (~17 ms/frame) for the warm-start real-time path.
 
@@ -156,15 +157,15 @@ splatreg is honest about its edges (full detail in [`RESULTS.md`](RESULTS.md)):
 
 ## Roadmap
 
-- [x] Official 3DMatch + 3DLoMatch protocol (Choi/Zeng) — 91.5% / 74.4% pooled
-- [x] Real-splat merge demo — register + merge two captures → one deduped `.ply` vs naive concat (`examples/merge_demo.py`)
-- [x] Head-to-head vs `splatalign` / `GaussianSplattingRegistration` — splatreg wins; only tool recovering Sim(3) scale
-- [ ] Close the gap to GeoTransformer's full coarse-to-fine matcher (learned dense correspondence, not just a seed)
-- [ ] CI regression gates — determinism, worst-case, PR-comment benchmark
+Shipped: official 3DMatch + 3DLoMatch (Choi/Zeng, 91.5% / 74.4% pooled, matching GeoTransformer); pluggable `fast`/`robust`/`learned` init backends; CI regression gates (determinism + worst-case + PR-comment benchmark); the real-splat merge demo (`examples/merge_demo.py`); the head-to-head vs `splatalign` / `GaussianSplattingRegistration` (only tool recovering Sim(3) scale); the seeded-RANSAC determinism fix; and the partial-overlap basin sweep (4/9 → 6/9 solved). Remaining:
+
+- [ ] **Heavy partial overlap (keep ≤ 40%) to publication.** The moderate keep ≈ 60% crops now solve; the heavy one-sided crops are correctly flagged ambiguous but still unsolved. Needs an overlap-region-restricted descriptor / learned overlap prior to push past the geometry-only basin ambiguity.
+- [ ] **Tighten Sim(3) scale under low overlap.** The scale line-search helps but a thin shared band leaves a wide scale valley; a multi-scale or descriptor-anchored scale constraint is the next step.
+- [ ] Close the gap to GeoTransformer's full coarse-to-fine matcher with splatreg's *own* dense correspondence (not just a borrowed seed).
 - [ ] 6-DoF object-pose mode + FoundationPose/YCB benchmark (v0.2)
 - [ ] Camera localization in a splat (v0.2)
 - [ ] PyPI release
 
 ## License & layout
 
-Apache-2.0. `splatreg/` — library (`api`, `align`, `align_features`, `core/lie`, `geometry/gaussian_sdf`, `residuals/`, `solvers/lm`). `tests/` · `benchmarks/` · `examples/`. Full validation record: [`RESULTS.md`](RESULTS.md).
+BSD 3-Clause — permissive, composes with the gsplat / Theseus / GTSAM ecosystem. `splatreg/` — library (`api`, `align`, `align_features`, `core/lie`, `geometry/gaussian_sdf`, `residuals/`, `solvers/lm`). `tests/` · `benchmarks/` · `examples/`. Full validation record: [`RESULTS.md`](RESULTS.md).

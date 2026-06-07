@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "Composable geometry-first SE(3)/Sim(3) registration for 3D Gaussian Splatting — the inverse of gsplat."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "Apache-2.0" }
+license = { text = "BSD-3-Clause" }
 authors = [{ name = "Krishi Attri" }]
 keywords = ["gaussian-splatting", "3dgs", "registration", "pose-estimation", "se3", "sim3", "gsplat"]
 dependencies = ["torch", "numpy"]
