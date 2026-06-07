@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/banner.png" alt="splatreg" width="680">
+<img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/banner.png" alt="splatreg" width="680">
 
 # splatreg
 
