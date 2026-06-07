@@ -1295,6 +1295,212 @@ def robust_feature_align(
     return T, info
 
 
+# ── learned seed (GeoTransformer, optional) + splatreg refine ───────────────────
+
+# Module-level cache of the loaded GeoTransformer model + config so we pay the (~0.3 s) load
+# exactly once per process; subsequent learned_feature_align calls reuse it.
+_GEOTRANSFORMER_CACHE: dict = {}
+
+
+def _geotransformer_paths() -> tuple[str, str] | None:
+    """Resolve ``(repo_root, experiment_dir)`` for the bundled GeoTransformer, or ``None``.
+
+    The learned backend lives under ``splatreg/third_party_models/GeoTransformer`` (gitignored,
+    cloned + built by the Tier-2 setup).  We discover it relative to this file so the path is robust
+    to the caller's CWD.  Returns ``None`` (→ caller falls back to ``init="robust"``) when the repo /
+    its built extension / its pretrained weights are not present.
+    """
+    import os
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.normpath(os.path.join(here, "..", "third_party_models", "GeoTransformer"))
+    exp = os.path.join(repo, "experiments", "geotransformer.3dmatch.stage4.gse.k3.max.oacl.stage2.sinkhorn")
+    weights = os.path.join(repo, "weights", "geotransformer-3dmatch.pth.tar")
+    ext = os.path.join(repo, "geotransformer", "ext.cpython-311-x86_64-linux-gnu.so")
+    # The .so name embeds the cpython tag; accept any built ext.* in that dir.
+    import glob
+
+    ext_ok = bool(glob.glob(os.path.join(repo, "geotransformer", "ext.*.so")))
+    if not (os.path.isdir(exp) and os.path.isfile(weights) and ext_ok):
+        return None
+    return repo, exp
+
+
+def _load_geotransformer(device: torch.device):
+    """Lazily import + load the pretrained GeoTransformer 3DMatch model (cached), or ``None``.
+
+    Adds the GeoTransformer repo and its 3DMatch experiment dir to ``sys.path`` (so ``config`` /
+    ``model`` resolve), builds the model, loads the released ``geotransformer-3dmatch.pth.tar``
+    weights, and moves it to ``device`` in eval mode.  Returns ``(model, cfg, collate_fn, to_cuda,
+    release_cuda)`` or ``None`` if anything (import / weights / CUDA-ext) is unavailable — in which
+    case the caller falls back to the classical ``robust`` seed.  Result is cached module-wide.
+    """
+    key = str(device)
+    if key in _GEOTRANSFORMER_CACHE:
+        return _GEOTRANSFORMER_CACHE[key]
+    paths = _geotransformer_paths()
+    if paths is None:
+        _GEOTRANSFORMER_CACHE[key] = None
+        return None
+    repo, exp = paths
+    import sys
+
+    for p in (repo, exp):
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    try:
+        from config import make_cfg  # type: ignore  # GeoTransformer 3DMatch experiment config
+        from model import create_model  # type: ignore
+        from geotransformer.utils.data import registration_collate_fn_stack_mode  # type: ignore
+        from geotransformer.utils.torch import to_cuda, release_cuda  # type: ignore
+    except Exception:
+        _GEOTRANSFORMER_CACHE[key] = None
+        return None
+    try:
+        cfg = make_cfg()
+        model = create_model(cfg).to(device).eval()
+        import os
+
+        weights = os.path.join(repo, "weights", "geotransformer-3dmatch.pth.tar")
+        sd = torch.load(weights, map_location="cpu", weights_only=False)
+        model.load_state_dict(sd["model"])
+    except Exception:
+        _GEOTRANSFORMER_CACHE[key] = None
+        return None
+    bundle = (model, cfg, registration_collate_fn_stack_mode, to_cuda, release_cuda)
+    _GEOTRANSFORMER_CACHE[key] = bundle
+    return bundle
+
+
+def _geotransformer_seed(src: torch.Tensor, tgt: torch.Tensor, device: torch.device) -> torch.Tensor | None:
+    """Learned global seed (source→target 4×4) from pretrained GeoTransformer, or ``None``.
+
+    Runs the GeoTransformer 3DMatch model on the (source, target) point clouds and returns its
+    ``estimated_transform`` (a full SE(3) pose recovered from its learned dense correspondences +
+    LGR estimator).  GeoTransformer is the learned 3DMatch SOTA (~92 % RR); used here ONLY as the
+    coarse seed — splatreg's overlap-aware ICP (+ optional Sim(3) scale) then refines it.  Returns
+    ``None`` on any failure (model unavailable, forward error) so the caller can fall back.
+    """
+    bundle = _load_geotransformer(device)
+    if bundle is None:
+        return None
+    model, cfg, collate_fn, to_cuda, release_cuda = bundle
+    try:
+        import numpy as _np
+
+        ref_np = tgt.detach().cpu().to(torch.float32).numpy()
+        src_np = src.detach().cpu().to(torch.float32).numpy()
+        data_dict = {
+            "ref_points": ref_np,
+            "src_points": src_np,
+            "ref_feats": _np.ones((ref_np.shape[0], 1), dtype=_np.float32),
+            "src_feats": _np.ones((src_np.shape[0], 1), dtype=_np.float32),
+            "transform": _np.eye(4, dtype=_np.float32),  # unused for inference; collate expects it
+        }
+        neighbor_limits = [38, 36, 36, 38]  # the released 3DMatch default
+        data_dict = collate_fn(
+            [data_dict],
+            cfg.backbone.num_stages,
+            cfg.backbone.init_voxel_size,
+            cfg.backbone.init_radius,
+            neighbor_limits,
+        )
+        data_dict = to_cuda(data_dict) if str(device).startswith("cuda") else data_dict
+        with torch.no_grad():
+            out = model(data_dict)
+        out = release_cuda(out)
+        T = out["estimated_transform"]  # (4, 4) source→target
+        return torch.as_tensor(_np.asarray(T), dtype=torch.float64)
+    except Exception:
+        return None
+
+
+@torch.no_grad()
+def learned_feature_align(
+    target: Gaussians,
+    source: Gaussians,
+    *,
+    transform: str = "se3",
+    voxel: float | None = None,
+    refine_iters: int = 30,
+) -> tuple[torch.Tensor, dict]:
+    """LEARNED registrar: pretrained GeoTransformer seed + splatreg overlap-aware refine (+ Sim(3)).
+
+    Mirrors :func:`robust_feature_align` but swaps the classical Open3D FPFH+RANSAC seed for the
+    *learned* GeoTransformer 3DMatch correspondence model (CVPR 2022, ~92 % RR — past the ~77 %
+    classical FPFH ceiling).  GeoTransformer supplies the coarse SE(3) seed from its learned dense
+    matches; splatreg then runs the SAME overlap-aware refine the ``robust`` path uses (Open3D
+    point-to-plane ICP for SE(3), or its own Sim(3) overlap ICP to additionally recover scale),
+    accepting the refine only when it does not worsen the overlap residual.  This gives learned-SOTA
+    recall with splatreg's accuracy / scale bonus on top.
+
+    Guarded: when GeoTransformer (its module / built CUDA-ext / pretrained weights) is unavailable,
+    or its forward fails, it falls back to :func:`robust_feature_align` (classical seed) so the
+    function always returns a pose.
+
+    Args / Returns: identical contract to :func:`robust_feature_align`; ``info`` additionally carries
+    ``used_learned`` (bool) and ``seed`` (``"geotransformer"`` / ``"robust-fallback"``).
+    """
+    if transform not in ("se3", "sim3"):
+        raise ValueError(f"transform must be 'se3' or 'sim3', got {transform!r}")
+    with_scale = transform == "sim3"
+    dev = source.means.device
+    dtype = source.means.dtype
+    src_full = source.means.to(torch.float32)
+    tgt_full = target.means.to(device=dev, dtype=torch.float32)
+
+    info = {
+        "voxel": 0.0,
+        "n_corr": 0,
+        "used_open3d": False,
+        "used_learned": False,
+        "seed": "none",
+        "confidence": 0.0,
+    }
+    if src_full.shape[0] < 4 or tgt_full.shape[0] < 4:
+        return torch.eye(4, device=dev, dtype=dtype), info
+
+    T_seed = _geotransformer_seed(src_full, tgt_full, dev)
+    if T_seed is None:
+        # Learned backend unavailable → classical robust seed (still a strong, scale-correct path).
+        T, rinfo = robust_feature_align(
+            target, source, transform=transform, voxel=voxel, refine_iters=refine_iters
+        )
+        rinfo = dict(rinfo)
+        rinfo["used_learned"] = False
+        rinfo["seed"] = "robust-fallback"
+        return T, rinfo
+
+    info["used_learned"] = True
+    info["seed"] = "geotransformer"
+    if voxel is None:
+        voxel = min(_cloud_voxel(src_full), _cloud_voxel(tgt_full))
+    info["voxel"] = float(voxel)
+
+    T0 = T_seed.to(device=dev, dtype=dtype)
+    # SAME refine policy as robust_feature_align: Open3D point-to-plane ICP for SE(3) (scale-correct,
+    # tightens the learned seed at room scale); splatreg overlap-aware Sim(3) ICP when a scale DoF is
+    # wanted.  Accept the refine only if it does not worsen the overlap residual.
+    if not with_scale:
+        T_o3d = _open3d_icp_refine(src_full, tgt_full, T0, voxel, iters=refine_iters)
+        T_ref = T_o3d.to(device=dev, dtype=dtype) if T_o3d is not None else T0
+    else:
+        T_ref = _overlap_icp_polish(
+            src_full,
+            tgt_full,
+            T0,
+            with_scale=True,
+            iters=refine_iters,
+            n_src=min(4000, src_full.shape[0]),
+            n_tgt=min(2000, tgt_full.shape[0]),
+        )
+    r0 = _overlap_residual_norm(src_full, tgt_full, T0, with_scale=with_scale)
+    r1 = _overlap_residual_norm(src_full, tgt_full, T_ref, with_scale=with_scale)
+    T = T_ref if r1 <= r0 + 1e-6 else T0
+    info["confidence"] = float(max(0.0, 1.0 - min(r0, r1)))
+    return T.to(device=dev, dtype=dtype), info
+
+
 # ── public entry ──────────────────────────────────────────────────────────────
 
 

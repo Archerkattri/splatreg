@@ -215,9 +215,10 @@ def main():
     ap.add_argument(
         "--init",
         default="robust",
-        choices=["fast", "robust", "features", "global"],
-        help="splatreg init: 'robust' (Open3D FPFH+RANSAC seed + splatreg refine, scale-correct for "
-        "real indoor scans) or 'fast' (pure-splatreg object-tuned FPFH).",
+        choices=["fast", "robust", "learned", "features", "global"],
+        help="splatreg init: 'learned' (pretrained GeoTransformer seed + splatreg refine — learned "
+        "SOTA), 'robust' (Open3D FPFH+RANSAC seed + splatreg refine, scale-correct for real indoor "
+        "scans), or 'fast' (pure-splatreg object-tuned FPFH).",
     )
     args = ap.parse_args()
 

@@ -129,6 +129,36 @@ def _robust_init(target, source: Any, transform: str, device, dtype) -> tuple[to
     return T.to(device=device, dtype=dtype), info
 
 
+def _learned_init(target, source: Any, transform: str, device, dtype) -> tuple[torch.Tensor, dict]:
+    """Learned coarse init: pretrained GeoTransformer seed + splatreg overlap-aware refine + info.
+
+    Mirrors :func:`_robust_init` but uses the LEARNED GeoTransformer 3DMatch correspondence model
+    (CVPR 2022, ~92 % RR — past the classical FPFH ~77 % ceiling) for the seed, then splatreg's own
+    overlap-aware ICP (and Sim(3) scale) on top.  Falls back inside ``learned_feature_align`` to the
+    classical ``robust`` seed when GeoTransformer (its module / built CUDA-ext / pretrained weights)
+    is unavailable; falls back to identity if the feature module itself cannot be imported.
+    """
+    empty_info = {
+        "voxel": 0.0,
+        "n_corr": 0,
+        "used_open3d": False,
+        "used_learned": False,
+        "seed": "none",
+        "confidence": 0.0,
+    }
+    try:
+        from splatreg.align_features import learned_feature_align
+    except Exception as exc:  # pragma: no cover
+        _log.info(
+            "init='learned' requested but splatreg.align_features is unavailable (%s); "
+            "falling back to identity init.",
+            exc,
+        )
+        return _identity(device, dtype), dict(empty_info)
+    T, info = learned_feature_align(target, source, transform=transform)
+    return T.to(device=device, dtype=dtype), info
+
+
 def _fast_init(target, source: Any, transform: str, device, dtype) -> torch.Tensor:
     """Coarse 4x4 LM seed from the FAST feature path (FPFH + GPU-batched RANSAC), or identity.
 
@@ -281,8 +311,17 @@ def register(
           (its ICP would pull a good partial-overlap init off-pose), ``init="features"`` with the
           default residuals returns the feature registration DIRECTLY and skips that LM; pass an
           explicit overlap-safe ``residuals=[...]`` to run the LM seeded from the feature init.
+        * ``"robust"`` — scale-robust registrar (:func:`splatreg.align_features.robust_feature_align`):
+          an Open3D FPFH+RANSAC seed (scale-correct, auto-voxelled — the ~77 % RR Open3D reports on
+          real indoor scans like 3DMatch) refined by splatreg's overlap-aware ICP (+ Sim(3) scale).
+          Like ``"features"`` it returns the registration DIRECTLY under the default residuals.
+        * ``"learned"`` — LEARNED registrar (:func:`splatreg.align_features.learned_feature_align`):
+          the pretrained GeoTransformer 3DMatch correspondence model (CVPR 2022, ~92 % RR — past the
+          classical FPFH ~77 % ceiling) supplies the coarse seed, then the SAME overlap-aware ICP
+          (+ Sim(3) scale) refine as ``"robust"``.  Falls back to ``"robust"`` (then identity) when
+          GeoTransformer's module / built CUDA-ext / pretrained weights are unavailable.
 
-        Both string forms are guarded — fall back to identity with a logged note if the module
+        All string forms are guarded — fall back to identity with a logged note if the module
         is unavailable. For ``init="global"`` the chosen transform seeds the LM.
     transform : ``"se3"`` (dof 6) or ``"sim3"`` (dof 7; the scale DoF is solved, autodiffed).
     backend : only ``"builtin"`` is implemented here (the builtin LM). The ``register`` surface
@@ -343,8 +382,12 @@ def register(
             T0, feature_info = _feature_init(target, source, transform, device, dtype)
         elif init == "robust":
             T0, feature_info = _robust_init(target, source, transform, device, dtype)
+        elif init == "learned":
+            T0, feature_info = _learned_init(target, source, transform, device, dtype)
         else:
-            raise ValueError(f"init string must be 'fast', 'robust', 'global', or 'features', got {init!r}")
+            raise ValueError(
+                "init string must be 'fast', 'robust', 'learned', 'global', or 'features', " f"got {init!r}"
+            )
     elif init is None:
         # Default to the FAST feature init (FPFH + GPU-batched RANSAC, ~20-35 ms) so a bare
         # register(target, source) is fast out of the box; it self-falls-back to global->identity
@@ -353,7 +396,7 @@ def register(
     else:
         T0 = init.to(device=device, dtype=dtype)
 
-    feature_only = init in ("features", "robust") and not user_residuals
+    feature_only = init in ("features", "robust", "learned") and not user_residuals
     if feature_only:
         # Return the self-contained feature registration (no full-overlap LM that would corrupt a
         # partial-overlap init).  Recover the scale from the transform block for Sim(3).
