@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/logo.png" alt="splatreg" width="170">
+<img src="assets/banner.png" alt="splatreg" width="680">
 
 # splatreg
 
