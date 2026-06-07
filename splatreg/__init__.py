@@ -20,6 +20,26 @@ try:
 except ImportError:
     register = merge = Tracker = None  # type: ignore
 
+# v0.2: 6-DoF object-pose mode (pure torch — reuses register/track, always available).
+try:
+    from .object_pose import (  # noqa: F401
+        ObjectPose,
+        ObjectPoseEstimator,
+        estimate_object_pose,
+        add_metric,
+        adds_metric,
+        add_auc,
+    )
+except ImportError:  # pragma: no cover
+    ObjectPose = ObjectPoseEstimator = estimate_object_pose = None  # type: ignore
+    add_metric = adds_metric = add_auc = None  # type: ignore
+
+# v0.2: camera localization in a splat (needs the gsplat [render] extra — guarded).
+try:
+    from .camera_loc import CameraPhotometric, localize_camera  # noqa: F401
+except ImportError:  # gsplat not installed
+    CameraPhotometric = localize_camera = None  # type: ignore
+
 __version__ = "0.0.1"
 __all__ = [
     "register",
@@ -34,4 +54,14 @@ __all__ = [
     "RegisterResult",
     "LinearizedProblem",
     "SE3Update",
+    # v0.2 object-pose
+    "ObjectPose",
+    "ObjectPoseEstimator",
+    "estimate_object_pose",
+    "add_metric",
+    "adds_metric",
+    "add_auc",
+    # v0.2 camera localization
+    "CameraPhotometric",
+    "localize_camera",
 ]

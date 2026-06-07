@@ -153,6 +153,45 @@ Verified on GPU across two independent runs.
 the draw is non-deterministic (one run hit 117° where clean reruns sit ~11°). Same input now →
 bit-identical transform across runs.
 
+## 5f. 6-DoF object-pose mode (v0.2, FoundationPose/YCB-style ADD/ADD-S)
+
+`benchmarks/object_pose_bench.py` — estimate a known object splat's 6-DoF pose `T_SO` from an
+observation, scored with the standard **ADD / ADD-S / AUC** metrics (`splatreg.add_metric` /
+`adds_metric` / `add_auc`; unit-tested in `tests/test_object_pose.py`). The estimator reuses the
+`register`/`track` core; `ObjectPoseEstimator` warm-starts across frames (FoundationPose regime).
+
+| Observation | ADD-S AUC (0–10 cm) | median ADD-S | ADD < 2 cm | median rot |
+|---|---|---|---|---|
+| full view (keep 1.0) | **0.999** | 0.10 mm | 100% | 0.04° |
+| 60% occluded (keep 0.6) | **0.985** | 1.43 mm | 100% | 0.54° |
+
+**Honest scope:** numbers are on a **synthetic proxy** (procedural object splat), NOT real
+YCB-Video / FoundationPose data — that needs a real loader (`iter_dataset()` is the documented swap
+point; the metric + estimate path is dataset-agnostic and already validated). ADD-S handles symmetry
+correctly (a 180° sphere flip → ADD-S ≈ 0 while ADD is large; tested). The partial-view limit is the
+same as `register` — heavy occlusion can leave the pose ambiguous, surfaced via `info['ambiguous']`.
+
+## 5g. Camera localization in a splat (v0.2)
+
+`localize_camera(splat, frame, init_T_WC)` (`tests/test_camera_loc.py`) — refine a query camera pose
+against a world-fixed splat by optimizing the SE(3) right-perturbation tangent **through gsplat's
+differentiable rasteriser** (exact render gradient, correct by construction — no hand-derived
+inverse-compositional Jacobian to mis-sign). On a synthetic textured scene:
+
+| init error | recovered |
+|---|---|
+| rot 7.1° / trans 132 mm | **rot 1.7° / trans 37 mm** |
+| rot 3.5° / trans 66 mm | rot 1.4° / trans 32 mm |
+| rot 1.4° / trans 26 mm | rot 0.6° / trans 14 mm |
+
+**Honest scope:** this **refines a pose prior** within the direct-alignment basin (a few degrees / a
+few % of depth) — it is not yet a global (priorless) relocaliser, and is evaluated on a synthetic
+scene only. An experimental analytic residual (`CameraPhotometric`, geometry block verified vs
+numerical) is also shipped, but the differentiable-render path is the validated one. *Note:* the
+pre-existing object-pose `Photometric` residual's inverse-compositional analytic Jacobian was found
+to have the same narrow/sign-sensitive basin on these synthetic scenes — which is why the v0.2
+camera path uses differentiable rendering instead.
+
 ## 6. Honest limitations (no overstating)
 
 - **Partial overlap (6/9 solved + 3 flagged, 0 silent-wrong).** The `init="features"` aligner —
