@@ -126,6 +126,28 @@ the `learned_feature_align` path already used the full LGR pose, not a coarse se
 splatreg **wins outright** vs both ICP-only splat tools and is the **only** one estimating Sim(3)
 scale (the others are SE(3)-only and cannot model the GT scale at all).
 
+## 5d. Real-splat merge (`examples/merge_demo.py`, real 103k-Gaussian capture)
+
+Two overlapping captures of a real 103k-Gaussian splat fused into one deduped `.ply` (registered
+Sim(3) + voxel/KNN overlap dedupe), vs a naive `torch.cat`:
+
+| Metric | naive cat | splatreg merge |
+|---|---|---|
+| Chamfer to GT | 10.3 mm | **2.0 mm (5.1× closer)** |
+| overlap (IoU-style) | 0.03 | **0.67 (22× more)** |
+| overlap duplicates removed | — | ~9k |
+
+Verified on GPU across two independent runs.
+
+## 5e. Registration / tracking speed (`benchmarks/tracking_speed_bench.py`, `speed_bench.py`)
+
+| Path | splatreg | reference |
+|---|---|---|
+| `register(init="fast")` (objects / full overlap) | **~17 ms** | — |
+| `register(init="learned")` (GeoTransformer seed + refine) | ~104 ms | GeoTransformer ~50 ms · Open3D 142 ms |
+| `track()` warm-start (real-time) | **~17 ms/frame** (rot 0.43°) | GaussianFeels tracker ~45 ms |
+| full Sim(3) cold registration | 2.4 s/cell (was 19.7 s) | — |
+
 **Determinism note:** the `robust`/Sim(3) path seeds Open3D's RANSAC
 (`o3d.utility.random.seed`, default 42) in `align_features._open3d_fpfh_ransac_seed` — without it
 the draw is non-deterministic (one run hit 117° where clean reruns sit ~11°). Same input now →

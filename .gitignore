@@ -13,3 +13,5 @@ _scratch/
 data/
 third_party_models/
 examples/_out/
+# Internal planning/design notes — "for us", not part of the public package.
+docs/
