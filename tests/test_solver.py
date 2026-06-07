@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Any, Optional
+from typing import Optional
 
 import torch
 
@@ -41,7 +41,7 @@ _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO not in sys.path:
     sys.path.insert(0, _REPO)
 
-from splatreg.core.lie import se3_exp, sim3_log  # noqa: E402
+from splatreg.core.lie import se3_exp  # noqa: E402
 from splatreg.core.types import Gaussians, LinearizedProblem  # noqa: E402
 from splatreg.residuals.base import Residual  # noqa: E402
 from splatreg.residuals.icp import ICP  # noqa: E402

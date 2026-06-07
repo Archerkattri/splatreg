@@ -7,7 +7,7 @@ interface every module (solver, residuals, io, api) agrees on. Do not add heavy 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Optional
 
 import torch
 

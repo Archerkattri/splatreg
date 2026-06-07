@@ -1116,7 +1116,7 @@ def _cloud_voxel(pts: torch.Tensor, mult: float = 1.5) -> float:
 
 
 def _open3d_fpfh_ransac_seed(
-    src: torch.Tensor, tgt: torch.Tensor, voxel: float
+    src: torch.Tensor, tgt: torch.Tensor, voxel: float, rng_seed: int = 42
 ) -> tuple[torch.Tensor | None, int]:
     """Classical FPFH + RANSAC global seed via Open3D (source→target 4×4), or ``None`` if unavailable.
 
@@ -1149,6 +1149,11 @@ def _open3d_fpfh_ransac_seed(
         return pc, fpfh
 
     try:
+        # Determinism: Open3D's RANSAC draws minimal samples from a global RNG, so without a fixed
+        # seed the recovered pose is non-deterministic across runs (a bad draw once hit 117 deg where
+        # clean reruns sit at ~11 deg).  ``o3d.utility.random.seed`` is the only knob — this overload
+        # of ``registration_ransac_based_on_feature_matching`` exposes no per-call seed argument.
+        o3d.utility.random.seed(int(rng_seed))
         sp, sf = _prep(sp_np)
         tp, tf = _prep(tp_np)
         dist = voxel * 1.5
@@ -1217,6 +1222,7 @@ def robust_feature_align(
     transform: str = "se3",
     voxel: float | None = None,
     refine_iters: int = 30,
+    rng_seed: int = 42,
 ) -> tuple[torch.Tensor, dict]:
     """Scale-robust registrar: Open3D FPFH+RANSAC seed + splatreg overlap-aware refine (+ Sim(3)).
 
@@ -1258,7 +1264,7 @@ def robust_feature_align(
         voxel = min(_cloud_voxel(src_full), _cloud_voxel(tgt_full))
     info["voxel"] = float(voxel)
 
-    T_seed, n_corr = _open3d_fpfh_ransac_seed(src_full, tgt_full, voxel)
+    T_seed, n_corr = _open3d_fpfh_ransac_seed(src_full, tgt_full, voxel, rng_seed=rng_seed)
     if T_seed is not None:
         info["used_open3d"] = True
         info["n_corr"] = int(n_corr)
@@ -1316,7 +1322,6 @@ def _geotransformer_paths() -> tuple[str, str] | None:
     repo = os.path.normpath(os.path.join(here, "..", "third_party_models", "GeoTransformer"))
     exp = os.path.join(repo, "experiments", "geotransformer.3dmatch.stage4.gse.k3.max.oacl.stage2.sinkhorn")
     weights = os.path.join(repo, "weights", "geotransformer-3dmatch.pth.tar")
-    ext = os.path.join(repo, "geotransformer", "ext.cpython-311-x86_64-linux-gnu.so")
     # The .so name embeds the cpython tag; accept any built ext.* in that dir.
     import glob
 

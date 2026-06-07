@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "splatreg"
-version = "0.0.1"
+version = "1.0.0"
 description = "Composable geometry-first SE(3)/Sim(3) registration for 3D Gaussian Splatting — the inverse of gsplat."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -35,6 +35,7 @@ test = [
     "mypy>=1.5",
     "isort>=5.12",
     "flake8>=6.0",
+    "ruff",
 ]
 docs = ["sphinx", "furo", "myst-nb"]
 all = ["gsplat>=1.4", "pypose", "theseus-ai"]
@@ -67,3 +68,9 @@ ignore_errors = true
 
 [tool.ruff]
 line-length = 110
+
+[tool.ruff.lint]
+# Default ruff lint set (pyflakes F + pycodestyle E/W). E731 (lambda assignment) and E741
+# (ambiguous name `I`) flag intentional, readable code here (the Gaussians.to lambda; the
+# identity matrix `I` in the Lie-group invariance tests), so they are silenced project-wide.
+ignore = ["E731", "E741"]

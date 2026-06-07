@@ -20,6 +20,10 @@ from .solvers.base import Solver
 from .solvers.lm import LevenbergMarquardt, run_lm
 
 _DOF = {"se3": 6, "sim3": 7}
+# Solver backends `register(backend=...)` accepts. 'builtin' is the default closed-form-Jacobian LM
+# (fastest); 'pypose'/'theseus' hand the nonlinear solve to an external engine (autodiffed); 'gtsam'
+# is a recognised name but honestly not implemented (needs hand-written factor Jacobians).
+_BACKENDS = {"builtin", "pypose", "theseus", "gtsam"}
 
 _log = logging.getLogger("splatreg")
 
@@ -264,6 +268,22 @@ def _target_anchor_count(target: Any) -> Optional[int]:
     return len(target) if isinstance(target, Gaussians) else None
 
 
+def _external_backend(backend: str):
+    """Return the external engine's ``solve(T0, residuals, target, source, *, transform, max_iters)``.
+
+    The backend modules import their (optional) engine lazily inside ``solve`` and raise a clear
+    ``ImportError`` with the right ``pip install splatreg[<extra>]`` hint if it is missing, so this
+    just selects the module. ``register`` has already validated ``backend`` against ``_BACKENDS``.
+    """
+    if backend == "pypose":
+        from .solvers.pypose_backend import solve as _solve
+    elif backend == "theseus":
+        from .solvers.theseus_backend import solve as _solve
+    else:  # pragma: no cover - register() validates backend before calling
+        raise ValueError(f"no external backend for {backend!r}")
+    return _solve
+
+
 def register(
     target,
     source: Any,
@@ -324,8 +344,14 @@ def register(
         All string forms are guarded — fall back to identity with a logged note if the module
         is unavailable. For ``init="global"`` the chosen transform seeds the LM.
     transform : ``"se3"`` (dof 6) or ``"sim3"`` (dof 7; the scale DoF is solved, autodiffed).
-    backend : only ``"builtin"`` is implemented here (the builtin LM). The ``register`` surface
-        keeps the argument so external-engine backends can be wired in without changing callers.
+    backend : the solver engine. ``"builtin"`` (DEFAULT, fastest) is splatreg's closed-form-Jacobian
+        Levenberg-Marquardt core. ``"pypose"`` / ``"theseus"`` hand the whole nonlinear least-squares
+        problem to that external engine instead — they optimise the same right-perturbation tangent
+        through splatreg's own ``exp`` (so the recovered SE(3)/Sim(3) pose matches the builtin
+        convention) and autodiff the Jacobian, so a user can bring their own solver without writing
+        one. Both need the matching optional dependency (``pip install splatreg[pypose|theseus]``) and
+        raise a clear ``ImportError`` otherwise. ``"gtsam"`` is recognised but raises
+        ``NotImplementedError`` (a factor-graph backend needs hand-written analytic factor Jacobians).
     max_iters : maximum LM iterations. ``None`` (default) takes the value from ``quality``
         (``QualityConfig.max_iters``); an explicit int always wins.
     quality : the quality / machine-adaptivity policy (see :func:`splatreg.quality.resolve_quality`):
@@ -345,9 +371,18 @@ def register(
     """
     if transform not in _DOF:
         raise ValueError(f"transform must be one of {sorted(_DOF)}, got {transform!r}")
-    if backend != "builtin":
+    if backend not in _BACKENDS:
+        raise ValueError(f"backend must be one of {sorted(_BACKENDS)}, got {backend!r}")
+    if backend == "gtsam":
+        # gtsam is a factor-graph engine that needs hand-written analytic factor Jacobians (its
+        # Python `CustomFactor` does not autodiff). Wiring splatreg's residual plugins into gtsam
+        # factors is a heavier, separate piece of work than the autodiff backends (pypose/theseus),
+        # so it is honestly not implemented rather than faked. Use backend='theseus'/'pypose' for an
+        # external solver today, or 'builtin' (the default, fastest, closed-form-Jacobian core).
         raise NotImplementedError(
-            f"backend={backend!r} is not available in the builtin core; only 'builtin' is wired up."
+            "backend='gtsam' is not implemented: gtsam needs hand-written analytic factor Jacobians "
+            "(its CustomFactor does not autodiff splatreg's residuals). Use backend='theseus' or "
+            "'pypose' (both autodiff) for an external solver, or the default 'builtin'."
         )
 
     init_tensor = None if isinstance(init, str) else init
@@ -407,17 +442,27 @@ def register(
         result = RegisterResult(T=T0, scale=scale, converged=True, info={})
     else:
         n_iters = q.max_iters if max_iters is None else int(max_iters)
-        solver: Solver = LevenbergMarquardt()
-        result = run_lm(
-            T0,
-            residuals,
-            target,
-            source,
-            transform=transform,
-            solver=solver,
-            n_iters=n_iters,
-            jac_row_chunk=q.jac_row_chunk,
-        )
+        if backend == "builtin":
+            solver: Solver = LevenbergMarquardt()
+            result = run_lm(
+                T0,
+                residuals,
+                target,
+                source,
+                transform=transform,
+                solver=solver,
+                n_iters=n_iters,
+                jac_row_chunk=q.jac_row_chunk,
+            )
+        else:
+            # External-engine backend (pypose / theseus): hand the whole nonlinear problem to the
+            # engine. It optimises the same right-perturbation tangent through splatreg's `exp`, so
+            # the recovered pose matches the builtin convention; the engine autodiffs the Jacobian
+            # (no analytic Jacobian needed). The builtin stays the default + fastest path.
+            backend_solve = _external_backend(backend)
+            result = backend_solve(
+                T0, list(residuals), target, source, transform=transform, max_iters=n_iters
+            )
     result.info["quality"] = q.label
     if feature_info is not None:
         # Surface the honest partial-overlap diagnostics on the result so callers can trust (or

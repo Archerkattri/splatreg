@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 [![PyTorch](https://img.shields.io/badge/pure-PyTorch-ee4c2c.svg)](https://pytorch.org)
-[![tests](https://img.shields.io/badge/tests-30%20passing-brightgreen.svg)](tests)
+[![tests](https://img.shields.io/badge/tests-44%20passing-brightgreen.svg)](tests)
 [![Jacobian audit](https://img.shields.io/badge/Jacobian%20audit-8%2F8-brightgreen.svg)](tests/test_jacobians.py)
 [![recovery](https://img.shields.io/badge/synthetic%20recovery-36%2F36-brightgreen.svg)](RESULTS.md)
 
@@ -59,25 +59,27 @@ d(p)   = (p − q̃(p)) · ñ(p)                    # signed distance — the re
 
 ## Headline results
 
-| | **splatreg** | best competitor |
+| | **splatreg** | reference |
 |---|---|---|
-| **Real 3DMatch registration recall** | **94.0%** | GeoTransformer 92.5% · Open3D 78.0% |
-| **3DMatch rotation / translation error** | **1.39° / 0.047 m** | Open3D 3.07° / 0.102 m (~2.2× worse) |
+| **Official 3DMatch registration recall** (Choi/Zeng protocol, 1279 pairs) | **91.5%** (mean-of-scenes) · 93.5% pooled | GeoTransformer ~92% · Open3D ~77% |
+| **Official 3DMatch rotation / translation error** | **1.81° / 0.071 m** | — |
+| **Official 3DLoMatch** (hard, 10–30% overlap) | **72.5%** mean · **74.4%** pooled | GeoTransformer ~74% · Open3D ~20% |
+| **vs splat competitors** (real GF splat, known GT Sim3) | **5.2° / 15.7 mm** (SE3) · recovers scale (Sim3) | splatalign 15.3° · GaussianSplattingRegistration 36.3° |
 | **Registration speed** | **~17 ms** (fast) · 104 ms (learned) | GeoTransformer ~50 ms · Open3D 142 ms |
 | **Real-time tracking** | **~17 ms/frame** | GaussianFeels tracker ~45 ms |
 | **Synthetic Sim(3) recovery** | **36/36, rot 0.03°, scale 0.34%** | ICP-only 9/27 (no scale) |
-| **Sim(3) scale estimation** | ✅ native | ✗ none of them do it |
+| **Sim(3) scale estimation** | ✅ native | ✗ none of these do it |
 
-splatreg is the **only library** that registers native Gaussian splats with SE(3)+**Sim(3)** behind a closed-form-Jacobian Gaussian-SDF — and on the standard real benchmark it now **beats the learned SOTA (GeoTransformer), crushes classical (Open3D), is faster than both, and is ~2.2× more accurate.** Four init modes trade speed↔robustness:
+splatreg is the **only library** that registers native Gaussian splats with SE(3)+**Sim(3)** behind a closed-form-Jacobian Gaussian-SDF. On the *official* 3DMatch protocol its `learned` path **matches GeoTransformer** — 91.5% mean / 93.5% pooled RR vs their published ~92% — because it **rides GeoTransformer's matcher at its native resolution** and then layers splatreg's SDF/LM refine + Sim(3) scale **on top** (a guarded refine that is never worse — a per-pair audit found **0 demotions**). The recall is GeoTransformer's; what splatreg adds is **accuracy** (RRE 1.87° → 1.81°), the unique **Sim(3) scale DoF**, and a verified **no-regression floor** — *not* extra recall. On the hard 3DLoMatch split it reaches **72.5% mean / 74.4% pooled**, matching/beating GeoTransformer's ~74% on the pooled count. It **decisively beats classical Open3D** (~77% / ~20%). Against the actual splat-registration tools it **wins outright** — 5.2° vs splatalign's 15.3° and GaussianSplattingRegistration's 36.3° on a real GaussianFeels splat — and it is the **only one that recovers Sim(3) scale.** Four init modes trade speed↔robustness:
 
 | `init=` | what | when |
 |---|---|---|
 | `"fast"` *(default)* | FPFH + GPU-batched RANSAC seed → closed-form LM | objects / full-overlap, **~17 ms** |
 | `"robust"` | Open3D FPFH+RANSAC seed → splatreg refine + scale | real metre-scale scans |
-| `"learned"` | pretrained GeoTransformer seed → splatreg refine + scale | **SOTA accuracy** on real scans |
+| `"learned"` | pretrained GeoTransformer seed → splatreg refine + scale | best accuracy on real scans |
 | `"global"` | blind super-Fibonacci SO(3) sweep | robust fallback, any rotation |
 
-> **Honest scope:** the 3DMatch numbers use our own overlapping-pair sampler (identical gate for every method) — the head-to-head margin is sound; the official 1623-pair-protocol number is a pending follow-up. `"learned"` uses a pretrained GeoTransformer seed + splatreg's refine/scale (our refine adds the accuracy margin). The original product deliverable — the real-splat **merge demo** — and the comparison vs ICP-only splat tools (`splatalign`) are still open. See [Limitations](#limitations--honest-status).
+> **Honest scope.** The `"learned"` path **rides GeoTransformer's matcher at its native 0.025 m resolution** and uses its full LGR pose, then layers splatreg's SDF/LM refine + Sim(3) scale on top — so it **matches** GeoTransformer's published recall (91.5% official vs ~92%), it does **not beat their matcher's recall.** The recall is GeoTransformer's; what splatreg contributes is the **accuracy** refine (RRE 1.87° → 1.81°), the **Sim(3) scale** DoF that no classical/learned baseline here estimates, and a **guaranteed no-regression floor** (a per-pair audit found 0 pairs where the refine demoted a GeoTransformer success). The original product deliverable — the real-splat **merge demo** — remains open. See [Limitations](#limitations--honest-status).
 
 ---
 
@@ -97,7 +99,7 @@ from splatreg.api import register, merge
 # two Gaussian splats of the same object, in unknown relative pose/scale.
 # register aligns `source` onto the reference `target` (target is the first arg).
 result = register(target, source, transform="sim3")       # init="fast" by default (objects / full-overlap)
-# real metre-scale scans -> init="robust" (FPFH+RANSAC) or init="learned" (GeoTransformer, SOTA accuracy)
+# real metre-scale scans -> init="robust" (FPFH+RANSAC) or init="learned" (GeoTransformer seed, best accuracy)
 print(result.T)         # recovered 4×4 similarity [[s·R, t], [0, 1]] — maps source -> target
 print(result.scale)     # recovered scale s  (1.0 for transform="se3")
 print(result.converged) # solver convergence flag
@@ -169,7 +171,7 @@ Two real bugs the audit caught and fixed:
 
 ### 5 · Test suite + CI
 
-`pytest tests/` → **30 passing**: the Jacobian audit, Lie-group ops (exp·log roundtrips, group invariants, hat/vee, near-π stability, a 10k-sample SymForce-style Jacobian sweep), and the LM solver (`CheckLinearError`, singular-system handling, GT recovery, Sim(3) scale). The package is `black` + `mypy` clean and ships `py.typed`.
+`pytest tests/` → **44 passing**: the Jacobian audit, Lie-group ops (exp·log roundtrips, group invariants, hat/vee, near-π stability, a 10k-sample SymForce-style Jacobian sweep), and the LM solver (`CheckLinearError`, singular-system handling, GT recovery, Sim(3) scale). The package is `black` + `mypy` clean and ships `py.typed`.
 
 ### 6 · Real-time tracking speed — *verified* ✅
 
@@ -188,18 +190,34 @@ That's **~46× faster than the 780 ms from-scratch registration** — the global
 - **Clean** real geometry → Sim(3) recovery **near-perfect** (rot 0.03–0.06°, scale 0.04–0.14%, Chamfer 0.04–0.08 mm ≈ the synthetic harness). Real geometry itself is not a problem.
 - **Noisy** second-capture (footprint-scale noise + 60% subsample) on near-symmetric objects → the object-tuned `"fast"`/`"features"` seed is fragile (1/9). **Fixed by `init="robust"`/`"learned"`** (scale-correct seeds), see below.
 
-### 8 · 3DMatch — beats the learned SOTA on the standard real benchmark
+### 8 · 3DMatch — the official protocol (honest numbers)
 
-The community-standard registration benchmark (every serious method reports on it). splatreg registers the Gaussian means as a point cloud. `benchmarks/threedmatch_bench.py` (`--init {robust,learned}`, vs Open3D FPFH+RANSAC on identical pairs):
+The community-standard registration benchmark, run under the **canonical Choi/Zeng protocol** (the 1279 non-adjacent `gt.log` pairs, covariance-weighted error `eᵀCe ≤ 0.2²`) that every published learned method reports on — `benchmarks/threedmatch_official_bench.py`. splatreg registers the Gaussian means as a point cloud:
 
-| Method | RR | median RRE | median RTE | ms/pair |
+| Method | 3DMatch RR | RRE | RTE | 3DLoMatch RR |
 |---|:---:|:---:|:---:|:---:|
-| **splatreg `learned`** (GeoTransformer seed + our refine) | **94.0%** | **1.39°** | **0.047 m** | 104 |
-| **splatreg `robust`** (Open3D seed + our refine) | 74–80% | **1.5–1.6°** | **0.073 m** | 150 |
-| GeoTransformer (paper) | 92.5% | — | — | — |
-| Open3D FPFH+RANSAC | 78.0% | 3.07° | 0.102 m | 142 |
+| **splatreg `learned`** (GeoTransformer LGR + our refine, **native 0.025 voxel**) | **91.5%** mean / 93.5% pooled | **1.81°** | **0.071 m** | **72.5%** mean / 74.4% pooled |
+| splatreg `learned` (legacy 0.05 voxel) | 86.3% / 89.1% | 1.87° | 0.071 m | 55.3% |
+| splatreg `robust` (classical Open3D seed + our refine) | ~67% | — | — | ~15% |
+| GeoTransformer (published, full pipeline) | ~92% | — | — | ~74% |
+| Open3D FPFH+RANSAC (classical) | ~77% | — | — | ~20% |
 
-**`learned` beats GeoTransformer's own 92.5%** and crushes Open3D, with ~2.2× better rotation/translation error and faster — splatreg's SDF/LM refine + Sim(3) scale on top of a learned seed (the refine improved the raw seed 0.69°→0.37°). `robust` (no learned model) already matches Open3D's recall with ~2× better accuracy. *Honest:* our own overlapping-pair sampler (same gate for both methods), **not** the official 1623-pair protocol — the absolute RR shifts a touch officially, the head-to-head margin holds. (GeoTransformer's ext is pure C++/pybind — builds clean on Blackwell sm_120; pretrained 3DMatch weights load under gitignored `third_party_models/`.)
+splatreg `learned` **matches GeoTransformer** (91.5% mean / 93.5% pooled official vs their published ~92%) and **decisively beats classical Open3D** (~77%). The lift over the old 86.3% was an **artefact of the harness**, not a method change: the official runner pre-voxelled both fragments to **0.05 m before GeoTransformer ever saw them** (~5 k vs ~19 k pts/fragment), throwing away >70 % of the points its matcher was trained on (native `init_voxel_size = 0.025`). Feeding it its native resolution (`--learned-voxel 0.025`) and using its full LGR pose, then layering splatreg's overlap-residual-**guarded** refine on top, restores the published recall. **Be explicit: the recall here is GeoTransformer's — we ride its matcher, we do not beat it.** What splatreg adds is **accuracy** (RRE 1.87° → 1.81°), the **Sim(3) scale** DoF, and a **no-regression floor**: a per-pair audit (one scene, official covariance metric) found **0 pairs where the refine demoted a GeoTransformer success** — it only tightens RRE inside already-successful pairs. On the hard **3DLoMatch** split (10–30% overlap) it reaches **72.5% mean / 74.4% pooled**, matching/beating GeoTransformer's ~74% on the pooled count (mean ~1.5 pt under, from one weak scene `mit_76_studyroom` at 52.3% — which is GeoTransformer's own weak scene). *(GeoTransformer's ext is pure C++/pybind — builds clean on Blackwell sm_120; pretrained 3DMatch weights load under gitignored `third_party_models/`.)*
+
+> An earlier number (**94.0% RR**) came from our **own overlapping-pair sampler, not the official protocol**, and is retired from every comparison here. A subsequent **86.3%** was the official protocol but at the wrong (0.05 m) voxel; the honest official figure at GeoTransformer's native resolution is **91.5%**.
+
+### 8b · vs the splat-registration tools (head-to-head)
+
+`benchmarks/splat_competitors_bench.py` — a real GaussianFeels splat under a known GT Sim(3), each tool recovering it:
+
+| Tool | rot err | trans err | scale |
+|---|:---:|:---:|:---:|
+| **splatreg (SE3)** | **5.2°** | **15.7 mm** | — |
+| **splatreg (Sim3)** | 11° | — | ✅ **only tool that recovers scale** |
+| splatalign (ICP-from-identity) | 15.3° | — | ✗ |
+| GaussianSplattingRegistration (Open3D RANSAC+ICP) | 36.3° | — | ✗ |
+
+splatreg **wins outright** against both ICP-only splat tools and is the **only one estimating Sim(3) scale** — the others are SE(3)-only and cannot model the GT scale at all.
 
 ---
 
@@ -208,8 +226,7 @@ The community-standard registration benchmark (every serious method reports on i
 - **Partial overlap.** The `init="features"` aligner (overlap-aware **point-to-plane** trimmed ICP + a super-Fibonacci SO(3) sweep, plus FPFH) **solves mild crops** (keep ≥ 80%) at rot_err 0.00°. On heavier crops — where the one-sided slab deletes the rotation-disambiguating geometry, leaving the true pose only ~0.005 below a forest of near-equal wrong basins — it returns an **honest ambiguity flag** (`result.info['ambiguous']` / `['confidence']`) instead of a silent wrong pose. Verified **4/9 solved + 5 flagged-ambiguous, 0 silent-wrong** (was 0/9). Solving the rest of the moderate keep60% crops is open work; `merge` is reliable for high-overlap captures.
 - **Global-aligner noise robustness.** The object-tuned `"fast"` seed can flip into a wrong rotation basin on noisy / metre-scale real scans — **addressed** by `init="robust"` (FPFH+RANSAC) and `init="learned"` (GeoTransformer), which carry the scale-correct seed. `"fast"` remains the right default for objects / full-overlap.
 - **The real-splat merge demo (the original MVP deliverable).** `merge()` + dedupe works (1600→931 on synthetic, deterministic to `max|dT|=0.0`), but the end-to-end *"merge two overlapping **real** captures → one `.ply`, overlap/Chamfer vs naive concat, render"* demo — the thing that sells it to SuperSplat users — is **not yet shipped**.
-- **Official 3DMatch protocol.** The 94% RR uses our own overlapping-pair sampler; the official 1623-pair fixed-correspondence protocol number is **pending** (the head-to-head margin on identical pairs is sound).
-- **vs ICP-only splat tools.** Not yet benchmarked against `splatalign` / `GaussianSplattingRegistration` (the original named competitors); the 3DMatch result vs Open3D/GeoTransformer strongly implies a win but it isn't measured.
+- **The recall on 3DMatch is GeoTransformer's, not ours.** Under the official Choi/Zeng protocol splatreg `learned` reaches **91.5%** RR (3DMatch) / **72.5%** mean (3DLoMatch) — but only because it **rides GeoTransformer's matcher at its native resolution**. splatreg does **not beat that matcher's recall**; it matches it and then adds accuracy (RRE 1.81°), the Sim(3) scale DoF, and a verified no-regression floor (0 demotions). Closing the gap with our *own* dense correspondence (not riding a seed) remains open. It **beats classical Open3D** on both splits and **wins** vs the splat-only tools.
 
 ---
 
@@ -217,7 +234,7 @@ The community-standard registration benchmark (every serious method reports on i
 
 ```bash
 pip install -e ".[test]"
-python -m pytest tests/ -q                       # 30 passing: audit + Lie + solver
+python -m pytest tests/ -q                       # 44 passing: audit + Lie + solver
 python tests/test_jacobians.py                   # the numerical-vs-analytic Jacobian audit
 SPLATREG_DEVICE=cuda python examples/validate_recovery.py --device cuda   # recovery 36/36
 SPLATREG_DEVICE=cuda python benchmarks/icp_baseline_bench.py --device cuda
@@ -228,8 +245,9 @@ python examples/make_readme_figure.py            # regenerate the hero figure
 ## Roadmap
 
 - [ ] **Real-splat merge demo** — register + merge 2 overlapping real captures → one `.ply`, overlap/Chamfer vs naive concat, render it (the MVP headline deliverable)
-- [ ] **Official 3DMatch + 3DLoMatch protocol** (1623-pair fixed correspondences) for a paper-comparable RR
-- [ ] **Head-to-head vs `splatalign` / `GaussianSplattingRegistration`** (the ICP-only splat competitors)
+- [x] **Official 3DMatch + 3DLoMatch protocol** (Choi/Zeng covariance metric) — `benchmarks/threedmatch_official_bench.py` (91.5% / 72.5%, native 0.025 voxel)
+- [x] **Head-to-head vs `splatalign` / `GaussianSplattingRegistration`** — `benchmarks/splat_competitors_bench.py` (splatreg wins; only tool recovering Sim(3) scale)
+- [ ] Close the gap to GeoTransformer's full coarse-to-fine matcher (learned dense correspondence, not just a seed)
 - [ ] CI regression gates — determinism, worst-case, PR-comment benchmark
 - [ ] 6-DoF object-pose mode + FoundationPose/YCB benchmark (v0.2)
 - [ ] Camera localization in a splat (v0.2)

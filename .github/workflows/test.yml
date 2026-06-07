@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install CPU PyTorch + package + dev deps
+        run: |
+          python -m pip install --upgrade pip
+          # CPU-only torch wheel from the torch index (avoids the 5 GB CUDA download on CI runners).
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          # Everything else (numpy + the test extra: black, mypy, ruff, flake8, isort, pytest) from PyPI.
+          pip install -e ".[test]"
+
+      - name: black --check (formatting)
+        run: |
+          black --check --target-version py310 splatreg/ tests/
+
+      - name: ruff (lint)
+        run: |
+          ruff check splatreg/ tests/
+
+      - name: mypy (type checking)
+        run: |
+          mypy splatreg/ --ignore-missing-imports
+
+      - name: pytest (unit + recovery; GPU paths auto-skip / fall back on CPU runners)
+        env:
+          # The GitHub runner has NO GPU. conftest.py's `device` fixture already defaults to "cpu"
+          # and downgrades any cuda request when CUDA is unavailable, so GPU-only paths are skipped
+          # and the recovery tests run their CPU fallback. Pin OMP threads so the box stays light.
+          SPLATREG_TEST_DEVICE: cpu
+          OMP_NUM_THREADS: "4"
+        run: |
+          pytest tests/ -q
