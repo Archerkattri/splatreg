@@ -149,23 +149,9 @@ python examples/merge_demo.py                    # real-splat merge demo
 
 splatreg is honest about its edges (full detail in [`RESULTS.md`](RESULTS.md)):
 
-- **Partial overlap — moderate crops now solve; heavy crops are genuinely ambiguous.** The overlap basin-sweep now keeps a deep candidate pool (`topk=200`) and ranks the refined seeds by a **symmetric** overlap residual (target→source *and* source→target), so the moderate keep ≈ 60% crops resolve to the true basin instead of a ~170° mirror — robustness sweep **PARTIAL solved-count 4/9 → 6/9** (all keep ≥ 60% at 0.00°). Heavy one-sided crops (keep ≤ 40%) delete the rotation-disambiguating geometry — there *even the true pose* no longer seats cleanly (symmetric residual 0.003 vs a forest of ~0.017 wrong basins), so the aligner returns an **honest ambiguity flag** (`result.info['ambiguous']` / `['confidence']`) rather than a silent wrong pose (0 silent-wrong, verified). This deep sweep costs ~22 s/cell (registration path only, never the real-time tracker); the heavy-crop case is genuinely open.
-- **Scale is loose under low overlap.** A dedicated golden-section **scale line-search** against the symmetric overlap residual now refines the Sim(3) scale DoF after the pose solve (the one-directional fit is scale-blind). It tightens scale on its own objective, but on a thin shared band the scale still has a wide valley — under ~20% overlap the recovered scale can drift; `merge` is reliable for high-overlap captures.
-- **The 3DMatch recall is GeoTransformer's, not ours.** splatreg `learned` **matches** GeoTransformer by riding its matcher; it does not beat that matcher's recall. What splatreg adds is accuracy, the Sim(3) scale DoF, and the no-regression floor. Closing the gap with splatreg's *own* dense correspondence is open work.
+- **Heavy overlap (≤ 40%) is genuinely ambiguous.** At keep ≤ 40% the rotation-disambiguating geometry is physically absent — even the true pose doesn't seat cleanly. The aligner flags these honestly (`result.info['ambiguous']` / `['confidence']`) and never silently wrong-poses. `merge` and `track` are designed for high-overlap captures.
+- **Scale is unobservable under thin overlap.** Under ~20% shared geometry the Sim(3) scale residual valley is flat — the golden-section line-search tightens scale on its own objective but cannot recover what the geometry doesn't carry. `merge` is reliable for high-overlap captures.
 - **Cost on rigid SE(3).** Plain ICP reaches the same SE(3) success and is far faster; the SDF residual buys scale + implicit-field robustness at a real compute cost. Use `track()` (~17 ms/frame) for the warm-start real-time path.
-
----
-
-## Roadmap
-
-**Shipped (v1.0.2):** official 3DMatch + 3DLoMatch (91.5% / 74.4% pooled, matching GeoTransformer); pluggable `fast`/`robust`/`learned` init backends; the real-splat merge demo; the partial-overlap basin sweep (4/9 → 6/9 solved); seeded-RANSAC determinism fix; BSD-3-Clause public release on PyPI (`pip install splatreg`).
-
-- [x] **v0.2: 6-DoF object-pose.** `estimate_object_pose` / `ObjectPoseEstimator` recover `T_SO` against a known object splat, with ADD / ADD-S / AUC metrics. Canonical YCB-CAD benchmark (14 `google_16k` models × 4 poses): **ADD-S AUC 0.995, 100% < 2 cm**. ADD gap vs ADD-S is purely symmetric-object geometry — captured correctly by ADD-S per BOP protocol.
-- [x] **v0.2: Camera localization.** `localize_camera` refines camera pose through gsplat's differentiable rasteriser. `coarse_localize_camera` provides a prior-free CPU silhouette-sweep seed (no CUDA required). Real-geometry: median **5°/10 mm → 0.11°/1.35 mm**, 11/12 converged.
-- [x] **v0.3: Multi-splat bundle registration.** `bundle_register` jointly optimises N splat poses over a pose graph with IRLS robust edge weighting (Huber/GNC). Cuts max pairwise inconsistency **~5× vs the sequential chain** on real captures; corrupt edges down-weighted to w ≈ 0.01.
-- [x] **v0.3: Scene-scale spatial index.** `SpatialIndex` / `build_index` — voxel-hash grid for O(1) knn/radius/region queries with vectorised batch path. **~4.6× faster dedupe** at 48k anchors; batch queries **~15× faster** than per-query loop at warm-start tracking scale.
-
-The feature roadmap is complete at v0.3. SLAM and loop-closure-as-a-system are out of scope — splatreg is a composable *registration library*; your SLAM front-end, renderer, and solver live outside. Known open edges are in [Limitations](#limitations).
 
 ## License & layout
 
