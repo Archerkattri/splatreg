@@ -17,7 +17,7 @@ YCB-Video RGB-D + per-frame-GT pipeline (those frames here are low-visibility in
 
 Run:
     CUDA_VISIBLE_DEVICES=0 SPLATREG_DEVICE=cuda \\
-        PYTHONPATH=/home/krishi/workspace/gaussianfeels/third_party/splatreg \\
+        PYTHONPATH=. \\
         python -u benchmarks/ycb_object_pose_bench.py --device cuda
 """
 
@@ -41,7 +41,7 @@ from _example_utils import axis_angle_R, rot_angle_deg, sim3_matrix  # noqa: E40
 from splatreg import add_auc, add_metric, adds_metric, estimate_object_pose  # noqa: E402
 from splatreg.core.types import Gaussians  # noqa: E402
 
-YCB_ROOT = "/home/krishi/workspace/gaussianfeels/data/assets/gt_models/ycb"
+YCB_ROOT = "data/assets/gt_models/ycb"
 
 
 def load_cad_vertices(obj: str) -> np.ndarray:

@@ -147,7 +147,7 @@ d(p)   = (p − q̃(p)) · ñ(p)                    # signed distance — the re
 Every number is reproducible; full record in [`RESULTS.md`](RESULTS.md).
 
 ```bash
-python -m pytest tests/ -q                        # 44 passing
+python -m pytest tests/ -q                        # 72 passing
 python tests/test_jacobians.py                    # analytic vs numerical Jacobian audit
 SPLATREG_DEVICE=cuda python examples/validate_recovery.py --device cuda   # 36/36 recovery
 SPLATREG_DEVICE=cuda python benchmarks/robustness_bench.py --device cuda

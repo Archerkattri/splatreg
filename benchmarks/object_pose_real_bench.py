@@ -27,7 +27,7 @@ is unchanged.
 
 Run:
     CUDA_VISIBLE_DEVICES=0 SPLATREG_DEVICE=cuda \\
-        PYTHONPATH=/home/krishi/workspace/gaussianfeels/third_party/splatreg \\
+        PYTHONPATH=. \\
         python benchmarks/object_pose_real_bench.py --device cuda
 """
 
@@ -53,11 +53,11 @@ from splatreg.io import load_ply  # noqa: E402
 
 # Real GaussianFeels object splats (a SIM + REAL mix spanning asymmetric / near-symmetric objects).
 REAL_SPLATS = {
-    "sim_potted_meat_can": "/home/krishi/workspace/gaussianfeels/outputs/_slam_fps_p_cap_600f/final.ply",
-    "sim_pear": "/home/krishi/workspace/gaussianfeels/outputs/_fix_a_baseline_016_pear/final.ply",
-    "sim_rubiks_cube": "/home/krishi/workspace/gaussianfeels/outputs/_fix_b_lazy_baseline_077_rubiks_cube_v2/final.ply",
-    "real_bell_pepper": "/home/krishi/workspace/gaussianfeels/outputs/_fix_d_bmax60k_slam/final.ply",
-    "real_peach": "/home/krishi/workspace/gaussianfeels/outputs/_fps_real_op2_peach_pose_wtac/final.ply",
+    "sim_potted_meat_can": "outputs/_slam_fps_p_cap_600f/final.ply",
+    "sim_pear": "outputs/_fix_a_baseline_016_pear/final.ply",
+    "sim_rubiks_cube": "outputs/_fix_b_lazy_baseline_077_rubiks_cube_v2/final.ply",
+    "real_bell_pepper": "outputs/_fix_d_bmax60k_slam/final.ply",
+    "real_peach": "outputs/_fps_real_op2_peach_pose_wtac/final.ply",
 }
 
 # Known 6-DoF pose grid (object units ≈ metres): an oblique axis at several angles + translation.

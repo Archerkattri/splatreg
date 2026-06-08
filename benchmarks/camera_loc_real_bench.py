@@ -28,7 +28,7 @@ held-out real RGB query (a different sensor/illumination) + a coarse global seed
 
 Run:
     CUDA_VISIBLE_DEVICES=0 SPLATREG_DEVICE=cuda \\
-        PYTHONPATH=/home/krishi/workspace/gaussianfeels/third_party/splatreg \\
+        PYTHONPATH=. \\
         python benchmarks/camera_loc_real_bench.py --device cuda
 """
 
@@ -54,10 +54,10 @@ from splatreg.core.types import Frame, Gaussians  # noqa: E402
 from splatreg.io import load_ply  # noqa: E402
 
 REAL_SPLATS = {
-    "sim_potted_meat_can": "/home/krishi/workspace/gaussianfeels/outputs/_slam_fps_p_cap_600f/final.ply",
-    "sim_pear": "/home/krishi/workspace/gaussianfeels/outputs/_fix_a_baseline_016_pear/final.ply",
-    "real_bell_pepper": "/home/krishi/workspace/gaussianfeels/outputs/_fix_d_bmax60k_slam/final.ply",
-    "real_peach": "/home/krishi/workspace/gaussianfeels/outputs/_fps_real_op2_peach_pose_wtac/final.ply",
+    "sim_potted_meat_can": "outputs/_slam_fps_p_cap_600f/final.ply",
+    "sim_pear": "outputs/_fix_a_baseline_016_pear/final.ply",
+    "real_bell_pepper": "outputs/_fix_d_bmax60k_slam/final.ply",
+    "real_peach": "outputs/_fps_real_op2_peach_pose_wtac/final.ply",
 }
 
 # Known camera perturbations: (rot_deg, trans_mm) added to the GT look-at pose.

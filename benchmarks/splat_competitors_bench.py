@@ -44,7 +44,7 @@ from splatreg.io import load_ply, save_ply  # noqa: E402
 
 DEVICE = os.environ.get("SPLATREG_DEVICE", "cpu")
 DTYPE = torch.float32
-_DEFAULT_PLY = "/home/krishi/workspace/gaussianfeels/outputs/_opt_fscore_sd05_b10_h4/final.ply"
+_DEFAULT_PLY = "outputs/_opt_fscore_sd05_b10_h4/final.ply"
 
 
 # --------------------------------------------------------------------- Sim(3) helpers
