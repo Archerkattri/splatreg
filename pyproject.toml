@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "splatreg"
-version = "1.0.2"
+version = "1.0.3"
 description = "Composable geometry-first SE(3)/Sim(3) registration for 3D Gaussian Splatting — the inverse of gsplat."
 readme = "README.md"
 requires-python = ">=3.9"
