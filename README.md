@@ -6,8 +6,6 @@
 
 ### Register Gaussian splats — align & merge two 3DGS scans into one SE(3)/Sim(3) frame.
 
-*The inverse of [gsplat](https://github.com/nerfstudio-project/gsplat): gsplat **renders** Gaussians, splatreg **registers** against them.* Pure PyTorch — no meshing, no CUDA extension, no point-cloud detour.
-
 [![PyPI](https://img.shields.io/pypi/v/splatreg)](https://pypi.org/project/splatreg/)
 [![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
@@ -19,9 +17,98 @@
 
 ---
 
-## What it is
+## Is this for you?
 
-A 3D Gaussian Splat is a cloud of oriented Gaussians that already traces an object's surface. **splatreg takes two such splats and finds the rigid (SE(3)) or similarity (Sim(3), +scale) transform that aligns them** — then optionally merges + dedupes them into one. It is the missing *registration* half of the Gaussian-splatting toolchain — the splat-to-splat alignment SuperSplat / INRIA / geospatial users keep asking for, where today's tooling punts to a manual gizmo.
+- **Two 3DGS scans of the same scene / object that need to be merged** — `register` + `merge` finds the rigid or similarity transform and fuses them into one deduped `.ply`, no manual gizmo needed.
+- **Object pose estimation against a known splat** — `estimate_object_pose` recovers the SE(3) pose between a reference model splat and a new observation (ADD / ADD-S / AUC out of the box).
+- **Camera localization inside a known splat** — `localize_camera` places a new camera into a scene splat without retraining; `coarse_localize_camera` seeds it prior-free from a silhouette sweep.
+
+Works with any 3DGS framework — gsplat, Nerfstudio, INRIA, custom — as long as you can pass Gaussian means and covariances as PyTorch tensors. Pure PyTorch — no meshing, no CUDA extension, no point-cloud detour.
+
+---
+
+## Install
+
+```bash
+pip install splatreg
+```
+
+```bash
+# editable / dev
+git clone https://github.com/Archerkattri/splatreg.git
+cd splatreg
+pip install -e ".[test]"
+```
+
+## Quickstart
+
+```python
+from splatreg.api import register, merge
+
+# Align `source` onto `target` (both are Gaussians objects: .means, .covs, .opacities tensors).
+result = register(target, source, transform="sim3")   # init="fast" by default (~17 ms)
+# Real metre-scale scans: init="robust" (FPFH+RANSAC) or init="learned" (GeoTransformer, best accuracy)
+print(result.T)          # recovered 4×4 similarity [[s·R, t], [0, 1]] — maps source → target
+print(result.scale)      # recovered scale s  (1.0 for transform="se3")
+print(result.converged)  # solver convergence flag
+
+# Merge + dedupe a list of splats into one fused splat
+fused = merge([source, target], transform="sim3")
+```
+
+Object pose and camera localization:
+
+```python
+from splatreg import estimate_object_pose, localize_camera, coarse_localize_camera
+
+# Object pose: recover T_SO between a model splat and an observation
+result = estimate_object_pose(model_splat, observation_splat)
+
+# Camera localization: refine camera pose through gsplat's differentiable rasteriser
+result = localize_camera(scene_splat, frame, init_T_WC=T_init)
+# Wide-baseline / prior-free: coarse seed from silhouette sweep (CPU-only, no rasteriser)
+T_coarse = coarse_localize_camera(scene_splat, frame)
+```
+
+The Gaussian-SDF field standalone:
+
+```python
+from splatreg.geometry.gaussian_sdf import gaussian_sdf, gaussian_sdf_grad
+sdf, normal = gaussian_sdf(target, query_points, sigma=0.02)       # signed distance + surface normal
+sdf, grad   = gaussian_sdf_grad(target, query_points, sigma=0.02)  # signed distance + exact ∇_p d
+```
+
+---
+
+## Results
+
+| | **splatreg** | reference |
+|---|---|---|
+| **Real-splat merge** (real 103k-Gaussian capture) | Chamfer **10.3→2.0 mm (5.1×)** · overlap **0.03→0.67 (22×)** | naive concat |
+| **vs splat competitors** (real splat, known GT Sim3) | **5.2°** (SE3) · recovers scale (Sim3) | splatalign 15.3° · GaussianSplattingRegistration 36.3° |
+| **Sim(3) scale estimation** | ✅ native | ✗ none of these do it |
+| **Object pose (YCB-CAD, 14 models × 4 poses)** | ADD-S AUC **0.995**, 100% < 2 cm | — |
+| **Camera localization (real splat, known perturbation)** | median **5°/10 mm → 0.11°/1.35 mm**, 11/12 converged | — |
+| **Official 3DMatch recall** (1279 pairs, Choi/Zeng protocol) | **91.5%** mean · 93.5% pooled | GeoTransformer ~92% · Open3D ~77% |
+| **Official 3DLoMatch** (hard, 10–30% overlap) | 72.5% mean · **74.4%** pooled | GeoTransformer ~74% · Open3D ~20% |
+| **Registration speed** | **~17 ms** (fast) · 104 ms (learned) | GeoTransformer ~50 ms · Open3D 142 ms |
+
+splatreg is the **only library** that registers native Gaussian splats with SE(3)+**Sim(3)** behind a closed-form-Jacobian Gaussian-SDF. It beats both splat-specific tools outright (5.2° vs 15.3° / 36.3°) and matches GeoTransformer on official 3DMatch while adding the Sim(3) scale DoF they lack.
+
+### Init modes — trade speed ↔ robustness
+
+| `init=` | what | when |
+|---|---|---|
+| `"fast"` *(default)* | FPFH + GPU-batched RANSAC seed → closed-form LM | objects / full-overlap, **~17 ms** |
+| `"robust"` | Open3D FPFH+RANSAC seed → splatreg refine + scale | real metre-scale scans |
+| `"learned"` | pretrained GeoTransformer seed → splatreg refine + scale | best accuracy on real scans |
+| `"global"` | blind super-Fibonacci SO(3) sweep | robust fallback, any rotation |
+
+---
+
+## How it works
+
+**splatreg takes two splats and finds the rigid (SE(3)) or similarity (Sim(3), +scale) transform that aligns them** — then optionally merges + dedupes them into one. It is the missing *registration* half of the Gaussian-splatting toolchain — the splat-to-splat alignment SuperSplat / INRIA / geospatial users keep asking for, where today's tooling punts to a manual gizmo.
 
 The pipeline is two stages:
 
@@ -37,14 +124,12 @@ flowchart LR
     classDef o fill:#f3eefc,stroke:#7d52c7,color:#2c1654;
 ```
 
-1. **Global init** — a coarse pose from a dense super-Fibonacci rotation sweep + batched trimmed ICP (no local-minimum trap), with optional **FPFH+RANSAC** and **learned** (GeoTransformer) seeds for harder real scans.
-2. **Refinement** — a from-scratch **Levenberg–Marquardt** core over a stack of residuals: classic **ICP** (point-to-point / point-to-plane) *and* splatreg's flagship **Gaussian-SDF** residual, solving the full SE(3) or Sim(3) tangent.
+1. **Global init** — a coarse pose from a dense super-Fibonacci rotation sweep + batched trimmed ICP (no local-minimum trap), with optional FPFH+RANSAC and learned (GeoTransformer) seeds for harder real scans.
+2. **Refinement** — a from-scratch Levenberg–Marquardt core over ICP (point-to-point / point-to-plane) *and* splatreg's flagship **Gaussian-SDF** residual, solving the full SE(3) or Sim(3) tangent.
 
-It **composes, it doesn't compete**: bring gsplat tensors directly; the LM loop and residual stack are pluggable.
+### The Gaussian-SDF residual
 
-### The differentiator — the Gaussian-SDF residual
-
-No competitor packages this. splatreg derives a smooth, queryable **signed-distance field directly from the target Gaussians** — no mesh, no marching cubes — and drives registration by it:
+No competitor packages this. splatreg derives a smooth **signed-distance field directly from the target Gaussians** — no mesh, no marching cubes — and drives registration by it:
 
 ```
 w_i(p) = exp(−‖p − q_i‖² / 2σ²)              # Gaussian kernel weight per anchor
@@ -53,94 +138,20 @@ q̃(p)   = Σ w_i q_i / Σ w_i                    # kernel-weighted centroid
 d(p)   = (p − q̃(p)) · ñ(p)                    # signed distance — the residual
 ```
 
-`d(p)` vanishes exactly when the source points land on the target's surface. It has a **closed-form, audited Jacobian** and is a standalone, reusable implicit-field primitive: `gaussian_sdf(splat, points, sigma=...) → (sdf, normal)`.
-
----
-
-## Headline results
-
-| | **splatreg** | reference |
-|---|---|---|
-| **Official 3DMatch registration recall** (Choi/Zeng protocol, 1279 pairs) | **91.5%** mean · 93.5% pooled | GeoTransformer ~92% · Open3D ~77% |
-| **Official 3DMatch rotation / translation error** | **1.81° / 0.071 m** | — |
-| **Official 3DLoMatch** (hard, 10–30% overlap) | 72.5% mean · **74.4%** pooled | GeoTransformer ~74% · Open3D ~20% |
-| **Real-splat merge** (real 103k-Gaussian capture) | Chamfer **10.3→2.0 mm (5.1×)** · overlap **0.03→0.67 (22×)** | naive concat |
-| **vs splat competitors** (real splat, known GT Sim3) | **5.2°** (SE3) · recovers scale (Sim3) | splatalign 15.3° · GaussianSplattingRegistration 36.3° |
-| **Sim(3) scale estimation** | ✅ native | ✗ none of these do it |
-| **Registration speed** | **~17 ms** (fast) · 104 ms (learned) | GeoTransformer ~50 ms · Open3D 142 ms |
-| **Real-time tracking** | **~17 ms/frame** | GaussianFeels tracker ~45 ms |
-
-splatreg is the **only library** that registers native Gaussian splats with SE(3)+**Sim(3)** behind a closed-form-Jacobian Gaussian-SDF.
-
-- **Matches GeoTransformer on official 3DMatch** — 91.5% mean / 93.5% pooled recall vs their published ~92% — because the `learned` path **rides GeoTransformer's matcher at its native 0.025 m resolution** and then layers splatreg's SDF/LM refine + Sim(3) scale **on top**. The recall is GeoTransformer's; what splatreg *adds* is **accuracy** (RRE 1.87° → 1.81°), the unique **Sim(3) scale DoF**, and a **verified no-regression floor** (a per-pair audit found **0 demotions** — the refine only tightens already-successful pairs, never breaks them). On hard 3DLoMatch it reaches **74.4% pooled**, matching GeoTransformer's ~74%.
-- **Decisively beats classical Open3D** (~77% / ~20%) on both splits.
-- **Wins outright vs the splat-registration tools** — **5.2°** vs splatalign's 15.3° and GaussianSplattingRegistration's 36.3° on a real splat — and is the **only one that recovers Sim(3) scale.**
-- **Real-splat merge** (`examples/merge_demo.py`) fuses two overlapping captures (a real 103k-Gaussian splat) into one deduped `.ply`: post-merge Chamfer **10.3 → 2.0 mm (5.1× closer)** and overlap **0.03 → 0.67 (22× more)** vs a naive `torch.cat`, removing ~9k overlap duplicates (verified on GPU, two independent runs).
-
-### Four init modes — trade speed ↔ robustness
-
-| `init=` | what | when |
-|---|---|---|
-| `"fast"` *(default)* | FPFH + GPU-batched RANSAC seed → closed-form LM | objects / full-overlap, **~17 ms** |
-| `"robust"` | Open3D FPFH+RANSAC seed → splatreg refine + scale | real metre-scale scans |
-| `"learned"` | pretrained GeoTransformer seed → splatreg refine + scale | best accuracy on real scans |
-| `"global"` | blind super-Fibonacci SO(3) sweep | robust fallback, any rotation |
-
----
-
-## Install
-
-```bash
-git clone https://github.com/Archerkattri/splatreg.git
-cd splatreg
-pip install -e .          # pure PyTorch + numpy; pip install -e ".[test]" for test extras
-```
-
-## Quickstart
-
-```python
-from splatreg.api import register, merge
-
-# two Gaussian splats of the same object, in unknown relative pose/scale.
-# register aligns `source` onto the reference `target` (target is the first arg).
-result = register(target, source, transform="sim3")       # init="fast" by default (objects / full-overlap)
-# real metre-scale scans -> init="robust" (FPFH+RANSAC) or init="learned" (GeoTransformer seed, best accuracy)
-print(result.T)         # recovered 4×4 similarity [[s·R, t], [0, 1]] — maps source -> target
-print(result.scale)     # recovered scale s  (1.0 for transform="se3")
-print(result.converged) # solver convergence flag
-
-# register + dedupe a list of splats into one fused splat (registers internally)
-fused = merge([source, target], transform="sim3")
-```
-
-The Gaussian-SDF field on its own:
-
-```python
-from splatreg.geometry.gaussian_sdf import gaussian_sdf, gaussian_sdf_grad
-sdf, normal = gaussian_sdf(target, query_points, sigma=0.02)      # signed distance + surface normal
-sdf, grad   = gaussian_sdf_grad(target, query_points, sigma=0.02) # signed distance + EXACT ∇_p d
-```
+`d(p)` vanishes exactly when source points land on the target surface. It has a **closed-form, audited Jacobian** and is a reusable primitive: `gaussian_sdf(splat, points, sigma=...) → (sdf, normal)`.
 
 ---
 
 ## Validation
 
-Every number is reproducible; the full record — commands, seeds, and honest limitations — is in [`RESULTS.md`](RESULTS.md).
-
-- **Synthetic Sim(3)/SE(3) recovery** — apply a known transform, recover it: **36/36 = 100%**, median rot 0.03°, scale error 0.34%, Chamfer 0.6 mm (`examples/validate_recovery.py`).
-- **Jacobian audit** — every analytic Jacobian checked against a tangent-space numerical one in float64 (`tests/test_jacobians.py`): ICP point-to-point/plane, the **Gaussian-SDF closed-form gradient** (~1e-8 vs numerical), and SE(3)/Sim(3) exp·log incl. near-π. Ships a reusable `assert_residual_jacobian` so every future residual gets the audit.
-- **vs plain ICP** — splatreg **27/27 Sim(3)** vs ICP's **9/27** (plain ICP cannot estimate scale; the LM Sim(3) solve is load-bearing).
-- **Robustness** — sensor noise **9/9**, outlier clutter **9/9**, symmetric sphere **9/9**; partial overlap **6/9 solved** (all keep ≥ 60% at 0.00°) + 3 honestly flagged ambiguous (heavy keep ≤ 40% crops), **0 silent-wrong**.
-- **Official 3DMatch / 3DLoMatch** — canonical Choi/Zeng protocol, 1279 pairs, covariance-weighted error (`benchmarks/threedmatch_official_bench.py`): **91.5% / 74.4%** as above.
-- **Test suite** — `pytest tests/` → **44 passing**; `black` + `mypy` clean, ships `py.typed`.
+Every number is reproducible; full record in [`RESULTS.md`](RESULTS.md).
 
 ```bash
-pip install -e ".[test]"
-python -m pytest tests/ -q                       # 44 passing: audit + Lie + solver
-python tests/test_jacobians.py                   # the numerical-vs-analytic Jacobian audit
-SPLATREG_DEVICE=cuda python examples/validate_recovery.py --device cuda     # recovery 36/36
-SPLATREG_DEVICE=cuda python benchmarks/robustness_bench.py  --device cuda
-python examples/merge_demo.py                    # real-splat merge demo
+python -m pytest tests/ -q                        # 44 passing
+python tests/test_jacobians.py                    # analytic vs numerical Jacobian audit
+SPLATREG_DEVICE=cuda python examples/validate_recovery.py --device cuda   # 36/36 recovery
+SPLATREG_DEVICE=cuda python benchmarks/robustness_bench.py --device cuda
+python examples/merge_demo.py                     # real-splat merge demo
 ```
 
 ---
