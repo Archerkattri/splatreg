@@ -33,7 +33,7 @@ This file ONLY adds a benchmark; it imports splatreg unchanged (no source edits)
 Run (GPU1 only — GPU0 is busy):
 
     CUDA_VISIBLE_DEVICES=1 SPLATREG_DEVICE=cuda \\
-        PYTHONPATH=/home/krishi/workspace/gaussianfeels/third_party/splatreg \\
+        PYTHONPATH=. \\
         python benchmarks/realdata_bench.py
 
 Useful flags: ``--clean`` (no noise/subsample), ``--max-anchors N`` (cap loaded splat size for
@@ -99,14 +99,14 @@ NOISE_MULT = 1.0  # additive position noise std = NOISE_MULT * median Gaussian f
 
 # Real exported splats: one per distinct GaussianFeels object (SIM + REAL), confirmed to load.
 REAL_SPLATS = {
-    "sim_potted_meat_can": "/home/krishi/workspace/gaussianfeels/outputs/_slam_fps_p_cap_600f/final.ply",
-    "sim_pear": "/home/krishi/workspace/gaussianfeels/outputs/_fix_a_baseline_016_pear/final.ply",
-    "sim_rubiks_cube": "/home/krishi/workspace/gaussianfeels/outputs/_fix_b_lazy_baseline_077_rubiks_cube_v2/final.ply",
-    "sim_large_dice": "/home/krishi/workspace/gaussianfeels/outputs/_opt_ctrl_dice_wtac_30f_smax04/final.ply",
-    "real_bell_pepper": "/home/krishi/workspace/gaussianfeels/outputs/_fix_d_bmax60k_slam/final.ply",
-    "real_large_dice": "/home/krishi/workspace/gaussianfeels/outputs/_real_verify_dice_pose_wtac/final.ply",
-    "real_peach": "/home/krishi/workspace/gaussianfeels/outputs/_fps_real_op2_peach_pose_wtac/final.ply",
-    "real_rubiks_small": "/home/krishi/workspace/gaussianfeels/outputs/_real_verify_rubiks_pose_wtac/final.ply",
+    "sim_potted_meat_can": "outputs/_slam_fps_p_cap_600f/final.ply",
+    "sim_pear": "outputs/_fix_a_baseline_016_pear/final.ply",
+    "sim_rubiks_cube": "outputs/_fix_b_lazy_baseline_077_rubiks_cube_v2/final.ply",
+    "sim_large_dice": "outputs/_opt_ctrl_dice_wtac_30f_smax04/final.ply",
+    "real_bell_pepper": "outputs/_fix_d_bmax60k_slam/final.ply",
+    "real_large_dice": "outputs/_real_verify_dice_pose_wtac/final.ply",
+    "real_peach": "outputs/_fps_real_op2_peach_pose_wtac/final.ply",
+    "real_rubiks_small": "outputs/_real_verify_rubiks_pose_wtac/final.ply",
 }
 
 

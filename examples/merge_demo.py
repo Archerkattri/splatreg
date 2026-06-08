@@ -77,7 +77,7 @@ if DEVICE.startswith("cuda") and not torch.cuda.is_available():
 DTYPE = torch.float32
 
 # A GaussianFeels real export with ~100k Gaussians (asymmetric object -> rotation observable).
-_DEFAULT_PLY = "/home/krishi/workspace/gaussianfeels/outputs/_opt_fscore_sd05_b10_h4/final.ply"
+_DEFAULT_PLY = "outputs/_opt_fscore_sd05_b10_h4/final.ply"
 
 
 # --------------------------------------------------------------------- splat helpers
