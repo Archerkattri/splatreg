@@ -27,6 +27,16 @@ Pure ``torch`` (+ the existing register/lie/solver stack). The Jacobian of each 
 the two incident pose increments is obtained by autodiff through the lie ``exp``/``log`` (the same
 right-perturbation convention as the rest of splatreg), so no factor Jacobian is hand-derived.
 
+**Robust outlier-edge rejection.** A single wrong pairwise ``register`` result (a bad edge) would, in
+a plain least-squares pose graph, corrupt every absolute pose. The joint solve is therefore an
+**IRLS** with a per-edge **Huber / Cauchy** kernel (``robust="huber"`` by default) and a
+**graduated-non-convexity (GNC)** schedule (start near-convex so the outlier surfaces as the largest
+residual, then anneal the robust scale down to reject it) — so one bad edge is down-weighted out
+instead of dragging the solution. ``robust=None`` recovers the plain solve. Note a *bare ring* (every
+node degree 2) has no redundancy to localise an outlier — the error spreads evenly and is
+indistinguishable at the optimum; rejection needs a redundant graph (chords / multiple loops), the
+realistic loop-closure case.
+
 API
 ---
     T_list = bundle_register(splats, ref=0, pairs="auto")           # list of N absolute 4x4
@@ -47,7 +57,7 @@ from .core.types import Gaussians
 from .core.lie import se3_exp, se3_log, sim3_exp, sim3_log
 from .api import register, _apply_transform_to_gaussians
 
-__all__ = ["bundle_register", "pairwise_consistency", "BundleResult"]
+__all__ = ["bundle_register", "pairwise_consistency", "BundleResult", "solve_pose_graph"]
 
 _log = logging.getLogger("splatreg")
 _DOF = {"se3": 6, "sim3": 7}
@@ -70,14 +80,29 @@ class BundleResult:
     max_edge_err / mean_edge_err : the worst / mean per-edge tangent inconsistency after the solve.
     cost_history : ``Σ‖e_ij‖²`` per Gauss-Newton iteration.
     edges : the pair list actually used.
+    edge_weights : final robust (IRLS) weight per edge ``(i, j) -> w in [0, 1]``; ``1.0`` for an
+        inlier, ``-> 0`` for an outlier the robust kernel down-weighted out. Empty when
+        ``robust=None``.
+    rejected_edges : edges whose final weight fell below ``reject_threshold`` (treated as outliers).
     """
 
-    def __init__(self, poses, max_edge_err, mean_edge_err, cost_history, edges):
+    def __init__(
+        self,
+        poses,
+        max_edge_err,
+        mean_edge_err,
+        cost_history,
+        edges,
+        edge_weights=None,
+        rejected_edges=None,
+    ):
         self.poses = poses
         self.max_edge_err = max_edge_err
         self.mean_edge_err = mean_edge_err
         self.cost_history = cost_history
         self.edges = edges
+        self.edge_weights = edge_weights or {}
+        self.rejected_edges = rejected_edges or []
 
 
 def _auto_pairs(n: int) -> List[Tuple[int, int]]:
@@ -110,6 +135,168 @@ def _edge_residual(
     pred_j = T_i @ T_ij  # where T_j "should" be, per this edge
     err = torch.linalg.inv(pred_j) @ T_j
     return log_map(err)
+
+
+def _robust_weight(norm: float, scale: float, kernel: Optional[str]) -> float:
+    """IRLS weight ``w(r)`` such that ``w·r²`` is the robust loss of a residual of norm ``r``.
+
+    The Gauss-Newton/IRLS reweighting: minimising ``Σ ρ(‖e‖)`` is, at each iteration, a weighted
+    least-squares ``Σ w·‖e‖²`` with ``w = ρ'(r)/r``. For Huber ``w = 1`` while ``r ≤ c`` and
+    ``w = c/r`` beyond (so a gross outlier's pull falls off as ``1/r`` instead of growing); for
+    Cauchy ``w = 1/(1 + (r/c)²)`` (redescending — a far outlier is suppressed even harder).
+    ``kernel=None`` returns 1 (plain least squares). ``scale = c`` is the inlier/outlier knee.
+    """
+    if kernel is None:
+        return 1.0
+    c = max(float(scale), 1e-12)
+    r = float(norm)
+    if kernel == "huber":
+        return 1.0 if r <= c else c / max(r, 1e-12)
+    if kernel == "cauchy":
+        return 1.0 / (1.0 + (r / c) ** 2)
+    raise ValueError(f"robust kernel must be 'huber', 'cauchy' or None, got {kernel!r}")
+
+
+def _auto_robust_scale(norms: Sequence[float]) -> float:
+    """Robust spread estimate ``1.4826·median(‖e‖)`` (MAD-style) for the IRLS knee ``c``.
+
+    Using the median (not the mean) of the edge-residual norms makes the scale itself outlier-proof:
+    one huge bad-edge residual barely moves the median, so the knee stays at the inlier level and the
+    bad edge lands firmly in the down-weighted tail. ``1.4826`` is the Gaussian-consistency factor.
+    """
+    if not norms:
+        return 1.0
+    t = torch.tensor(list(norms), dtype=torch.float64)
+    med = float(t.median())
+    return max(1.4826 * med, 1e-9)
+
+
+def solve_pose_graph(
+    poses: Sequence[torch.Tensor],
+    rel: dict,
+    ref: int,
+    *,
+    transform: str = "se3",
+    robust: Optional[str] = "huber",
+    robust_scale: Union[str, float] = "auto",
+    max_iters: int = 30,
+    damping: float = 1e-6,
+    convergence_tol: float = 1e-9,
+) -> Tuple[List[torch.Tensor], List[float], dict]:
+    """Robust (IRLS) pose-graph Gauss-Newton over absolute poses given relative measurements.
+
+    The numeric core of :func:`bundle_register`, exposed so it can be driven with *arbitrary*
+    relative measurements ``rel`` (e.g. to inject a deliberately corrupt edge in a test). Optimises
+    every pose except ``ref`` (held at its seeded value to fix the gauge) so that each edge
+    ``T_i @ T_ij ≈ T_j`` holds. With ``robust`` set, each edge carries a per-iteration IRLS weight
+    ``w(‖e_ij‖)`` (Huber / Cauchy) folded into the normal equations, so a single bad edge is
+    down-weighted instead of corrupting the global solution.
+
+    Parameters
+    ----------
+    poses : seed absolute poses (mutated copies are returned, the input list is not changed
+        in place beyond what the caller passes). ``poses[ref]`` is held fixed.
+    rel : ``(i, j) -> T_ij`` relative measurements (edges).
+    ref : reference index, held fixed (gauge).
+    transform / robust / robust_scale / max_iters / damping / convergence_tol : see
+        :func:`bundle_register`.
+
+    Returns
+    -------
+    ``(poses, cost_history, edge_weights)`` — refined absolute poses, the per-iteration robust cost
+    (plus a final-cost tail), and the final per-edge IRLS weight dict.
+    """
+    poses = list(poses)
+    n = len(poses)
+    device, dtype = poses[ref].device, poses[ref].dtype
+    dof = _DOF[transform]
+    exp_fn = _EXP[transform]
+    log_map = _log_map(transform)
+
+    free = [k for k in range(n) if k != ref]
+    slot = {k: idx for idx, k in enumerate(free)}
+    n_free = len(free)
+    cost_history: List[float] = []
+    edge_weights: dict = {}
+
+    # Graduated non-convexity (GNC) schedule. IRLS alone is init-dependent: if the seed already
+    # *satisfies* a bad edge (e.g. the sequential chain was routed through it), that edge has a tiny
+    # residual at iter 0 and IRLS happily keeps it while down-weighting an innocent neighbour. GNC
+    # cures this by starting near-convex — a large scale so every edge keeps ~unit weight and plain
+    # GN spreads the closure error, surfacing the true outlier as the *largest* residual — then
+    # annealing the scale down to the target MAD knee so the now-obvious outlier is rejected.
+    gnc_iters = min(8, int(max_iters)) if robust is not None else 0
+    gnc_inflate0 = 16.0  # initial scale multiplier (≈ convex); decays geometrically to 1.
+
+    if n_free > 0:
+        for it in range(int(max_iters)):
+            H = torch.zeros((n_free * dof, n_free * dof), device=device, dtype=dtype)
+            b = torch.zeros(n_free * dof, device=device, dtype=dtype)
+            total_cost = 0.0
+            # First pass: residuals + Jacobians + per-edge robust weights for THIS iterate.
+            cache = []
+            norms = []
+            for (i, j), T_ij in rel.items():
+                e, Ji, Jj = _edge_jac(poses[i], poses[j], T_ij, exp_fn, log_map, dof, device, dtype)
+                cache.append(((i, j), e, Ji, Jj))
+                norms.append(float(e.norm()))
+            # Adaptive scale (MAD of the current edge norms) keeps the knee at the inlier level.
+            if robust is not None:
+                base_c = _auto_robust_scale(norms) if robust_scale == "auto" else float(robust_scale)
+                # GNC: inflate the knee early (near-convex), decay geometrically toward base_c.
+                if it < gnc_iters and gnc_iters > 0:
+                    inflate = gnc_inflate0 ** (1.0 - it / float(gnc_iters))
+                else:
+                    inflate = 1.0
+                c = base_c * inflate
+            else:
+                c = 1.0
+            for ((i, j), e, Ji, Jj), nrm in zip(cache, norms):
+                w = _robust_weight(nrm, c, robust)
+                edge_weights[(i, j)] = w
+                # Report the raw (unweighted) pose-graph cost so the history is comparable across
+                # iterations even as the IRLS weights change; the weights only steer H/b.
+                total_cost += float((e * e).sum())
+                blocks = []
+                if i in slot:
+                    blocks.append((slot[i], Ji))
+                if j in slot:
+                    blocks.append((slot[j], Jj))
+                for (bi, Jb) in blocks:
+                    rb = slice(bi * dof, (bi + 1) * dof)
+                    b[rb] -= w * (Jb.T @ e)
+                    for (bj, Jc) in blocks:
+                        cb = slice(bj * dof, (bj + 1) * dof)
+                        H[rb, cb] += w * (Jb.T @ Jc)
+            cost_history.append(total_cost)
+            # Levenberg damping -> SPD; solve for the stacked tangent step.
+            H = H + damping * torch.eye(n_free * dof, device=device, dtype=dtype)
+            try:
+                delta = torch.linalg.solve(H, b)
+            except Exception:  # pragma: no cover - damping normally keeps H invertible
+                break
+            for k in free:
+                dk = delta[slot[k] * dof : (slot[k] + 1) * dof]
+                poses[k] = poses[k] @ exp_fn(dk)
+            if float(delta.norm()) < convergence_tol:
+                break
+        # Final cost tail + edge weights refreshed at the optimum.
+        fc = 0.0
+        final_norms = {}
+        for (i, j), T_ij in rel.items():
+            e = _edge_residual(poses[i], poses[j], T_ij, log_map)
+            fc += float((e * e).sum())
+            final_norms[(i, j)] = float(e.norm())
+        cost_history.append(fc)
+        if robust is not None:
+            c = (
+                _auto_robust_scale(list(final_norms.values()))
+                if robust_scale == "auto"
+                else float(robust_scale)
+            )
+            edge_weights = {k: _robust_weight(v, c, robust) for k, v in final_norms.items()}
+
+    return poses, cost_history, edge_weights
 
 
 def pairwise_consistency(
@@ -183,6 +370,9 @@ def bundle_register(
     max_iters: int = 30,
     damping: float = 1e-6,
     convergence_tol: float = 1e-9,
+    robust: Optional[str] = "huber",
+    robust_scale: Union[str, float] = "auto",
+    reject_threshold: float = 0.1,
     fuse: bool = False,
     return_info: bool = False,
     dedupe: bool = True,
@@ -210,6 +400,18 @@ def bundle_register(
     max_iters / damping / convergence_tol : Gauss-Newton hyper-parameters for the **joint** solve
         (a small Levenberg damping keeps the normal equations SPD; the solve stops when the pose
         update norm drops below ``convergence_tol``).
+    robust : per-edge robust kernel applied in the joint solve (IRLS). ``"huber"`` (default) or
+        ``"cauchy"`` down-weight an edge whose tangent residual exceeds ``robust_scale`` so a single
+        wrong pairwise :func:`register` result (a bad edge) cannot corrupt the global poses; ``None``
+        recovers the plain least-squares solve. The edge weight is folded into the normal equations
+        (``H += w·JᵀJ``, ``b -= w·Jᵀe``) and recomputed every iteration from the current residual.
+    robust_scale : the kernel scale ``c`` (the residual norm at which an edge starts to be
+        down-weighted). ``"auto"`` (default) sets ``c = 1.4826·median(‖e_ij‖)`` (a robust MAD
+        estimate of the inlier spread) each iteration, so it adapts to the loop's noise level; pass a
+        float to pin it.
+    reject_threshold : an edge whose final IRLS weight is below this is reported in
+        ``info.rejected_edges`` (it was effectively excluded from the solution). Diagnostic only —
+        the down-weighting itself is continuous, not a hard cut.
     fuse : also return one merged :class:`~splatreg.core.types.Gaussians` — every splat baked into
         its recovered absolute pose, concatenated, and (``dedupe``) overlap-deduped, like
         :func:`splatreg.merge` but with the *jointly* optimised poses.
@@ -230,14 +432,16 @@ def bundle_register(
     if not (0 <= ref < n):
         raise ValueError(f"ref={ref} out of range for {n} splats")
     device, dtype = splats[ref].means.device, splats[ref].means.dtype
-    dof = _DOF[transform]
-    exp_fn = _EXP[transform]
-    log_map = _log_map(transform)
     reg_kw = dict(register_kwargs or {})
+
+    if robust not in (None, "huber", "cauchy"):
+        raise ValueError(f"robust must be None, 'huber' or 'cauchy', got {robust!r}")
 
     if n == 1:
         poses = [torch.eye(4, device=device, dtype=dtype)]
-        return _finish(poses, splats, ref, {}, transform, [0.0], fuse, return_info, dedupe, device, dtype)
+        return _finish(
+            poses, splats, ref, {}, transform, [0.0], fuse, return_info, dedupe, device, dtype, {}, []
+        )
 
     edges = _auto_pairs(n) if pairs == "auto" else [tuple(p) for p in pairs]
     for (i, j) in edges:
@@ -254,56 +458,16 @@ def bundle_register(
     # 2) Open-loop seed (the sequential / merge-style chain) — also the drift baseline.
     poses = _sequential_poses(splats, rel, ref, n, device, dtype)
 
-    # 3) Joint Gauss-Newton over the free poses (all but ref), fixing ref at identity for gauge.
-    free = [k for k in range(n) if k != ref]
-    slot = {k: idx for idx, k in enumerate(free)}  # pose index -> block offset
-    n_free = len(free)
-    cost_history: List[float] = []
+    # 3) Joint (optionally robust) Gauss-Newton / IRLS over the free poses.
+    poses, cost_history, edge_weights = solve_pose_graph(
+        poses, rel, ref, transform=transform, robust=robust, robust_scale=robust_scale,
+        max_iters=max_iters, damping=damping, convergence_tol=convergence_tol,
+    )
 
-    if n_free > 0:
-        eye = torch.eye(dof, device=device, dtype=dtype)
-        for _ in range(int(max_iters)):
-            H = torch.zeros((n_free * dof, n_free * dof), device=device, dtype=dtype)
-            b = torch.zeros(n_free * dof, device=device, dtype=dtype)
-            total_cost = 0.0
-            for (i, j), T_ij in rel.items():
-                # Residual + its Jacobian w.r.t. the right-perturbation increments of poses i and j.
-                e, Ji, Jj = _edge_jac(poses[i], poses[j], T_ij, exp_fn, log_map, dof, device, dtype)
-                total_cost += float((e * e).sum())
-                # Accumulate the (free) blocks into the normal equations.
-                blocks = []
-                if i in slot:
-                    blocks.append((slot[i], Ji))
-                if j in slot:
-                    blocks.append((slot[j], Jj))
-                for (bi, Jb) in blocks:
-                    rb = slice(bi * dof, (bi + 1) * dof)
-                    b[rb] -= Jb.T @ e
-                    for (bj, Jc) in blocks:
-                        cb = slice(bj * dof, (bj + 1) * dof)
-                        H[rb, cb] += Jb.T @ Jc
-            cost_history.append(total_cost)
-            # Levenberg damping -> SPD; solve for the stacked tangent step.
-            H = H + damping * torch.eye(n_free * dof, device=device, dtype=dtype)
-            try:
-                delta = torch.linalg.solve(H, b)
-            except Exception:  # pragma: no cover - damping normally keeps H invertible
-                break
-            # Retract each free pose: T_k <- T_k @ exp(delta_k).
-            for k in free:
-                dk = delta[slot[k] * dof : (slot[k] + 1) * dof]
-                poses[k] = poses[k] @ exp_fn(dk)
-            if float(delta.norm()) < convergence_tol:
-                break
-        # Final cost (post last step) for the history tail.
-        fc = 0.0
-        for (i, j), T_ij in rel.items():
-            e = _edge_residual(poses[i], poses[j], T_ij, log_map)
-            fc += float((e * e).sum())
-        cost_history.append(fc)
-
+    rejected = [k for k, w in edge_weights.items() if w < float(reject_threshold)]
     return _finish(
-        poses, splats, ref, rel, transform, cost_history, fuse, return_info, dedupe, device, dtype
+        poses, splats, ref, rel, transform, cost_history, fuse, return_info, dedupe, device, dtype,
+        edge_weights, rejected,
     )
 
 
@@ -332,14 +496,22 @@ def _edge_jac(T_i, T_j, T_ij, exp_fn, log_map, dof, device, dtype):
     return e, Ji.detach(), Jj.detach()
 
 
-def _finish(poses, splats, ref, rel, transform, cost_history, fuse, return_info, dedupe, device, dtype):
+def _finish(
+    poses, splats, ref, rel, transform, cost_history, fuse, return_info, dedupe, device, dtype,
+    edge_weights=None, rejected_edges=None,
+):
     """Assemble the return value: poses (+ optional fused splat, + optional BundleResult)."""
     max_e, mean_e = pairwise_consistency(poses, rel, transform=transform) if rel else (0.0, 0.0)
     out: list = [poses]
     if fuse:
         out.append(_fuse_with_poses(splats, poses, transform, dedupe))
     if return_info:
-        out.append(BundleResult(poses, max_e, mean_e, cost_history, list(rel.keys())))
+        out.append(
+            BundleResult(
+                poses, max_e, mean_e, cost_history, list(rel.keys()),
+                edge_weights=edge_weights, rejected_edges=rejected_edges,
+            )
+        )
     if len(out) == 1:
         return out[0]
     return tuple(out)

@@ -11,6 +11,12 @@ the anchors in the relevant cells:
 * :meth:`SpatialIndex.knn` — the ``k`` nearest anchors to each query (the truncated-SDF support).
 * :meth:`SpatialIndex.region` — every anchor inside an axis-aligned box (region / crop queries).
 
+The ``radius`` / ``knn`` queries also have **loop-free vectorised batch variants**
+(:meth:`SpatialIndex.radius_batch` / :meth:`SpatialIndex.knn_batch`) that answer all ``M`` queries in
+one pass (cell keys located by ``searchsorted`` + run-expansion, then a single batched distance /
+top-k) — identical results, but without the Python per-query loop, so they win on a moderate cloud
+with many queries (the warm-start-tracking regime).
+
 Why a voxel hash (not a kd-tree)
 --------------------------------
 A uniform voxel grid is the natural structure for a Gaussian splat: the anchors already trace a
@@ -113,6 +119,9 @@ class SpatialIndex:
             self._order = torch.zeros(0, dtype=torch.int64, device=self.device)
             self._cell_keys = torch.zeros(0, dtype=torch.int64, device=self.device)
             self._run_start = {}
+            self._uniq_keys = torch.zeros(0, dtype=torch.int64, device=self.device)
+            self._uniq_start = torch.zeros(0, dtype=torch.int64, device=self.device)
+            self._uniq_len = torch.zeros(0, dtype=torch.int64, device=self.device)
             return
         self.origin = self.points.amin(dim=0)
         coords = self._coords(self.points)  # (M, 3) int64 voxel coords >= 0
@@ -133,6 +142,12 @@ class SpatialIndex:
         self._run_start = {
             int(k): (int(s), int(c)) for k, s, c in zip(u.tolist(), starts.tolist(), cnt.tolist())
         }
+        # Tensor mirror of the run table for the loop-free (vectorised) batch queries: the sorted
+        # unique cell keys + their run start / length, so a query cell is located by a single
+        # `searchsorted` instead of a per-query Python dict lookup.
+        self._uniq_keys = u.to(self.device)  # (C,) sorted unique cell keys
+        self._uniq_start = starts.to(device=self.device, dtype=torch.int64)  # (C,)
+        self._uniq_len = cnt.to(device=self.device, dtype=torch.int64)  # (C,)
 
     def _coords(self, pts: torch.Tensor) -> torch.Tensor:
         """Snap points to non-negative integer voxel coordinates relative to the grid origin."""
@@ -219,6 +234,165 @@ class SpatialIndex:
             empty = torch.zeros(0, dtype=torch.int64, device=self.device)
             return empty, empty.clone()
         return torch.cat(q_idx_parts), torch.cat(a_idx_parts)
+
+    def _offsets(self, ring: int) -> torch.Tensor:
+        """The ``(D, 3)`` integer cell offsets of a ``±ring`` cube (``D = (2·ring+1)³``)."""
+        rng = torch.arange(-ring, ring + 1, device=self.device, dtype=torch.int64)
+        gx, gy, gz = torch.meshgrid(rng, rng, rng, indexing="ij")
+        return torch.stack([gx.reshape(-1), gy.reshape(-1), gz.reshape(-1)], dim=1)
+
+    def _candidate_pairs(self, q_coords: torch.Tensor, ring: int):
+        """Loop-free (query, anchor) candidate enumeration over each query's ``±ring`` cell cube.
+
+        Vectorised core of the batch queries: builds every (query, neighbour-cell) pair, locates each
+        cell's anchor run by a single ``searchsorted`` into the sorted unique cell keys (no Python
+        per-query dict walk), then expands the runs into flat ``(query_idx, anchor_idx)`` candidate
+        pairs with ``repeat_interleave`` + a per-run ``arange``. Returns ``(q_of_pair, anchor_idx)``
+        — still *candidates* (cell-level); the caller applies the exact distance / top-k test.
+        """
+        Q = int(q_coords.shape[0])
+        if Q == 0 or self.n == 0:
+            z = torch.zeros(0, dtype=torch.int64, device=self.device)
+            return z, z.clone()
+        offs = self._offsets(ring)  # (D, 3)
+        D = int(offs.shape[0])
+        cells = q_coords[:, None, :] + offs[None, :, :]  # (Q, D, 3)
+        in_range = (
+            (cells >= 0) & (cells < self.dims.to(self.device).view(1, 1, 3))
+        ).all(dim=-1)  # (Q, D)
+        sx = self.dims[1] * self.dims[2]
+        sy = self.dims[2]
+        keys = cells[..., 0] * sx + cells[..., 1] * sy + cells[..., 2]  # (Q, D)
+        q_of_cell = torch.arange(Q, device=self.device).view(Q, 1).expand(Q, D)
+        keys_f = keys[in_range]  # (P0,)
+        q_f = q_of_cell[in_range]  # (P0,)
+        if keys_f.numel() == 0:
+            z = torch.zeros(0, dtype=torch.int64, device=self.device)
+            return z, z.clone()
+        # Locate each candidate cell's anchor run via searchsorted (exact-match guard).
+        pos = torch.searchsorted(self._uniq_keys, keys_f)
+        pos = pos.clamp_max(self._uniq_keys.numel() - 1)
+        matched = self._uniq_keys[pos] == keys_f
+        if not bool(matched.any()):
+            z = torch.zeros(0, dtype=torch.int64, device=self.device)
+            return z, z.clone()
+        pos = pos[matched]
+        q_cell = q_f[matched]
+        run_start = self._uniq_start[pos]  # (P1,)
+        run_len = self._uniq_len[pos]  # (P1,)
+        # Expand each (query, cell) run into per-anchor pairs.
+        total = int(run_len.sum())
+        q_pair = torch.repeat_interleave(q_cell, run_len)  # (total,)
+        base = torch.repeat_interleave(run_start, run_len)  # (total,)
+        # within-run offset 0..len-1
+        ramp = torch.arange(total, device=self.device)
+        seg_start = torch.repeat_interleave(torch.cumsum(run_len, 0) - run_len, run_len)
+        within = ramp - seg_start
+        order_pos = base + within
+        anchor = self._order[order_pos]  # (total,) original anchor indices
+        return q_pair, anchor
+
+    def radius_batch(self, queries: torch.Tensor, r: float) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Loop-free batch radius query — identical result to :meth:`radius`, no Python per-query loop.
+
+        Enumerates every query's candidate anchors in one vectorised pass (:meth:`_candidate_pairs`),
+        then does a single batched exact distance test over all (query, candidate) pairs at once. The
+        returned flat ``(pair_query_idx, pair_anchor_idx)`` pair set is identical (as a set) to
+        :meth:`radius` / a brute-force ``cdist <= r`` — only the *which-anchors-tested* pruning is
+        shared. Wins over the looped path when there are many queries on a small/moderate cloud (the
+        Python loop overhead dominates there).
+        """
+        if queries.dim() != 2 or queries.shape[-1] != 3:
+            raise ValueError(f"radius_batch: queries must be (Q, 3), got {tuple(queries.shape)}.")
+        if not (r > 0.0):
+            raise ValueError(f"radius_batch: r must be > 0, got {r}.")
+        empty = torch.zeros(0, dtype=torch.int64, device=self.device)
+        if self.n == 0 or queries.shape[0] == 0:
+            return empty, empty.clone()
+        ring = int(torch.ceil(torch.tensor(r / self.cell)).item())
+        q_coords = self._coords(queries)
+        q_pair, anchor = self._candidate_pairs(q_coords, ring)
+        if q_pair.numel() == 0:
+            return empty, empty.clone()
+        # One batched exact distance test over all candidate pairs (matches cdist rounding: use the
+        # same (q - a) norm cdist would — compute per-pair via the 2-norm of the difference).
+        diff = queries[q_pair] - self.points[anchor]
+        d = diff.norm(dim=-1)
+        keep = d <= float(r)
+        return q_pair[keep], anchor[keep]
+
+    def knn_batch(self, queries: torch.Tensor, k: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Loop-free batch knn — same ``(Q, k)`` (idx, dist) result as :meth:`knn`, no per-query loop.
+
+        Picks one ring wide enough to contain the k-th neighbour for *every* query (grown until each
+        query has ``≥ k`` candidates and the ring margin clears the k-th distance), enumerates all
+        candidates vectorised, then does a single padded scatter + batched top-k. Falls back to
+        growing the shared ring; for very non-uniform densities the ring may be larger than the
+        per-query :meth:`knn` would use, but the result is identical (exact top-k over a superset).
+        """
+        if queries.dim() != 2 or queries.shape[-1] != 3:
+            raise ValueError(f"knn_batch: queries must be (Q, 3), got {tuple(queries.shape)}.")
+        kk = max(1, min(int(k), self.n))
+        Q = int(queries.shape[0])
+        q_coords = self._coords(queries)
+        max_ring = int(self.dims.amax().item())
+        ring = 1
+        while True:
+            q_pair, anchor = self._candidate_pairs(q_coords, ring)
+            # Per-query candidate counts.
+            counts = torch.bincount(q_pair, minlength=Q) if q_pair.numel() else torch.zeros(Q, dtype=torch.int64, device=self.device)
+            enough = bool((counts >= kk).all())
+            if enough or ring >= max_ring:
+                # Build a (Q, max_cand) padded distance matrix and take top-k.
+                diff = queries[q_pair] - self.points[anchor]
+                d = diff.norm(dim=-1)
+                # margin guard: the k-th distance must be within the searched ring for every query.
+                if enough and ring < max_ring:
+                    # cheap per-query k-th distance check via scatter-min is overkill; use the
+                    # global max k-th: grow one more ring if any query's k-th exceeds ring*cell.
+                    pass
+                return self._batched_topk(q_pair, anchor, d, Q, kk, queries, q_coords, ring, max_ring)
+            ring += 1
+
+    def _batched_topk(self, q_pair, anchor, d, Q, kk, queries, q_coords, ring, max_ring):
+        """Exact per-query top-``kk`` over the flat (q_pair, anchor, d) candidates -> (Q, kk) idx/dist.
+
+        Scatters the candidate distances into a dense ``(Q, C)`` padded matrix (``+inf`` pad) and
+        takes a batched ``topk``. Verifies the k-th distance is inside the searched ring; if a query
+        violates the margin it transparently re-runs that query through the exact looped :meth:`knn`
+        (rare, only on very non-uniform clouds) so the result stays exact.
+        """
+        # Column slot per pair = running rank within its query.
+        order = torch.argsort(q_pair, stable=True)
+        q_s, a_s, d_s = q_pair[order], anchor[order], d[order]
+        counts = torch.bincount(q_s, minlength=Q)
+        max_c = int(counts.max().item()) if counts.numel() else 0
+        if max_c == 0:
+            idx = torch.zeros((Q, kk), dtype=torch.int64, device=self.device)
+            dist = torch.full((Q, kk), float("inf"), device=self.device, dtype=self.dtype)
+            return idx, dist
+        seg_start = torch.cumsum(counts, 0) - counts
+        col = torch.arange(q_s.numel(), device=self.device) - torch.repeat_interleave(seg_start, counts)
+        D = torch.full((Q, max_c), float("inf"), device=self.device, dtype=d.dtype)
+        A = torch.zeros((Q, max_c), dtype=torch.int64, device=self.device)
+        D[q_s, col] = d_s
+        A[q_s, col] = a_s
+        kq = min(kk, max_c)
+        top_d, top_c = torch.topk(D, k=kq, largest=False, dim=1)
+        idx = torch.gather(A, 1, top_c)
+        dist = top_d.to(self.dtype)
+        if kq < kk:  # tiny cloud: repeat last
+            idx = torch.cat([idx, idx[:, -1:].expand(Q, kk - kq)], dim=1)
+            dist = torch.cat([dist, dist[:, -1:].expand(Q, kk - kq)], dim=1)
+        # Margin verification: any query whose k-th distance exceeds the searched ring may be missing
+        # a closer anchor in an outer cell — fix those exactly via the looped knn (rare).
+        if ring < max_ring:
+            bad = (dist[:, kq - 1] > ring * self.cell).nonzero().reshape(-1)
+            if bad.numel():
+                fi, fd = self.knn(queries[bad], kk)
+                idx[bad] = fi
+                dist[bad] = fd
+        return idx, dist
 
     def knn(self, queries: torch.Tensor, k: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """The ``k`` nearest anchors to each query.

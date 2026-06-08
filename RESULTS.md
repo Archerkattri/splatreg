@@ -185,12 +185,33 @@ inverse-compositional Jacobian to mis-sign). On a synthetic textured scene:
 | rot 1.4° / trans 26 mm | rot 0.6° / trans 14 mm |
 
 **Honest scope:** this **refines a pose prior** within the direct-alignment basin (a few degrees / a
-few % of depth) — it is not yet a global (priorless) relocaliser, and is evaluated on a synthetic
+few % of depth) — it is not yet a *fine* global relocaliser, and is evaluated on a synthetic
 scene only. An experimental analytic residual (`CameraPhotometric`, geometry block verified vs
 numerical) is also shipped, but the differentiable-render path is the validated one. *Note:* the
 pre-existing object-pose `Photometric` residual's inverse-compositional analytic Jacobian was found
 to have the same narrow/sign-sensitive basin on these synthetic scenes — which is why the v0.2
 camera path uses differentiable rendering instead.
+
+### v0.3 hardening — wide-baseline coarse seed (`tests/test_camera_loc_coarse.py`)
+
+The refine basin above means a *wide-baseline* query (no good prior) is unrecoverable by refinement
+alone. `coarse_localize_camera(splat, frame)` supplies the missing seed by a **projection-only
+silhouette-overlap viewpoint sweep**: it scores a sphere of look-at candidate poses by the IoU of the
+splat's projected (dilated) occupancy against the query's foreground silhouette (`frame.mask`, or a
+luminance cue from `frame.rgb`). It is **pure pinhole projection** — no rasteriser — so the seed runs
+on **CPU with no gsplat/CUDA**; `localize_camera(..., init_T_WC="coarse")` chains it into the
+differentiable-render refine. On a chiral-shape (letter-`F`) wide-baseline case:
+
+| | rotation error | silhouette IoU |
+|---|---|---|
+| Wide-baseline prior (back view) | 180° (unrecoverable by refine) | — |
+| **Coarse seed (prior-free sweep)** | **~22.5°** (≈ one grid step, in the refine basin) | **0.58** |
+
+The rgb-foreground cue reproduces the mask cue **exactly** (same seed chosen). *Honest scope:* the
+seed is **grid-resolution** (the azimuth step bounds its accuracy — it gets you *into* the refine
+basin, not to the final pose) and the silhouette score is viewpoint-discriminative only for an
+asymmetric object (a symmetric blob stays ambiguous — a fundamental limit of any silhouette cue).
+Synthetic only.
 
 ## 5h. Multi-splat joint / bundle registration (v0.3)
 
@@ -216,8 +237,33 @@ error is essentially unchanged, which is the honest, correct behaviour: the join
 least-squares optimum that *redistributes* the same total measurement error off the worst (loop-
 closure) edge and across the graph; it does not reduce the total residual (the pairwise measurements
 themselves carry the noise floor). `fuse=True` returns one merged splat baked from the jointly
-optimised poses. *Scope:* synthetic loop only; a single bad pairwise edge currently enters the graph
-un-gated (no robust edge rejection yet).
+optimised poses. *Scope:* synthetic loop only.
+
+### v0.3 hardening — robust outlier-edge rejection (`tests/test_bundle.py`)
+
+A wrong pairwise `register` result (a bad edge) must not corrupt the global poses. The pose-graph
+solve (`solve_pose_graph`, the core of `bundle_register`) is now an **IRLS** with a per-edge
+**Huber/Cauchy** robust kernel (`robust="huber"` default, `robust=None` recovers plain least
+squares) plus a **graduated-non-convexity (GNC)** schedule. GNC is the load-bearing part: plain IRLS
+is initialisation-dependent — if the seed chain already *satisfies* a bad edge it has a tiny residual
+at iteration 0 and IRLS keeps it while down-weighting an innocent neighbour — so the solve starts
+near-convex (a large robust scale, every edge ~unit weight) and **anneals the scale down** so the true
+outlier surfaces as the largest residual and is rejected. The robust scale auto-adapts each iteration
+via a MAD estimate (`1.4826·median ‖e_ij‖`, itself outlier-proof).
+
+Validated by injecting one gross blunder (~40° rotation + 15 cm) on a single edge of a **redundant**
+graph (all-pairs, so the outlier has a consistent majority to disagree with):
+
+| | recovered-pose error vs clean solution | bad-edge weight |
+|---|---|---|
+| Un-gated least squares | 7.9e-2 | (full weight — corrupts the solve) |
+| **Robust (Huber + GNC)** | **1.3e-3** (~**60× better**) | **≈ 0.01** (rejected) |
+
+Good edges keep substantial weight; the rejected edge is reported in `info.rejected_edges` /
+`info.edge_weights`. **Honest topological limit:** a *bare ring* (every node degree 2) has **no**
+redundancy — one bad edge's error spreads perfectly evenly over the loop and is mathematically
+indistinguishable from the others at the least-squares optimum, so **no** robust kernel can localise
+it there (verified; this is why the test uses a redundant graph — the realistic loop-closure case).
 
 ## 5i. Scene-scale spatial index (v0.3)
 
@@ -241,9 +287,26 @@ the default/fallback): `gaussian_sdf(..., index=idx)` serves the truncated-SDF s
   exactly-on-the-radius duplicate pairs round across the two distance kernels; honest FP ties, not a
   logic difference).
 
-*Scope:* the query loop is per-query Python, so on a *small* cloud (object-scale knn in warm-start
-tracking) the heavily-vectorised brute `cdist` still wins; the index is the scene-scale path. A
-vectorised multi-query gather is the next step.
+### v0.3 hardening — vectorised loop-free batch queries (`tests/test_spatial_index.py`)
+
+The original `knn` / `radius` loop over queries in Python, so on a moderate cloud with many queries
+the per-query overhead dominated. `SpatialIndex.radius_batch` / `knn_batch` enumerate **all** queries'
+candidates in **one vectorised pass** — every query's `±ring` neighbour cells built as a tensor, each
+cell's anchor run located by a single `searchsorted` into the sorted unique cell keys (no Python dict
+walk), the runs expanded into flat `(query, anchor)` candidate pairs via `repeat_interleave`, then a
+single batched distance test (radius) or padded-scatter `topk` (knn). The result is **exact** — vs
+brute force **and** vs the looped path — only the candidate pruning is shared.
+
+| query op | looped | batch | speedup |
+|---|---|---|---|
+| radius (4000 queries, 8k anchors, CPU/2-thread) | 0.24 s | 0.016 s | **~15×** |
+| knn k=8 (same) | 0.73 s | 0.12 s | **~6×** |
+
+This is the regime warm-start tracking hits (many small queries per frame); the scene-scale O(N²)
+dedupe win above is unchanged.
+
+*Scope:* on a *small* cloud the heavily-vectorised brute `cdist` can still win outright; the index
+(looped or batch) is the scene-scale / many-query path.
 
 ## 6. Honest limitations (no overstating)
 
