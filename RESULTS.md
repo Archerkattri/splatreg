@@ -202,6 +202,36 @@ object poses, and per-object symmetry labels via the BOP toolkit). The plug poin
 `iter_dataset()` — yield `(model, observation, T_gt)` from a real-dataset loader and the
 estimate+ADD/ADD-S/AUC scoring is unchanged.
 
+### 5f-ycb. Object-pose on the canonical YCB CAD models (`benchmarks/ycb_object_pose_bench.py`)
+
+The same estimate→ADD/ADD-S/AUC pipeline on the **14 canonical YCB `google_16k` CAD models** — the
+exact meshes BOP / YCB-Video use for ADD/ADD-S. A known SE(3) is applied to each model and the
+observation is corrupted to mimic an independent partial capture (subsample to a keep-fraction +
+position noise); `estimate_object_pose` recovers the pose. 56 cells per occlusion level (14 objects ×
+4 known poses, 6k vertices), on GPU:
+
+| Observation | ADD-S AUC (0–10 cm) | median ADD-S | ADD AUC | ADD-S < 2 cm |
+|---|---|---|---|---|
+| full view (keep 1.0) | **0.995** | 0.32 mm | 0.894 | 100% |
+| 40%-occluded (keep 0.6) | **0.995** | 0.13 mm | 0.893 | 100% |
+
+Most objects recover to **0.02–0.6 mm ADD at rot ~0.1°** (`banana` 0.02 mm, `potted_meat_can` 0.03 mm,
+`pudding_box` 0.04 mm, `power_drill` 0.06 mm). The ADD/ADD-S gap is entirely the symmetry-and-geometry
+story, fully captured by ADD-S:
+
+- **`tomato_soup_can` / `master_chef_can`** (cylindrical) and **`baseball`** (sphere) are rotationally
+  symmetric — spin-about-axis is unobservable, so ADD-S ≈ 0.1–1.3 mm while ADD/rot are large. That is
+  *correct*: ADD-S is the metric YCB-Video reports for exactly these objects.
+- **`sugar_box`** is the one honest failure (ADD 73 mm, rot 180°): a rectangular box on **nontextured**
+  geometry has a real 180° flip ambiguity that the official protocol breaks with the textured model +
+  RGB, which clean-CAD geometry alone cannot.
+
+**Honest scope:** canonical YCB CAD geometry + a known applied SE(3) + the BOP ADD/ADD-S symmetry
+convention — a clean-geometry pose benchmark on the *official models*. It is not the full YCB-Video
+RGB-D pipeline: the FeelSight RGB-D frames that would supply per-frame depth + GT pose are
+low-visibility in-hand (object ~5% of frame, occluded by the manipulator), so single-frame
+back-projection is too contaminated for pose — the clean-CAD protocol is the faithful one here.
+
 ## 5g. Camera localization in a splat (v0.2)
 
 `localize_camera(splat, frame, init_T_WC)` (`tests/test_camera_loc.py`) — refine a query camera pose
