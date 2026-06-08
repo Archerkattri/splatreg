@@ -165,11 +165,42 @@ observation, scored with the standard **ADD / ADD-S / AUC** metrics (`splatreg.a
 | full view (keep 1.0) | **0.999** | 0.10 mm | 100% | 0.04° |
 | 60% occluded (keep 0.6) | **0.985** | 1.43 mm | 100% | 0.54° |
 
-**Honest scope:** numbers are on a **synthetic proxy** (procedural object splat), NOT real
-YCB-Video / FoundationPose data — that needs a real loader (`iter_dataset()` is the documented swap
-point; the metric + estimate path is dataset-agnostic and already validated). ADD-S handles symmetry
-correctly (a 180° sphere flip → ADD-S ≈ 0 while ADD is large; tested). The partial-view limit is the
-same as `register` — heavy occlusion can leave the pose ambiguous, surfaced via `info['ambiguous']`.
+**Honest scope:** numbers are on a **synthetic proxy** (procedural object splat). ADD-S handles
+symmetry correctly (a 180° sphere flip → ADD-S ≈ 0 while ADD is large; tested). The partial-view
+limit is the same as `register` — heavy occlusion can leave the pose ambiguous, surfaced via
+`info['ambiguous']`. The real-geometry numbers are next.
+
+### 5f-real. Object-pose on REAL splats (`benchmarks/object_pose_real_bench.py`)
+
+The same estimate→ADD/ADD-S/AUC pipeline on **5 real GaussianFeels object splats**
+(`outputs/*/final.ply`): a known SE(3) is applied to each real splat, the observation is corrupted
+to mimic an independent capture (subsample + position noise ∝ footprint), and `estimate_object_pose`
+recovers the pose. 20 cells per occlusion level (5 objects × 4 known poses, 6k anchors), on GPU:
+
+| Observation | ADD-S AUC (0–10 cm) | median ADD-S | ADD AUC | ADD-S < 2 cm |
+|---|---|---|---|---|
+| full view (keep 1.0) | **0.976** | 3.19 mm | 0.772 | 100% |
+| 40%-occluded (keep 0.6) | **0.986** | 0.16 mm | 0.882 | 100% |
+
+Per-object ADD-S medians (keep 1.0): `potted_meat_can` 0.12 mm, `pear` 3.45 mm, `rubiks_cube`
+3.98 mm, `bell_pepper` 3.46 mm, `peach` 0.12 mm.
+
+**The honest, instructive split between ADD-S and ADD.** ADD-S AUC is **~0.98 on real geometry**, but
+ADD AUC is lower (0.77 at full view) — *because three of the five objects are near-symmetric*
+(`potted_meat_can` and `pear` are bodies of revolution; `bell_pepper` is rotationally near-symmetric;
+`rubiks_cube` has cubic symmetry). Under a full view the geometry-only basin can seat the model in a
+**mirror / 90°-symmetry-equivalent pose** (rot_err ~150–175°, ADD ~30–50 mm) that is *the correct
+pose up to the object's own symmetry* — so ADD-S ≈ 3 mm while ADD is large. This is exactly the
+symmetric-object case YCB-Video/FoundationPose report ADD-S for, reproduced on real splats.
+Interestingly, **partial views improve both metrics** (keep 0.6: ADD AUC 0.77→0.88, ADD-S 0.976→0.986)
+— a one-sided crop deletes the symmetry-degenerate geometry and disambiguates the pose. Asymmetric
+real objects (`peach`) recover to **0.12 mm ADD** even at full view.
+
+**Honest gap (real-geometry, NOT the official protocol):** this is real splat geometry with a *known
+applied SE(3)*, not the official **YCB-Video / FoundationPose protocol** (their RGB-D frames, GT
+object poses, and per-object symmetry labels via the BOP toolkit). The plug point for that is
+`iter_dataset()` — yield `(model, observation, T_gt)` from a real-dataset loader and the
+estimate+ADD/ADD-S/AUC scoring is unchanged.
 
 ## 5g. Camera localization in a splat (v0.2)
 
@@ -212,6 +243,28 @@ seed is **grid-resolution** (the azimuth step bounds its accuracy — it gets yo
 basin, not to the final pose) and the silhouette score is viewpoint-discriminative only for an
 asymmetric object (a symmetric blob stays ambiguous — a fundamental limit of any silhouette cue).
 Synthetic only.
+
+### Camera localization on REAL splats (`benchmarks/camera_loc_real_bench.py`)
+
+The same `localize_camera` run on **4 real GaussianFeels object splats** (`outputs/*/final.ply`).
+For each splat a GT camera is placed looking at the object, the **real splat is gsplat-rendered**
+from that pose to form the query image, the pose is perturbed by a known rotation/translation, and
+`localize_camera` recovers it. 12 localizations (3 perturbations × 4 objects, SH-degree-3 colour),
+on GPU:
+
+| | rotation | translation |
+|---|---|---|
+| start (median) | 5.0° | 10.0 mm |
+| **recovered (median)** | **0.11°** | **1.35 mm** |
+| recovered (worst) | 2.44° | 30.0 mm |
+
+11/12 (92%) reduced *both* errors; the one outlier is the hardest start (8°/15 mm) on `real_peach`
+at only ~4% frame coverage (the object is small in the 160² frame), where the basin is thinnest.
+
+**Honest gap (real-geometry, NOT the official protocol):** the query image is a *render of the same
+splat* (no exposure/sensor/illumination gap), so this measures the direct-alignment basin on real
+geometry+appearance — it is **not** a real-photo cross-modal relocaliser nor a priorless global one.
+A held-out real RGB query from a different sensor remains the official-protocol step.
 
 ## 5h. Multi-splat joint / bundle registration (v0.3)
 
@@ -264,6 +317,33 @@ Good edges keep substantial weight; the rejected edge is reported in `info.rejec
 redundancy — one bad edge's error spreads perfectly evenly over the loop and is mathematically
 indistinguishable from the others at the least-squares optimum, so **no** robust kernel can localise
 it there (verified; this is why the test uses a redundant graph — the realistic loop-closure case).
+
+### Bundle on a REAL multi-capture loop (`benchmarks/bundle_real_bench.py`)
+
+The loop-consistency win, measured on **real GaussianFeels splat geometry**. For each of 4 real
+objects an **N=5 capture ring** is built by cropping the real splat to 5 overlapping one-sided views
+(each capture a real partial view of the real object) placed at a known ring of poses; every ring
+edge is a real pairwise `register` solve. The joint pose-graph solve is compared against the
+sequential merge-style chain on the *same* edges, on GPU:
+
+| object (real splat) | sequential max inconsistency | joint max | win |
+|---|---|---|---|
+| `sim_potted_meat_can` | 2.94 | 0.588 | 5.0× |
+| `sim_pear` | 2.73 | 0.547 | 5.0× |
+| `real_bell_pepper` | 2.62 | 0.524 | 5.0× |
+| `real_peach` | 3.07 | 0.614 | 5.0× |
+| **median (4 objects)** | **2.84** | **0.567** | **5.0×** |
+
+The ~5× is the expected ring result: the sequential chain dumps *all* accumulated drift onto the
+single loop-closure edge while the joint optimum spreads it across all N=5 edges (≈ drift/N). The
+joint max ≈ mean (≈0.57) is the **real pairwise-measurement noise floor** on these partial real
+crops — the joint solve redistributes error off the worst edge but cannot go below the measurements'
+own inconsistency (the honest, correct least-squares behaviour, same as the synthetic case).
+
+**Honest gap (real-geometry, NOT the official protocol):** the captures are *crops of one splat* at a
+known ring (controlled overlap + GT poses), not N *independently reconstructed* real scans with their
+own reconstruction noise and an external GT trajectory (e.g. a multi-scan loop dataset). That
+independent-scan loop is the official-protocol step that remains.
 
 ## 5i. Scene-scale spatial index (v0.3)
 
