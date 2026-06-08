@@ -31,6 +31,7 @@ recommended, validated one. gsplat is OPTIONAL — guarded with a clear install 
 
 from __future__ import annotations
 
+import math
 from typing import Any, Optional
 
 import torch
@@ -45,7 +46,180 @@ from .residuals.photometric import (
     _rgb_to_hwc,
 )
 
-__all__ = ["localize_camera", "CameraPhotometric"]
+__all__ = ["localize_camera", "CameraPhotometric", "coarse_localize_camera"]
+
+
+def _project_points(means: torch.Tensor, T_WC: torch.Tensor, K: torch.Tensor):
+    """Project world points into pixel coords for camera pose ``T_WC``. Returns ``(uv, z, in_front)``.
+
+    Pure pinhole projection (``T_CW = inv(T_WC)``, then ``K · X_c``) — no rasteriser, so it runs on
+    CPU with no gsplat. ``uv`` is ``(M, 2)`` float pixel coords, ``z`` the camera-frame depth, and
+    ``in_front`` a bool mask of points with ``z > 0``. This is the cheap scoring primitive the coarse
+    pose sweep uses (project-and-count-overlap), not a photometric render.
+    """
+    T_CW = torch.linalg.inv(T_WC)
+    R = T_CW[:3, :3]
+    t = T_CW[:3, 3]
+    Xc = means @ R.transpose(-1, -2) + t  # (M, 3) camera frame
+    z = Xc[:, 2]
+    in_front = z > 1e-6
+    zc = z.clamp_min(1e-6)
+    u = K[0, 0] * (Xc[:, 0] / zc) + K[0, 2]
+    v = K[1, 1] * (Xc[:, 1] / zc) + K[1, 2]
+    return torch.stack([u, v], dim=1), z, in_front
+
+
+def _dilate(occ: torch.Tensor, r: int) -> torch.Tensor:
+    """Binary dilation of a ``(grid, grid)`` mask by a ``±r`` square (fills sparse occupancy)."""
+    if r <= 0:
+        return occ
+    x = occ.float().view(1, 1, *occ.shape)
+    x = torch.nn.functional.max_pool2d(x, kernel_size=2 * r + 1, stride=1, padding=r)
+    return x.view(*occ.shape) > 0.5
+
+
+def _occupancy(
+    uv: torch.Tensor, valid: torch.Tensor, W: int, H: int, grid: int, dilate: int = 1
+) -> torch.Tensor:
+    """Low-res ``(grid, grid)`` boolean occupancy of the in-image projected points (silhouette proxy).
+
+    A point set splat is a *sparse* sampling, so a bare hit-bitmap leaves the silhouette interior
+    full of holes and makes the IoU score both low and viewpoint-ambiguous. A small binary
+    ``dilate`` closes those holes into a connected silhouette, which is what the coarse score should
+    compare — it raises the score and, more importantly, sharpens the discrimination between
+    viewpoints (the filled outline is far more viewpoint-specific than scattered hits).
+    """
+    occ = torch.zeros(grid * grid, dtype=torch.bool, device=uv.device)
+    if valid.sum() == 0:
+        return occ.view(grid, grid)
+    uvv = uv[valid]
+    inb = (uvv[:, 0] >= 0) & (uvv[:, 0] < W) & (uvv[:, 1] >= 0) & (uvv[:, 1] < H)
+    uvv = uvv[inb]
+    if uvv.shape[0] == 0:
+        return occ.view(grid, grid)
+    gx = (uvv[:, 0] / W * grid).long().clamp(0, grid - 1)
+    gy = (uvv[:, 1] / H * grid).long().clamp(0, grid - 1)
+    occ[gy * grid + gx] = True
+    return _dilate(occ.view(grid, grid), dilate)
+
+
+def _candidate_poses(center: torch.Tensor, radius: float, n_az: int, n_el: int, device, dtype):
+    """A sphere of look-at camera→world poses around ``center`` at distance ``radius``.
+
+    Samples ``n_az`` azimuths × ``n_el`` elevations; each camera sits on the sphere and looks at
+    ``center`` (OpenCV convention: ``+z`` forward, ``+y`` down). This is the coarse viewpoint grid the
+    sweep scores — wide enough to seed a localiser that has no prior at all.
+    """
+    poses = []
+    up = torch.tensor([0.0, 1.0, 0.0], device=device, dtype=dtype)
+    els = torch.linspace(-1.0, 1.0, n_el) * math.pi / 3.0  # ±60° elevation
+    azs = torch.linspace(0.0, 2 * math.pi * (1 - 1.0 / max(n_az, 1)), n_az)
+    for el in els:
+        for az in azs:
+            ce = math.cos(float(el))
+            cam = center + radius * torch.tensor(
+                [ce * math.sin(float(az)), math.sin(float(el)), ce * math.cos(float(az))],
+                device=device, dtype=dtype,
+            )
+            fwd = center - cam
+            fwd = fwd / fwd.norm().clamp_min(1e-9)
+            u = up if abs(float(torch.dot(fwd, up))) < 0.95 else torch.tensor(
+                [0.0, 0.0, 1.0], device=device, dtype=dtype
+            )
+            right = torch.linalg.cross(u, fwd)
+            right = right / right.norm().clamp_min(1e-9)
+            down = torch.linalg.cross(fwd, right)
+            Rwc = torch.stack([right, down, fwd], dim=1)  # columns = cam axes in world
+            T = torch.eye(4, device=device, dtype=dtype)
+            T[:3, :3] = Rwc
+            T[:3, 3] = cam
+            poses.append(T)
+    return poses
+
+
+def coarse_localize_camera(
+    splat: Gaussians,
+    frame: Frame,
+    *,
+    candidates: Optional[list] = None,
+    n_az: int = 12,
+    n_el: int = 5,
+    radius: Optional[float] = None,
+    grid: int = 24,
+    dilate: int = 2,
+    return_score: bool = False,
+):
+    """Coarse, prior-free camera-pose seed by a project-and-compare viewpoint sweep (CPU, no gsplat).
+
+    :func:`localize_camera` refines a pose only within the narrow basin of direct image alignment, so
+    it needs a decent prior. This provides that prior when none exists (a *wide-baseline* relocalise):
+    it scores a sphere of candidate camera poses by how well the splat's **projected occupancy**
+    overlaps the query frame's foreground silhouette (from ``frame.mask``, or a luminance threshold of
+    ``frame.rgb``), and returns the best-scoring pose. Pure pinhole projection — it runs on CPU and
+    needs no rasteriser — so it is a coarse *seed*, deliberately cheap, not a final pose. Feed its
+    result as ``init_T_WC`` to :func:`localize_camera` for the fine refine.
+
+    Parameters
+    ----------
+    splat : the world-fixed splat (only ``means`` are used here).
+    frame : query observation; needs ``K`` and a foreground cue (``mask`` preferred, else ``rgb``).
+    candidates : explicit list of ``(4, 4)`` ``T_WC`` to score; ``None`` auto-builds a look-at sphere
+        (``n_az`` azimuths × ``n_el`` elevations) around the splat centroid at ``radius``.
+    n_az / n_el / radius : the auto sphere's resolution and stand-off distance (``radius`` ``None``
+        ⇒ ~2.5× the splat's bounding radius, a typical object-framing distance).
+    grid : occupancy-bitmap resolution the IoU score is computed at (coarse on purpose).
+    dilate : binary-dilation radius (in grid cells) applied to both the projected and the query
+        occupancy before scoring — closes the holes a *sparse* point splat leaves so the IoU compares
+        connected silhouettes (higher and far more viewpoint-discriminative). ``0`` disables it.
+    return_score : also return the best IoU score (diagnostic).
+
+    Returns
+    -------
+    The best ``(4, 4)`` ``T_WC`` (camera→world); with ``return_score=True`` a ``(T_WC, score)`` tuple.
+    """
+    if frame.K is None:
+        raise ValueError("coarse_localize_camera(): frame needs .K.")
+    means = splat.means
+    device, dtype = means.device, means.dtype
+    K = frame.K.to(device=device, dtype=dtype)
+
+    # Query foreground occupancy (the target silhouette) at the same coarse grid.
+    if frame.mask is not None:
+        m = frame.mask.to(device)
+        fg = m > 0.5 if m.dtype != torch.bool else m
+    elif frame.rgb is not None:
+        rgb = _rgb_to_hwc(frame.rgb.to(device=device, dtype=dtype))
+        fg = rgb.mean(dim=-1) > 1e-3  # non-black = foreground (synthetic / masked captures)
+    else:
+        raise ValueError("coarse_localize_camera(): frame needs .mask or .rgb for a foreground cue.")
+    H, W = fg.shape[-2], fg.shape[-1]
+    # Downsample the foreground to the score grid.
+    ys = (torch.arange(grid, device=device).float() + 0.5) / grid * H
+    xs = (torch.arange(grid, device=device).float() + 0.5) / grid * W
+    gy = ys.long().clamp(0, H - 1)
+    gx = xs.long().clamp(0, W - 1)
+    fg_grid = _dilate(fg[gy][:, gx], dilate)  # (grid, grid), dilated to match the projected occupancy
+
+    center = means.mean(dim=0)
+    if radius is None:
+        brad = float((means - center).norm(dim=1).max())
+        radius = 2.5 * max(brad, 1e-6)
+    if candidates is None:
+        candidates = _candidate_poses(center, float(radius), n_az, n_el, device, dtype)
+
+    best_T, best_score = None, -1.0
+    for T_WC in candidates:
+        T_WC = T_WC.to(device=device, dtype=dtype)
+        uv, z, in_front = _project_points(means, T_WC, K)
+        occ = _occupancy(uv, in_front, W, H, grid, dilate=dilate)
+        inter = (occ & fg_grid).sum().float()
+        union = (occ | fg_grid).sum().float().clamp_min(1.0)
+        score = float(inter / union)
+        if score > best_score:
+            best_score, best_T = score, T_WC
+    if best_T is None:  # no candidates
+        best_T = torch.eye(4, device=device, dtype=dtype)
+    return (best_T, best_score) if return_score else best_T
 
 
 def _render_rgb_depth(
@@ -80,7 +254,7 @@ def _render_rgb_depth(
 def localize_camera(
     splat: Gaussians,
     frame: Frame,
-    init_T_WC: torch.Tensor,
+    init_T_WC,
     *,
     iters: int = 150,
     lr: float = 1e-2,
@@ -88,6 +262,7 @@ def localize_camera(
     mask_to_rendered: bool = True,
     huber_k: Optional[float] = None,
     sh_degree: Optional[int] = None,
+    coarse_kwargs: Optional[dict] = None,
 ) -> RegisterResult:
     """Localize a query camera in a ``splat`` by differentiable-render pose optimization.
 
@@ -100,8 +275,11 @@ def localize_camera(
     ----------
     splat : the world-fixed Gaussian splat (must carry ``colors``).
     frame : the query observation — needs ``rgb`` and ``K`` (optional ``mask``).
-    init_T_WC : ``(4, 4)`` initial camera→world prior. Direct image alignment has a limited basin
-        (a few degrees / a few percent of depth); this refines a prior, it does not relocalise blind.
+    init_T_WC : ``(4, 4)`` initial camera→world prior, OR the string ``"coarse"`` to first run the
+        prior-free :func:`coarse_localize_camera` viewpoint sweep and refine its seed. Direct image
+        alignment has a limited basin (a few degrees / a few percent of depth), so without ``"coarse"``
+        a *wide-baseline* query (no good prior) falls outside it — that is exactly what the coarse
+        seed bridges. ``coarse_kwargs`` is forwarded to the sweep.
     iters : Adam steps on the pose tangent.
     lr : Adam learning rate on the 6-vector right-perturbation tangent.
     refold_every : every this many steps, fold the accumulated tangent into ``T_WC`` and reset it to
@@ -111,6 +289,8 @@ def localize_camera(
     huber_k : optional Huber threshold on the per-pixel RGB residual (robust to occluders / outliers);
         ``None`` uses a plain L2 loss.
     sh_degree : SH degree if ``splat.colors`` are SH coefficients; ``None`` treats them as RGB.
+    coarse_kwargs : forwarded to :func:`coarse_localize_camera` when ``init_T_WC == "coarse"``
+        (e.g. ``n_az`` / ``n_el`` / ``grid`` / ``radius``).
 
     Returns
     -------
@@ -119,12 +299,17 @@ def localize_camera(
     """
     if not _GSPLAT_AVAILABLE:
         raise ImportError(_GSPLAT_INSTALL_HINT)
-    if not isinstance(init_T_WC, torch.Tensor) or init_T_WC.shape[-2:] != (4, 4):
-        raise ValueError("localize_camera(): init_T_WC must be a (4, 4) tensor.")
     if not isinstance(splat, Gaussians) or splat.colors is None:
         raise ValueError("localize_camera(): splat must be a Gaussians with .colors for rendering.")
     if frame.rgb is None or frame.K is None:
         raise ValueError("localize_camera(): frame needs .rgb and .K.")
+    if isinstance(init_T_WC, str):
+        if init_T_WC != "coarse":
+            raise ValueError("localize_camera(): init_T_WC string must be 'coarse'.")
+        # Prior-free seed: the projection-only viewpoint sweep (no gsplat needed for the seed).
+        init_T_WC = coarse_localize_camera(splat, frame, **(coarse_kwargs or {}))
+    if not isinstance(init_T_WC, torch.Tensor) or init_T_WC.shape[-2:] != (4, 4):
+        raise ValueError("localize_camera(): init_T_WC must be a (4, 4) tensor or 'coarse'.")
 
     device = init_T_WC.device
     T_anchor = init_T_WC.to(device=device, dtype=torch.float32).detach()

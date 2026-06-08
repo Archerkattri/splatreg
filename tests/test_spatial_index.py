@@ -117,6 +117,94 @@ def test_dedupe_survivor_set_matches_brute(device):
     assert len(out_default) == len(out_index)
 
 
+def test_radius_batch_matches_brute_and_loop(device):
+    """The loop-free ``radius_batch`` returns exactly the brute-force / looped in-radius pair set."""
+    pts = _rand_points(6000).to(device)
+    q = _rand_points(400, seed=2).to(device)
+    r = 0.04
+    idx = SpatialIndex(pts)
+    qi, ai = idx.radius_batch(q, r)
+    batch_set = set(zip(qi.tolist(), ai.tolist()))
+
+    bf = torch.cdist(q, pts) <= r
+    bf_set = set(map(tuple, bf.nonzero().tolist()))
+    assert batch_set == bf_set, (
+        f"radius_batch differs from brute: {len(bf_set - batch_set)} missing, "
+        f"{len(batch_set - bf_set)} extra"
+    )
+    # And identical to the looped path.
+    lqi, lai = idx.radius(q, r)
+    assert batch_set == set(zip(lqi.tolist(), lai.tolist())), "radius_batch differs from radius loop"
+
+
+def test_knn_batch_matches_brute(device):
+    """The loop-free ``knn_batch`` returns the exact k nearest anchors (distances + index set)."""
+    pts = _rand_points(6000).to(device)
+    q = _rand_points(400, seed=1).to(device)
+    k = 16
+    idx = SpatialIndex(pts)
+    ii, dd = idx.knn_batch(q, k)
+
+    bd = torch.cdist(q, pts)
+    bf_d, bf_i = torch.topk(bd, k=k, largest=False)
+    assert torch.allclose(dd, bf_d, atol=1e-4), f"knn_batch distance mismatch (max {(dd-bf_d).abs().max():.2e})"
+    assert torch.equal(ii.sort(dim=1).values, bf_i.sort(dim=1).values), "knn_batch index set differs"
+
+
+def test_knn_batch_k_exceeds_count(device):
+    """k larger than the anchor count clamps and stays exact in the batch path."""
+    pts = _rand_points(20).to(device)
+    q = _rand_points(5, seed=3).to(device)
+    idx = SpatialIndex(pts)
+    ii, dd = idx.knn_batch(q, 50)
+    assert ii.shape == (5, 20) and dd.shape == (5, 20)
+    bf_d, _ = torch.topk(torch.cdist(q, pts), k=20, largest=False)
+    assert torch.allclose(dd, bf_d, atol=1e-4)
+
+
+@pytest.mark.parametrize("nq", [4000])
+def test_batch_query_speedup_vs_loop(device, nq):
+    """Loop-free batch queries beat the Python per-query loop on a moderate cloud with many queries.
+
+    This is the regime the vectorised path targets: brute ``cdist`` is fine on small clouds, but the
+    *looped* index query pays Python overhead per query. The batch path enumerates all candidates in
+    one vectorised pass + a single distance/top-k, so it wins clearly here while staying exact (the
+    correctness is pinned by the tests above)."""
+    if device != "cpu":
+        pytest.skip("speedup asserted on CPU")
+    torch.set_num_threads(2)
+    pts = _rand_points(8000).to(device)
+    q = _rand_points(nq, seed=5).to(device)
+    idx = SpatialIndex(pts)
+    r = 0.03
+    # warmups (build caches, JIT-ish kernels).
+    idx.radius(q[:50], r)
+    idx.radius_batch(q[:50], r)
+    idx.knn(q[:50], 8)
+    idx.knn_batch(q[:50], 8)
+
+    t0 = time.time()
+    idx.radius(q, r)
+    t_loop_r = time.time() - t0
+    t0 = time.time()
+    idx.radius_batch(q, r)
+    t_batch_r = time.time() - t0
+    t0 = time.time()
+    idx.knn(q, 8)
+    t_loop_k = time.time() - t0
+    t0 = time.time()
+    idx.knn_batch(q, 8)
+    t_batch_k = time.time() - t0
+    sr = t_loop_r / max(t_batch_r, 1e-9)
+    sk = t_loop_k / max(t_batch_k, 1e-9)
+    print(
+        f"\n[spatial-index batch] Q={nq} | radius loop={t_loop_r:.3f}s batch={t_batch_r:.3f}s ({sr:.1f}x) "
+        f"| knn loop={t_loop_k:.3f}s batch={t_batch_k:.3f}s ({sk:.1f}x)"
+    )
+    assert sr >= 2.0, f"radius_batch expected >=2x over loop, got {sr:.2f}x"
+    assert sk >= 2.0, f"knn_batch expected >=2x over loop, got {sk:.2f}x"
+
+
 @pytest.mark.parametrize("m", [40000])
 def test_dedupe_speedup_on_scene_scale(device, m):
     """On a scene-scale splat the index dedupe beats the O(N^2) brute scan in wall-clock.

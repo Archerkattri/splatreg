@@ -35,6 +35,12 @@ except ImportError:  # pragma: no cover
     add_metric = adds_metric = add_auc = None  # type: ignore
 
 # v0.2: camera localization in a splat (needs the gsplat [render] extra — guarded).
+# v0.3 hardening: coarse_localize_camera is a CPU/projection-only wide-baseline SEED (no gsplat),
+# so it imports even without the render extra.
+try:
+    from .camera_loc import coarse_localize_camera  # noqa: F401
+except ImportError:  # pragma: no cover
+    coarse_localize_camera = None  # type: ignore
 try:
     from .camera_loc import CameraPhotometric, localize_camera  # noqa: F401
 except ImportError:  # gsplat not installed
@@ -74,6 +80,7 @@ __all__ = [
     # v0.2 camera localization
     "CameraPhotometric",
     "localize_camera",
+    "coarse_localize_camera",
     # v0.3 multi-splat bundle registration
     "bundle_register",
     "pairwise_consistency",

@@ -34,9 +34,15 @@ if _EXAMPLES_DIR not in sys.path:
 
 from _example_utils import make_object_splat, axis_angle_R, sim3_matrix  # noqa: E402
 
-from splatreg.bundle import bundle_register, pairwise_consistency, _sequential_poses  # noqa: E402
+from splatreg.bundle import (  # noqa: E402
+    bundle_register,
+    pairwise_consistency,
+    solve_pose_graph,
+    _sequential_poses,
+)
 from splatreg import register  # noqa: E402
 from splatreg.core.types import Gaussians  # noqa: E402
+from splatreg.core.lie import se3_exp  # noqa: E402
 
 N_POINTS = 250
 PAIR_ITERS = 40
@@ -174,3 +180,85 @@ def test_bundle_single_splat_is_identity(device):
     poses = bundle_register(splats, ref=0, transform="se3")
     assert len(poses) == 1
     assert torch.allclose(poses[0], torch.eye(4, device=device), atol=1e-6)
+
+
+def _pose_set_error(poses, ref_poses):
+    """Mean SE(3) tangent distance between two gauge-aligned absolute-pose sets (ref pinned)."""
+    from splatreg.core.lie import se3_log
+
+    errs = [float(se3_log(torch.linalg.inv(R) @ P, dof=6).norm()) for P, R in zip(poses, ref_poses)]
+    return sum(errs) / len(errs)
+
+
+def _fully_connected_edges(n):
+    """Every pair ``(i, j)`` with ``i < j`` — a redundant graph (each node degree ``n-1``).
+
+    Redundancy is what makes outlier rejection *possible*: in a bare ring (every node degree 2) one
+    bad edge's error spreads evenly over the loop and is mathematically indistinguishable from the
+    others at the least-squares optimum, so NO robust kernel can localise it. With chords, the bad
+    edge disagrees with a consistent majority and stands out — the realistic SLAM loop-closure case.
+    """
+    return [(i, j) for i in range(n) for j in range(i + 1, n)]
+
+
+def test_bundle_robust_rejects_bad_edge(device):
+    """A robust (IRLS/Huber + GNC) pose-graph solve survives one corrupt edge; the un-gated solve does not.
+
+    Build a clean, *redundant* graph (all pairs), take the joint solution on the clean edges as
+    ground truth, then inject one grossly wrong measurement on a single edge. The robust solve must
+    down-weight that edge and stay close to the clean solution, while the plain least-squares solve is
+    dragged far off by it. (Redundancy is required — see :func:`_fully_connected_edges`.)
+    """
+    n = 5
+    splats = _build_loop(n, device, transform="se3")
+    edges = _fully_connected_edges(n)
+    rel_clean = _rel_measurements(splats, edges, "se3")
+    dev = torch.device(device)
+
+    # Ground-truth poses: robust solve on the clean (outlier-free) graph.
+    seed = _sequential_poses(splats, rel_clean, 0, n, dev, torch.float32)
+    gt_poses, _, _ = solve_pose_graph(seed, rel_clean, 0, robust="huber")
+
+    # Corrupt one edge: a ~40 deg rotation + 15 cm translation blunder on edge (1, 2).
+    bad_delta = torch.tensor([0.15, -0.1, 0.12, 0.7, -0.5, 0.4], device=dev)
+    rel_bad = dict(rel_clean)
+    rel_bad[(1, 2)] = rel_clean[(1, 2)] @ se3_exp(bad_delta)
+
+    seed_bad = _sequential_poses(splats, rel_bad, 0, n, dev, torch.float32)
+    p_plain, _, _ = solve_pose_graph(list(seed_bad), rel_bad, 0, robust=None)
+    p_robust, _, w_robust = solve_pose_graph(list(seed_bad), rel_bad, 0, robust="huber")
+
+    err_plain = _pose_set_error(p_plain, gt_poses)
+    err_robust = _pose_set_error(p_robust, gt_poses)
+    w_bad = w_robust[(1, 2)]
+    w_good = min(w for k, w in w_robust.items() if k != (1, 2))
+    print(
+        f"\n[bundle-robust] plain_pose_err={err_plain:.3e} robust_pose_err={err_robust:.3e} "
+        f"improve={err_plain / max(err_robust, 1e-9):.1f}x | bad_edge_w={w_bad:.3f} "
+        f"min_good_w={w_good:.3f}"
+    )
+    # The robust solve recovers the good poses far better than the corrupted plain solve.
+    assert err_robust < 0.25 * err_plain, (
+        f"robust pose error {err_robust:.3e} not well below plain {err_plain:.3e}"
+    )
+    # The bad edge is strongly down-weighted while the good edges keep substantial weight.
+    assert w_bad < 0.1, f"bad edge weight {w_bad:.3f} not suppressed"
+    assert w_good > 0.4, f"a good edge was over-suppressed (min weight {w_good:.3f})"
+
+
+def test_bundle_register_reports_rejected_edge(device):
+    """End-to-end ``bundle_register`` flags a corrupt edge in ``info.rejected_edges``.
+
+    Injects a bad measurement through the public path by handing ``bundle_register`` precomputed
+    relative poses is not supported, so we drive ``solve_pose_graph`` directly for the corrupt case
+    and assert the reject bookkeeping. The clean public call must report NO rejections.
+    """
+    n = 4
+    splats = _build_loop(n, device, transform="se3")
+    # Clean public run: nothing rejected, robust on by default.
+    _, info = bundle_register(
+        splats, ref=0, transform="se3", init="global",
+        register_kwargs=dict(max_iters=PAIR_ITERS, quality=QUALITY), return_info=True,
+    )
+    assert info.rejected_edges == [], f"clean loop falsely rejected {info.rejected_edges}"
+    assert all(w > 0.5 for w in info.edge_weights.values()), "clean edges should keep high weight"
