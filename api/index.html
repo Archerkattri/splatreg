@@ -1,0 +1,5519 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Register Gaussian splats — align & merge two 3DGS scans into one SE(3)/Sim(3) frame.">
+      
+      
+      
+        <link rel="canonical" href="https://archerkattri.github.io/splatreg/api/">
+      
+      
+        <link rel="prev" href="../benchmarks/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>API reference - splatreg</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="splatreg" class="md-header__button md-logo" aria-label="splatreg" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            splatreg
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="deep-orange"  aria-label="Dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="deep-orange"  aria-label="Light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Archerkattri/splatreg" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Archerkattri/splatreg
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="splatreg" class="md-nav__button md-logo" aria-label="splatreg" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    splatreg
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Archerkattri/splatreg" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Archerkattri/splatreg
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../init-modes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Init modes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../photometric/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Photometric refinement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ply-interop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PLY interop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#registration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.api.register" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        register
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.api.merge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        merge
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.api.Tracker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracker
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tracker">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.api.Tracker.pose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pose
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.api.Tracker.reset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        reset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.api.Tracker.track" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        track
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-splat-bundle-registration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-splat bundle registration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.bundle.bundle_register" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bundle_register
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.bundle.pairwise_consistency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pairwise_consistency
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#object-pose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Object pose
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.object_pose.estimate_object_pose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        estimate_object_pose
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.object_pose.ObjectPoseEstimator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ObjectPoseEstimator
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ObjectPoseEstimator">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.object_pose.ObjectPoseEstimator.pose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pose
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.object_pose.ObjectPoseEstimator.reset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        reset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.object_pose.ObjectPoseEstimator.estimate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        estimate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.object_pose.add_metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_metric
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.object_pose.adds_metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        adds_metric
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.object_pose.add_auc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_auc
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#camera-localization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Camera localization
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.camera_loc.localize_camera" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        localize_camera
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.camera_loc.coarse_localize_camera" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        coarse_localize_camera
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.core.types.Gaussians" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gaussians
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.core.types.Frame" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frame
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.core.types.RegisterResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RegisterResult
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ply-gsplat-io" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PLY + gsplat I/O
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.io.load_ply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        load_ply
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.io.save_ply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        save_ply
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.io.from_gsplat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        from_gsplat
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.io.to_gsplat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_gsplat
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gaussian-sdf-field" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gaussian-SDF field
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.geometry.gaussian_sdf.gaussian_sdf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gaussian_sdf
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.geometry.gaussian_sdf.gaussian_sdf_grad" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gaussian_sdf_grad
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fusion-dedupe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fusion / dedupe
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.fuse.voxel_dedupe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        voxel_dedupe
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.fuse.knn_dedupe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        knn_dedupe
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.fuse.auto_voxel_size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        auto_voxel_size
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.fuse.auto_knn_radius" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        auto_knn_radius
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spatial-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spatial index
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.build_index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_index
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.SpatialIndex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SpatialIndex
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SpatialIndex">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.SpatialIndex.radius" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        radius
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.SpatialIndex.radius_batch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        radius_batch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.SpatialIndex.knn_batch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        knn_batch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.SpatialIndex.knn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        knn
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.SpatialIndex.region" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        region
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quality-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quality policy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.quality.resolve_quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_quality
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.quality.QualityConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QualityConfig
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extension-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extension points
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.residuals.base.Residual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Residual
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Residual">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.residuals.base.Residual.residual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        residual
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.residuals.base.Residual.jacobian" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        jacobian
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.residuals.base.Residual.dim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dim
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.residuals.base.Residual.requires" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        requires
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.solvers.base.Solver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solver
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Solver">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.solvers.base.Solver.solve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        solve
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.testing.assert_residual_jacobian" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        assert_residual_jacobian
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command line
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.cli.main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        main
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.cli.build_parser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_parser
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#registration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.api.register" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        register
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.api.merge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        merge
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.api.Tracker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracker
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tracker">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.api.Tracker.pose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pose
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.api.Tracker.reset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        reset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.api.Tracker.track" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        track
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-splat-bundle-registration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-splat bundle registration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.bundle.bundle_register" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bundle_register
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.bundle.pairwise_consistency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pairwise_consistency
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#object-pose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Object pose
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.object_pose.estimate_object_pose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        estimate_object_pose
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.object_pose.ObjectPoseEstimator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ObjectPoseEstimator
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ObjectPoseEstimator">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.object_pose.ObjectPoseEstimator.pose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pose
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.object_pose.ObjectPoseEstimator.reset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        reset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.object_pose.ObjectPoseEstimator.estimate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        estimate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.object_pose.add_metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_metric
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.object_pose.adds_metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        adds_metric
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.object_pose.add_auc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_auc
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#camera-localization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Camera localization
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.camera_loc.localize_camera" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        localize_camera
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.camera_loc.coarse_localize_camera" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        coarse_localize_camera
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.core.types.Gaussians" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gaussians
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.core.types.Frame" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frame
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.core.types.RegisterResult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RegisterResult
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ply-gsplat-io" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PLY + gsplat I/O
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.io.load_ply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        load_ply
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.io.save_ply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        save_ply
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.io.from_gsplat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        from_gsplat
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.io.to_gsplat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        to_gsplat
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gaussian-sdf-field" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gaussian-SDF field
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.geometry.gaussian_sdf.gaussian_sdf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gaussian_sdf
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.geometry.gaussian_sdf.gaussian_sdf_grad" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gaussian_sdf_grad
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fusion-dedupe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fusion / dedupe
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.fuse.voxel_dedupe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        voxel_dedupe
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.fuse.knn_dedupe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        knn_dedupe
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.fuse.auto_voxel_size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        auto_voxel_size
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.fuse.auto_knn_radius" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        auto_knn_radius
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spatial-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spatial index
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.build_index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_index
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.SpatialIndex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SpatialIndex
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SpatialIndex">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.SpatialIndex.radius" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        radius
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.SpatialIndex.radius_batch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        radius_batch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.SpatialIndex.knn_batch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        knn_batch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.SpatialIndex.knn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        knn
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.spatial_index.SpatialIndex.region" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        region
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quality-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quality policy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.quality.resolve_quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resolve_quality
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.quality.QualityConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QualityConfig
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extension-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extension points
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.residuals.base.Residual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Residual
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Residual">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.residuals.base.Residual.residual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        residual
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.residuals.base.Residual.jacobian" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        jacobian
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.residuals.base.Residual.dim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dim
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.residuals.base.Residual.requires" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        requires
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.solvers.base.Solver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solver
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Solver">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#splatreg.solvers.base.Solver.solve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        solve
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.testing.assert_residual_jacobian" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        assert_residual_jacobian
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command line
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.cli.main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        main
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.cli.build_parser" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        build_parser
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
+<p>The import surface is flat: everything below is available from <code>splatreg</code> directly (or the
+named submodule). Optional-dependency features (<code>localize_camera</code> needs <code>splatreg[render]</code>)
+degrade to <code>None</code> at import time rather than breaking the package.</p>
+<h2 id="registration">Registration<a class="headerlink" href="#registration" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.api.register" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.api.register</span>
+
+
+<a href="#splatreg.api.register" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">register</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">target</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">source</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">residuals</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">init</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">transform</span><span class="o">=</span><span class="s2">&quot;se3&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">backend</span><span class="o">=</span><span class="s2">&quot;builtin&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">max_iters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">quality</span><span class="o">=</span><span class="s2">&quot;full&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">refine</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">refine_kwargs</span><span class="o">=</span><span class="kc">None</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Register <code>source</code> onto <code>target</code> over a list of residuals, returning the 4x4 transform.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>target</code>
+            </td>
+            <td>
+                  <code>the reference (a :class:`~splatreg.core.types.Gaussians`, usually).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>source</code>
+            </td>
+            <td>
+                  <code>what is aligned to ``target`` — a ``Gaussians`` (splat-to-splat) or a ``Frame``</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(tracking); handed straight to each residual.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>residuals</code>
+            </td>
+            <td>
+                  <code>sequence of :class:`~splatreg.residuals.base.Residual`, or ``None`` (default) to</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>build an ICP-dominant default set <code>[ICP(point_to_plane=False, weight=1.0),
+SDF(sigma=auto, weight=0.3, n_points=&lt;quality&gt;)]</code> — the SDF <code>sigma</code> auto-derived from the
+target geometry (<code>~2x</code> its median Gaussian scale; see :func:<code>_auto_sdf_sigma</code>) and the
+sample size / chunking from <code>quality</code>. An explicit list is honoured unchanged (<code>quality</code>
+then only sets the autodiff row-chunk). <code>None</code> requires <code>target</code> to be a non-empty
+<code>Gaussians</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>init</code>
+            </td>
+            <td>
+                  <code>initial 4x4 transform, or ``None`` for identity, or one of the strings:</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li><code>"fast"</code> — the recommended fast coarse-init: FPFH descriptors + GPU-batched 3-point
+  RANSAC (:func:<code>splatreg.align_features.feature_align</code>), returning ONLY the seed for the LM
+  to polish. ~20-35 ms vs the ~0.8-1.4 s blind sweep, with the feature path's full-rotation
+  robustness. Falls back to <code>"global"</code> then identity if the feature module is unavailable.</li>
+<li><code>"global"</code> — coarse-init from :func:<code>splatreg.align.global_align</code> (super-Fibonacci
+  SO(3) sweep + batched trimmed ICP; robust to noise/outliers and near-symmetric clouds;
+  assumes full overlap).</li>
+<li><code>"features"</code> — a complete partial-overlap registrar from
+  :func:<code>splatreg.align_features.feature_align</code> (FPFH descriptors + ratio-test mutual-NN +
+  clique-prefiltered RANSAC + an overlap-aware target-&gt;source ICP refine, with an
+  overlap-aware <em>point-to-plane</em> super-Fibonacci basin-sweep fallback that recovers the pose
+  from geometry alone on smooth splat surfaces where the descriptors are non-discriminative).
+  Designed for the case where the two clouds see
+  different parts of the same object.  It also returns honest diagnostics
+  (<code>info['ambiguous']</code> / <code>info['confidence']</code> / <code>info['feature']</code>): when a crop removes
+  the rotation-disambiguating geometry the pose is genuinely unrecoverable and the result is
+  flagged rather than silently wrong.  Because the default residual set assumes FULL overlap
+  (its ICP would pull a good partial-overlap init off-pose), <code>init="features"</code> with the
+  default residuals returns the feature registration DIRECTLY and skips that LM; pass an
+  explicit overlap-safe <code>residuals=[...]</code> to run the LM seeded from the feature init.</li>
+<li><code>"robust"</code> — scale-robust registrar (:func:<code>splatreg.align_features.robust_feature_align</code>):
+  an Open3D FPFH+RANSAC seed (scale-correct, auto-voxelled — the ~77 % RR Open3D reports on
+  real indoor scans like 3DMatch) refined by splatreg's overlap-aware ICP (+ Sim(3) scale).
+  Like <code>"features"</code> it returns the registration DIRECTLY under the default residuals.</li>
+<li><code>"learned"</code> — LEARNED registrar (:func:<code>splatreg.align_features.learned_feature_align</code>):
+  the pretrained GeoTransformer 3DMatch correspondence model (CVPR 2022, ~92 % RR — past the
+  classical FPFH ~77 % ceiling) supplies the coarse seed, then the SAME overlap-aware ICP
+  (+ Sim(3) scale) refine as <code>"robust"</code>.  Falls back to <code>"robust"</code> (then identity) when
+  GeoTransformer's module / built CUDA-ext / pretrained weights are unavailable.</li>
+</ul>
+<p>All string forms are guarded — fall back to identity with a logged note if the module
+is unavailable. For <code>init="global"</code> the chosen transform seeds the LM.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>transform</code>
+            </td>
+            <td>
+                  <code>``&#34;se3&#34;`` (dof 6) or ``&#34;sim3&#34;`` (dof 7; the scale DoF is solved, autodiffed).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>&#39;se3&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>backend</code>
+            </td>
+            <td>
+                  <code>the solver engine. ``&#34;builtin&#34;`` (DEFAULT, fastest) is splatreg&#39;s closed-form-Jacobian</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Levenberg-Marquardt core. <code>"pypose"</code> / <code>"theseus"</code> hand the whole nonlinear least-squares
+problem to that external engine instead — they optimise the same right-perturbation tangent
+through splatreg's own <code>exp</code> (so the recovered SE(3)/Sim(3) pose matches the builtin
+convention) and autodiff the Jacobian, so a user can bring their own solver without writing
+one. Both need the matching optional dependency (<code>pip install splatreg[pypose|theseus]</code>) and
+raise a clear <code>ImportError</code> otherwise. <code>"gtsam"</code> is recognised but raises
+<code>NotImplementedError</code> (a factor-graph backend needs hand-written analytic factor Jacobians).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;builtin&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_iters</code>
+            </td>
+            <td>
+                  <code>maximum LM iterations. ``None`` (default) takes the value from ``quality``</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(<code>QualityConfig.max_iters</code>); an explicit int always wins.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>quality</code>
+            </td>
+            <td>
+                  <code>the quality / machine-adaptivity policy (see :func:`splatreg.quality.resolve_quality`):</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"full"</code> (DEFAULT — nothing capped, all source anchors, full fidelity), <code>"balanced"</code> /
+<code>"low"</code> (bounded sample + tighter chunks), a <code>0..1</code> float (scaled), or <code>"auto"</code> (detect
+free GPU/CPU memory and pick the largest sizes that <em>fit</em> — full on a big machine, scaled
+down on a small GPU / CPU so it runs without OOM). A :class:<code>~splatreg.quality.QualityConfig</code>
+may be passed for full manual control. The Sim(3) autodiff Jacobian is always row-chunked
+(per <code>quality</code>) so peak memory is bounded with <strong>no</strong> quality loss.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;full&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>refine</code>
+            </td>
+            <td>
+                  <code>optional OPT-IN second refinement stage run AFTER the geometric solve. The only value</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>today is <code>"photometric"</code> — a short extra LM whose residual renders the SOURCE splat under
+the current <code>T</code> from a small synthetic camera ring around the target and compares it
+against renders of the TARGET splat from the same cameras
+(:func:<code>splatreg.residuals.photometric.refine_photometric</code>; PhotoReg-style, arXiv
+2410.05044, adapted splat-vs-splat so NO real images are needed). Geometric alignment
+leaves a visibly coloured seam that pure geometry cannot see; this stage fixes the part of
+it that is pose error. Requires BOTH splats to carry <code>colors</code> and gsplat to be installed
+(<code>pip install "splatreg[render]"</code>) unless <code>refine_kwargs['render_fn']</code> supplies a
+custom renderer — checked at call time with a clear <code>ImportError</code>, never at import.
+Works for both <code>transform="se3"</code> and <code>"sim3"</code>; iteration count defaults to the quality
+policy's <code>refine_iters</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>refine_kwargs</code>
+            </td>
+            <td>
+                  <code>optional dict of keyword overrides for the refine stage (see</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>:func:<code>splatreg.residuals.photometric.refine_photometric</code>: <code>n_views</code>, <code>width</code> /
+<code>height</code>, <code>radius</code> / <code>radius_mult</code>, <code>dssim_weight</code>, <code>jac_mode</code>, <code>max_iters</code>,
+<code>render_fn</code>, <code>sh_degree</code>, ...). Ignored when <code>refine</code> is <code>None</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>class:`~splatreg.core.types.RegisterResult` whose ``T`` is the full transform (the similarity</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>``[[s*R, t], [0, 1]]`` for ``transform=&#34;sim3&#34;``), ``scale`` the recovered ``s`` (``1.0`` for</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>SE(3)), and ``info`` carries ``cost`` / ``n_iters`` / ``rmse`` (filled by</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>func:`~splatreg.solvers.lm.run_lm`) plus the resolved ``quality`` label.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.api.merge" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.api.merge</span>
+
+
+<a href="#splatreg.api.merge" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">merge</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">gaussians_list</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">ref</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">residuals</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">transform</span><span class="o">=</span><span class="s2">&quot;sim3&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">init</span><span class="o">=</span><span class="s2">&quot;global&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">dedupe</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">dedupe_method</span><span class="o">=</span><span class="s2">&quot;voxel&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">voxel</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">knn_radius</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">max_iters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">quality</span><span class="o">=</span><span class="s2">&quot;full&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">refine</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">refine_kwargs</span><span class="o">=</span><span class="kc">None</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Register every splat onto <code>gaussians_list[ref]</code>, fuse, and return one <code>Gaussians</code>.</p>
+<p>This is the v0.1 headline — a merge that is <strong>not a naive cat</strong>. For each non-reference splat
+it :func:<code>register</code>\ s onto the reference (<code>init="global"</code> so large offsets recover; default
+ICP-dominant <code>residuals</code>; <code>transform="sim3"</code> so scale differences are absorbed), bakes the
+recovered Sim(3)/SE(3) into that splat's means / quats / scales, concatenates everything, then
+<strong>dedupes the overlap</strong>: a voxel-grid pass (:func:<code>splatreg.fuse.voxel_dedupe</code>) keeps the
+highest-opacity Gaussian per occupied voxel, so the double-density seam collapses to single
+density. The reference passes through unregistered. The result drops straight into
+:func:<code>splatreg.io.save_ply</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>gaussians_list</code>
+            </td>
+            <td>
+                  <code>the splats to merge.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>ref</code>
+            </td>
+            <td>
+                  <code>index of the reference splat (all others register onto it). Default 0.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>residuals</code>
+            </td>
+            <td>
+                  <code>residual list per :func:`register` (``None`` -&gt; the ICP-dominant default set).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>transform</code>
+            </td>
+            <td>
+                  <code>``&#34;sim3&#34;`` (default; recovers scale) or ``&#34;se3&#34;`` for each pairwise registration.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>&#39;sim3&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>init</code>
+            </td>
+            <td>
+                  <code>initial transform / ``&#34;global&#34;`` (default coarse basin-finder) / a 4x4, per</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>:func:<code>register</code>. <code>"global"</code> makes the merge robust to large inter-capture offsets.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;global&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>dedupe</code>
+            </td>
+            <td>
+                  <code>when ``True`` (default) run the overlap dedupe after concatenation; when ``False`` the</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>merge is a registered concatenation (still aligned, but double-density seam).</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>dedupe_method</code>
+            </td>
+            <td>
+                  <code>``&#34;voxel&#34;`` (default) for the voxel-grid pass (:func:`splatreg.fuse.voxel_dedupe`)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>or <code>"knn"</code> for the cross-splat radius pass (:func:<code>splatreg.fuse.knn_dedupe</code>). KNN is
+translation-invariant, so it also removes the boundary-straddling duplicates a voxel grid
+leaves (~16% residual overlap on a registered seam) at the cost of an O(N) chunked
+nearest-neighbour scan. Ignored when <code>dedupe=False</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;voxel&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>voxel</code>
+            </td>
+            <td>
+                  <code>voxel-pass edge in splat units; ``None`` auto-derives it from the anchor spacing (see</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>:func:<code>splatreg.fuse.auto_voxel_size</code>). Used only when <code>dedupe_method="voxel"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>knn_radius</code>
+            </td>
+            <td>
+                  <code>KNN-pass suppression radius in splat units; ``None`` auto-derives it (half the</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>anchor spacing, :func:<code>splatreg.fuse.auto_knn_radius</code>). Used only when <code>dedupe_method="knn"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_iters</code>
+            </td>
+            <td>
+                  <code>LM iterations per pairwise registration. ``None`` (default) takes the value from</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>quality</code>; an explicit int wins.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>quality</code>
+            </td>
+            <td>
+                  <code>quality / machine-adaptivity policy applied to every pairwise registration — ``&#34;full&#34;``</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(DEFAULT), <code>"balanced"</code> / <code>"low"</code>, a <code>0..1</code> float, or <code>"auto"</code> (fit detected memory).
+See :func:<code>register</code> / :func:<code>splatreg.quality.resolve_quality</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;full&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>refine</code>
+            </td>
+            <td>
+                  <code>optional opt-in per-pair refinement stage, forwarded to :func:`register`. The merge</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>seam is exactly where <code>refine="photometric"</code> earns its keep: after the geometric solve a
+short photometric LM renders each moving splat against the reference from a synthetic
+camera ring and polishes the pose so the seam <em>looks</em> aligned, not just measures aligned
+(PhotoReg-style; needs <code>colors</code> on the splats + gsplat or a custom render_fn).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>refine_kwargs</code>
+            </td>
+            <td>
+                  <code>keyword overrides for the refine stage, forwarded to :func:`register`.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>Gaussians</code></td>            <td>
+                  <code>the fused splat. Raises ``ValueError`` on an empty list or out-of-range ``ref``.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="splatreg.api.Tracker" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">splatreg.api.Tracker</span>
+
+
+<a href="#splatreg.api.Tracker" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">Tracker</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">target</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">residuals</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">transform</span><span class="o">=</span><span class="s2">&quot;se3&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">max_iters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">init</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">quality</span><span class="o">=</span><span class="s2">&quot;full&quot;</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Stateful pose tracker: fixed <code>target</code> + residuals, warm-started across frames.</p>
+<p>Hold the reference splat and the residual list once, then call :meth:<code>track</code> per frame; each
+call seeds the LM from the previously estimated pose so small inter-frame motion converges in a
+few iterations.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>target</code>
+            </td>
+            <td>
+                  <code>the reference (a :class:`~splatreg.core.types.Gaussians`, usually).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>residuals</code>
+            </td>
+            <td>
+                  <code>sequence of :class:`~splatreg.residuals.base.Residual`.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>transform</code>
+            </td>
+            <td>
+                  <code>``&#34;se3&#34;`` or ``&#34;sim3&#34;``.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>&#39;se3&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_iters</code>
+            </td>
+            <td>
+                  <code>LM iterations per :meth:`track` call. ``None`` takes the value from ``quality``.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>init</code>
+            </td>
+            <td>
+                  <code>optional initial 4x4 pose (identity when ``None``).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>quality</code>
+            </td>
+            <td>
+                  <code>quality / machine-adaptivity policy (see</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>:func:<code>splatreg.quality.resolve_quality</code>). For the tracker the residual stack is fixed by the
+caller, so <code>quality</code> sets the Sim(3) autodiff row-chunk (peak-memory bound, no quality
+loss) and the default <code>max_iters</code>; it is resolved against the target's device/anchors at
+construction. Default <code>"full"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;full&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="splatreg.api.Tracker.pose" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">pose</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#splatreg.api.Tracker.pose" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">pose</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The most recent estimated 4x4 pose (<code>None</code> before the first :meth:<code>track</code>).</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.api.Tracker.reset" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">reset</span>
+
+
+<a href="#splatreg.api.Tracker.reset" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">reset</span><span class="p">(</span><span class="n">init</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Drop the warm-start so the next :meth:<code>track</code> starts from <code>init</code> (or identity).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.api.Tracker.track" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">track</span>
+
+
+<a href="#splatreg.api.Tracker.track" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">track</span><span class="p">(</span><span class="n">source_or_frame</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Estimate the pose of a new <code>source</code> (<code>Gaussians</code> or <code>Frame</code>), warm-started.</p>
+<p>Returns the :class:<code>~splatreg.core.types.RegisterResult</code>; the estimated <code>T</code> is retained
+as the warm-start for the next call.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="multi-splat-bundle-registration">Multi-splat bundle registration<a class="headerlink" href="#multi-splat-bundle-registration" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.bundle.bundle_register" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.bundle.bundle_register</span>
+
+
+<a href="#splatreg.bundle.bundle_register" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">bundle_register</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">splats</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">ref</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">pairs</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">transform</span><span class="o">=</span><span class="s2">&quot;se3&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">init</span><span class="o">=</span><span class="s2">&quot;global&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">register_kwargs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">max_iters</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">damping</span><span class="o">=</span><span class="mf">1e-06</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">convergence_tol</span><span class="o">=</span><span class="mf">1e-09</span><span class="p">,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">robust</span><span class="o">=</span><span class="s2">&quot;huber&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">robust_scale</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">reject_threshold</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">fuse</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">return_info</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">dedupe</span><span class="o">=</span><span class="kc">True</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Jointly register <code>N</code> splats into one loop-consistent frame via a pose-graph solve.</p>
+<p>Builds a relative-pose constraint <code>T_ij</code> for every edge in <code>pairs</code> (each from
+:func:<code>splatreg.register</code>), then optimises all <code>N</code> absolute poses <code>T_i</code> so every edge
+<code>T_i @ T_ij ≈ T_j</code> holds <em>simultaneously</em> — Gauss-Newton in the SE(3)/Sim(3) tangent, with the
+reference pose pinned to identity to fix the gauge. Unlike the sequential merge (which chains the
+edges and accumulates drift around a loop) the joint optimum spreads the closure error over the
+whole graph, so the max pairwise inconsistency drops.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>splats</code>
+            </td>
+            <td>
+                  <code>the ``N`` splats to register together.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>ref</code>
+            </td>
+            <td>
+                  <code>index of the reference splat, held at identity (the global frame). Default 0.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>pairs</code>
+            </td>
+            <td>
+                  <code>``&#34;auto&#34;`` (chain ``0-1-…-(N-1)`` + loop-closure ``(N-1, 0)``) or an explicit</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>[(i, j), ...]</code> edge list. Each pair becomes one relative-pose constraint via
+<code>register(splats[i], splats[j])</code> (<code>j</code> aligned into <code>i</code>'s frame).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;auto&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>transform</code>
+            </td>
+            <td>
+                  <code>``&#34;se3&#34;`` (6-DoF edges/poses) or ``&#34;sim3&#34;`` (7-DoF, scale included).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>&#39;se3&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>init</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="str">str</span>, <span title="torch.Tensor">Tensor</span>, None]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>to <code>"global"</code> so large inter-capture offsets recover; <code>register_kwargs</code> can set
+residuals / quality / max_iters of the <em>pairwise</em> solves).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;global&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_iters</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(a small Levenberg damping keeps the normal equations SPD; the solve stops when the pose
+update norm drops below <code>convergence_tol</code>).</p>
+              </div>
+            </td>
+            <td>
+                  <code>30</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>robust</code>
+            </td>
+            <td>
+                  <code>per-edge robust kernel applied in the joint solve (IRLS). ``&#34;huber&#34;`` (default) or</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"cauchy"</code> down-weight an edge whose tangent residual exceeds <code>robust_scale</code> so a single
+wrong pairwise :func:<code>register</code> result (a bad edge) cannot corrupt the global poses; <code>None</code>
+recovers the plain least-squares solve. The edge weight is folded into the normal equations
+(<code>H += w·JᵀJ</code>, <code>b -= w·Jᵀe</code>) and recomputed every iteration from the current residual.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;huber&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>robust_scale</code>
+            </td>
+            <td>
+                  <code>the kernel scale ``c`` (the residual norm at which an edge starts to be</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>down-weighted). <code>"auto"</code> (default) sets <code>c = 1.4826·median(‖e_ij‖)</code> (a robust MAD
+estimate of the inlier spread) each iteration, so it adapts to the loop's noise level; pass a
+float to pin it.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;auto&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>reject_threshold</code>
+            </td>
+            <td>
+                  <code>an edge whose final IRLS weight is below this is reported in</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>info.rejected_edges</code> (it was effectively excluded from the solution). Diagnostic only —
+the down-weighting itself is continuous, not a hard cut.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.1</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>fuse</code>
+            </td>
+            <td>
+                  <code>also return one merged :class:`~splatreg.core.types.Gaussians` — every splat baked into</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>its recovered absolute pose, concatenated, and (<code>dedupe</code>) overlap-deduped, like
+:func:<code>splatreg.merge</code> but with the <em>jointly</em> optimised poses.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>return_info</code>
+            </td>
+            <td>
+                  <code>also return a :class:`BundleResult` with the consistency diagnostics.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>dedupe</code>
+            </td>
+            <td>
+                  <code>voxel-dedupe the fused splat when ``fuse=True`` (default ``True``).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>``list[Tensor]`` of the ``N`` absolute 4x4 poses, by default. With ``fuse=True`` a</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>``(poses, fused)`` tuple; with ``return_info=True`` a trailing :class:`BundleResult` is appended.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.bundle.pairwise_consistency" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.bundle.pairwise_consistency</span>
+
+
+<a href="#splatreg.bundle.pairwise_consistency" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">pairwise_consistency</span><span class="p">(</span><span class="n">poses</span><span class="p">,</span> <span class="n">rel</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="s1">&#39;se3&#39;</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Max and mean per-edge tangent inconsistency of an absolute-pose set against the measurements.</p>
+<p><code>rel</code> maps <code>(i, j) -&gt; T_ij</code>. Returns <code>(max||e_ij||, mean||e_ij||)</code> — the metric the joint
+solve drives down and the headline "loop closes" number. The tangent norm mixes rotation
+(radians) and translation (splat units); for the synthetic loop both are small so it is a fair
+single scalar, but callers comparing regimes should look at the components.</p>
+
+
+    </div>
+
+</div><h2 id="object-pose">Object pose<a class="headerlink" href="#object-pose" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.object_pose.estimate_object_pose" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.object_pose.estimate_object_pose</span>
+
+
+<a href="#splatreg.object_pose.estimate_object_pose" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">estimate_object_pose</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">model</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">observation</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">init</span><span class="o">=</span><span class="s2">&quot;fast&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">transform</span><span class="o">=</span><span class="s2">&quot;se3&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">residuals</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">backend</span><span class="o">=</span><span class="s2">&quot;builtin&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">max_iters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">quality</span><span class="o">=</span><span class="s2">&quot;full&quot;</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Estimate the 6-DoF pose <code>T_SO</code> of a known <code>model</code> splat from an <code>observation</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>model</code>
+            </td>
+            <td>
+                  <code>the canonical object splat (the &#34;CAD model&#34; of the splat world), in its own object frame.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>observation</code>
+            </td>
+            <td>
+                  <code>the observed instance — a :class:`~splatreg.core.types.Gaussians` (an observed</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>splat / crop) or a :class:<code>~splatreg.core.types.Frame</code> carrying a <code>point_cloud</code> — in the
+scene / camera frame.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>init</code>
+            </td>
+            <td>
+                  <code>coarse-init mode, per :func:`splatreg.register`. Default ``&#34;fast&#34;`` (FPFH + GPU-batched</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>RANSAC) finds the rotation basin for an arbitrarily-rotated object; pass a 4x4 to warm-start
+from a prior pose, or <code>"global"</code> for the blind super-Fibonacci sweep.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;fast&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>transform</code>
+            </td>
+            <td>
+                  <code>``&#34;se3&#34;`` (default, rigid 6-DoF — a real object does not change size) or ``&#34;sim3&#34;``</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>when the observation is at an unknown metric scale.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;se3&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>residuals</code>
+            </td>
+            <td>
+                  <code>forwarded to :func:`splatreg.register`.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>backend</code>
+            </td>
+            <td>
+                  <code>forwarded to :func:`splatreg.register`.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_iters</code>
+            </td>
+            <td>
+                  <code>forwarded to :func:`splatreg.register`.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>quality</code>
+            </td>
+            <td>
+                  <code>forwarded to :func:`splatreg.register`.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>class:`ObjectPose` whose ``T_SO`` maps model points into the observation frame.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Notes</summary>
+  <p>Internally this is <code>register(target=observation, source=model)</code> — the <em>observation</em> is the
+target so the recovered transform moves the <em>model</em> onto the observation, i.e. exactly the object
+pose <code>T_SO</code> the caller wants. The honest occlusion / partial-view limit of <code>register</code> carries
+over: a heavily cropped observation can leave the pose ambiguous, surfaced as <code>info['ambiguous']</code>.</p>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="splatreg.object_pose.ObjectPoseEstimator" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">splatreg.object_pose.ObjectPoseEstimator</span>
+
+
+<a href="#splatreg.object_pose.ObjectPoseEstimator" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">ObjectPoseEstimator</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">model</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">transform</span><span class="o">=</span><span class="s2">&quot;se3&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">init</span><span class="o">=</span><span class="s2">&quot;fast&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">track_iters</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">quality</span><span class="o">=</span><span class="s2">&quot;full&quot;</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Stateful 6-DoF object-pose tracker for a <em>fixed</em> known <code>model</code> (the FoundationPose regime).</p>
+<p>Build once with the canonical <code>model</code> splat, then call :meth:<code>estimate</code> per frame. The first
+frame pays the global/feature init to find the pose basin; every subsequent frame warm-starts
+from the previous pose via the fast :func:<code>splatreg.track</code> path (skip-global-init + truncated-SDF
+closed-form LM), so a tracked object updates in a few LM iterations rather than re-searching SO(3).</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>model</code>
+            </td>
+            <td>
+                  <code>the canonical object splat (held fixed for the estimator&#39;s life).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>transform</code>
+            </td>
+            <td>
+                  <code>``&#34;se3&#34;`` (default) or ``&#34;sim3&#34;``.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>&#39;se3&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>init</code>
+            </td>
+            <td>
+                  <code>the FIRST-frame coarse init mode (per :func:`estimate_object_pose`); later frames ignore it.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>&#39;fast&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>track_iters</code>
+            </td>
+            <td>
+                  <code>LM iterations per warm-started frame (default from :func:`splatreg.track`).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>4</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>quality</code>
+            </td>
+            <td>
+                  <code>quality / machine-adaptivity policy for the first-frame :func:`register`.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>&#39;full&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="splatreg.object_pose.ObjectPoseEstimator.pose" class="doc doc-heading">
+            <span class="doc doc-object-name doc-attribute-name">pose</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#splatreg.object_pose.ObjectPoseEstimator.pose" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">pose</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The most recent estimated <code>T_SO</code> (<code>None</code> before the first :meth:<code>estimate</code>).</p>
+
+    </div>
+
+</div>
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.object_pose.ObjectPoseEstimator.reset" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">reset</span>
+
+
+<a href="#splatreg.object_pose.ObjectPoseEstimator.reset" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">reset</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Drop the warm-start so the next :meth:<code>estimate</code> re-runs the cold init.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.object_pose.ObjectPoseEstimator.estimate" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">estimate</span>
+
+
+<a href="#splatreg.object_pose.ObjectPoseEstimator.estimate" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">estimate</span><span class="p">(</span><span class="n">observation</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Estimate <code>T_SO</code> for a new observation, warm-started after the first frame.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.object_pose.add_metric" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.object_pose.add_metric</span>
+
+
+<a href="#splatreg.object_pose.add_metric" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">add_metric</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">T_pred</span><span class="p">,</span> <span class="n">T_gt</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Hinterstoisser <strong>ADD</strong>: mean model-point distance between the predicted and GT pose.</p>
+<p><code>ADD = mean_i || T_pred · x_i − T_gt · x_i ||</code> over the model points <code>x_i</code>. The standard
+non-symmetric pose-error metric (asymmetric objects). Returned in the model's units (metres).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.object_pose.adds_metric" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.object_pose.adds_metric</span>
+
+
+<a href="#splatreg.object_pose.adds_metric" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">adds_metric</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">T_pred</span><span class="p">,</span> <span class="n">T_gt</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">max_pts</span><span class="o">=</span><span class="mi">4000</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p><strong>ADD-S</strong>: symmetric (closest-point) variant of ADD for symmetric objects.</p>
+<p><code>ADD-S = mean_i min_j || T_pred · x_i − T_gt · x_j ||</code> — each transformed-by-prediction point is
+matched to its <em>nearest</em> GT-transformed model point, so a rotation about a symmetry axis (which
+maps the model onto itself) is not penalised. This is the metric YCB-Video / FoundationPose use
+for symmetric objects. Both sides are deterministically strided to <code>max_pts</code> to bound the
+pairwise distance. Returned in model units (metres).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.object_pose.add_auc" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.object_pose.add_auc</span>
+
+
+<a href="#splatreg.object_pose.add_auc" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">add_auc</span><span class="p">(</span><span class="n">errors</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">max_threshold</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">n_steps</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Area-under-curve of the ADD/ADD-S <strong>accuracy-threshold</strong> recall (the YCB-Video AUC).</p>
+<p>Sweeps a distance threshold <code>d</code> from 0 to <code>max_threshold</code> (default 0.1 m = 10 cm, the
+YCB-Video convention), at each <code>d</code> measures the fraction of poses whose error <code>≤ d</code>, and
+returns the normalised area under that curve in <code>[0, 1]</code> (×100 gives the reported AUC). A higher
+AUC means more poses are accurate at a tighter threshold.</p>
+
+
+    </div>
+
+</div><h2 id="camera-localization">Camera localization<a class="headerlink" href="#camera-localization" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.camera_loc.localize_camera" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.camera_loc.localize_camera</span>
+
+
+<a href="#splatreg.camera_loc.localize_camera" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">localize_camera</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">splat</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">frame</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">init_T_WC</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">iters</span><span class="o">=</span><span class="mi">150</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">lr</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">refold_every</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">mask_to_rendered</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">huber_k</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">sh_degree</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">coarse_kwargs</span><span class="o">=</span><span class="kc">None</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Localize a query camera in a <code>splat</code> by differentiable-render pose optimization.</p>
+<p>Refines <code>init_T_WC</code> so the gsplat render of <code>splat</code> from that camera matches <code>frame.rgb</code>,
+optimizing the camera→world pose through gsplat's differentiable rasteriser (exact render
+gradient). Returns a :class:<code>~splatreg.core.types.RegisterResult</code> whose <code>T</code> is the refined
+<code>T_WC</code> and whose <code>info</code> carries the loss history.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>splat</code>
+            </td>
+            <td>
+                  <code>the world-fixed Gaussian splat (must carry ``colors``).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>frame</code>
+            </td>
+            <td>
+                  <code>the query observation — needs ``rgb`` and ``K`` (optional ``mask``).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>init_T_WC</code>
+            </td>
+            <td>
+                  <code>``(4, 4)`` initial camera→world prior, OR the string ``&#34;coarse&#34;`` to first run the</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>prior-free :func:<code>coarse_localize_camera</code> viewpoint sweep and refine its seed. Direct image
+alignment has a limited basin (a few degrees / a few percent of depth), so without <code>"coarse"</code>
+a <em>wide-baseline</em> query (no good prior) falls outside it — that is exactly what the coarse
+seed bridges. <code>coarse_kwargs</code> is forwarded to the sweep.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>iters</code>
+            </td>
+            <td>
+                  <code>Adam steps on the pose tangent.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>150</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lr</code>
+            </td>
+            <td>
+                  <code>Adam learning rate on the 6-vector right-perturbation tangent.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>0.01</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>refold_every</code>
+            </td>
+            <td>
+                  <code>every this many steps, fold the accumulated tangent into ``T_WC`` and reset it to</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>zero (keeps <code>exp</code> near the origin where it is best-conditioned).</p>
+              </div>
+            </td>
+            <td>
+                  <code>40</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>mask_to_rendered</code>
+            </td>
+            <td>
+                  <code>when ``True``, the photometric loss is restricted to pixels the splat actually</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>renders (rendered depth &gt; 0), so empty background does not dominate the loss.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>huber_k</code>
+            </td>
+            <td>
+                  <code>optional Huber threshold on the per-pixel RGB residual (robust to occluders / outliers);</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>None</code> uses a plain L2 loss.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>sh_degree</code>
+            </td>
+            <td>
+                  <code>SH degree if ``splat.colors`` are SH coefficients; ``None`` treats them as RGB.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>coarse_kwargs</code>
+            </td>
+            <td>
+                  <code>forwarded to :func:`coarse_localize_camera` when ``init_T_WC == &#34;coarse&#34;``</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(e.g. <code>n_az</code> / <code>n_el</code> / <code>grid</code> / <code>radius</code>).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>class:`~splatreg.core.types.RegisterResult` with the refined ``T_WC``; ``info[&#39;mode&#39;] ==</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>&#39;camera_loc&#39;``, ``info[&#39;loss&#39;]`` (final), ``info[&#39;loss_history&#39;]``.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.camera_loc.coarse_localize_camera" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.camera_loc.coarse_localize_camera</span>
+
+
+<a href="#splatreg.camera_loc.coarse_localize_camera" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">coarse_localize_camera</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">splat</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">frame</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">candidates</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">n_az</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">n_el</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">radius</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">grid</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">dilate</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">return_score</span><span class="o">=</span><span class="kc">False</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Coarse, prior-free camera-pose seed by a project-and-compare viewpoint sweep (CPU, no gsplat).</p>
+<p>:func:<code>localize_camera</code> refines a pose only within the narrow basin of direct image alignment, so
+it needs a decent prior. This provides that prior when none exists (a <em>wide-baseline</em> relocalise):
+it scores a sphere of candidate camera poses by how well the splat's <strong>projected occupancy</strong>
+overlaps the query frame's foreground silhouette (from <code>frame.mask</code>, or a luminance threshold of
+<code>frame.rgb</code>), and returns the best-scoring pose. Pure pinhole projection — it runs on CPU and
+needs no rasteriser — so it is a coarse <em>seed</em>, deliberately cheap, not a final pose. Feed its
+result as <code>init_T_WC</code> to :func:<code>localize_camera</code> for the fine refine.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>splat</code>
+            </td>
+            <td>
+                  <code>the world-fixed splat (only ``means`` are used here).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>frame</code>
+            </td>
+            <td>
+                  <code>query observation; needs ``K`` and a foreground cue (``mask`` preferred, else ``rgb``).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>candidates</code>
+            </td>
+            <td>
+                  <code>explicit list of ``(4, 4)`` ``T_WC`` to score; ``None`` auto-builds a look-at sphere</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(<code>n_az</code> azimuths × <code>n_el</code> elevations) around the splat centroid at <code>radius</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_az</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>⇒ ~2.5× the splat's bounding radius, a typical object-framing distance).</p>
+              </div>
+            </td>
+            <td>
+                  <code>12</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>grid</code>
+            </td>
+            <td>
+                  <code>occupancy-bitmap resolution the IoU score is computed at (coarse on purpose).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>24</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>dilate</code>
+            </td>
+            <td>
+                  <code>binary-dilation radius (in grid cells) applied to both the projected and the query</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>occupancy before scoring — closes the holes a <em>sparse</em> point splat leaves so the IoU compares
+connected silhouettes (higher and far more viewpoint-discriminative). <code>0</code> disables it.</p>
+              </div>
+            </td>
+            <td>
+                  <code>2</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>return_score</code>
+            </td>
+            <td>
+                  <code>also return the best IoU score (diagnostic).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>The best ``(4, 4)`` ``T_WC`` (camera→world); with ``return_score=True`` a ``(T_WC, score)`` tuple.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div><h2 id="core-types">Core types<a class="headerlink" href="#core-types" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="splatreg.core.types.Gaussians" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">splatreg.core.types.Gaussians</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#splatreg.core.types.Gaussians" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">Gaussians</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">means</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">quats</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">scales</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">opacities</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">colors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">log_scales</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A 3D Gaussian Splat, gsplat-compatible. All tensors share a device.</p>
+<p>Convention: <code>quats</code> are wxyz; <code>scales</code> are linear unless <code>log_scales</code> is True;
+<code>colors</code> are either (N,3) RGB or (N,K,3) SH coefficients.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="splatreg.core.types.Frame" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">splatreg.core.types.Frame</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#splatreg.core.types.Frame" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">Frame</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">rgb</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">depth</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">K</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">point_cloud</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A single observation (for the camera/object tracking modes).</p>
+<p>For splat-to-splat registration the 'source' is another <code>Gaussians</code>, not a Frame —
+residuals receive whichever is relevant via the <code>source</code> argument.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="splatreg.core.types.RegisterResult" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">splatreg.core.types.RegisterResult</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#splatreg.core.types.RegisterResult" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">RegisterResult</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">converged</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">info</span><span class="o">=</span><span class="nb">dict</span><span class="p">())</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Output of <code>register</code> / <code>Tracker.track</code>.</p>
+<p><code>T</code> is the 4x4 transform aligning <code>source</code> to <code>target</code> (rotation*scale | translation
+for Sim(3); plain SE(3) when <code>transform='se3'</code>). <code>info</code> carries diagnostics
+(per-iter cost, rmse, overlap, n_iters, timings, residual breakdown).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="ply-gsplat-io">PLY + gsplat I/O<a class="headerlink" href="#ply-gsplat-io" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.io.load_ply" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.io.load_ply</span>
+
+
+<a href="#splatreg.io.load_ply" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">load_ply</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Load a standard 3D Gaussian Splatting <code>.ply</code> into a :class:<code>Gaussians</code>.</p>
+<p>Recognises the canonical INRIA/gsplat layout (<code>x y z</code>, <code>f_dc_0..2</code>, <code>f_rest_*</code>,
+<code>opacity</code>, <code>scale_0..2</code>, <code>rot_0..3</code>). Stored values are raw — the returned
+<code>Gaussians</code> has <code>log_scales=True</code>, raw (pre-sigmoid) <code>opacities</code>, <code>wxyz</code> <code>quats</code>,
+and <code>colors</code> as SH coefficients shaped <code>(N, K, 3)</code> (or RGB <code>(N, 3)</code> if only DC is present,
+i.e. <code>K == 1</code>, kept 2-D for convenience).</p>
+<p>Args:
+    path: Path to the <code>.ply</code> file.
+    device: Target device for the tensors (default: CPU).
+    dtype: Floating dtype for the tensors (default: <code>float32</code>).</p>
+<p>Returns:
+    Gaussians: with <code>log_scales=True</code> and SH colours.</p>
+<p>Raises:
+    FileNotFoundError: if <code>path</code> does not exist.
+    ValueError: if the required 3DGS properties are missing.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.io.save_ply" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.io.save_ply</span>
+
+
+<a href="#splatreg.io.save_ply" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">save_ply</span><span class="p">(</span><span class="n">gaussians</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Write a :class:<code>Gaussians</code> to a standard 3D Gaussian Splatting binary <code>.ply</code>.</p>
+<p>The output is the canonical INRIA/gsplat layout consumable by SuperSplat, the antimatter15
+viewer, gsplat, nerfstudio, etc. Parameters are stored <strong>raw</strong>: <code>scale_*</code> are log-scales
+(the input is log-transformed if <code>log_scales</code> is False), <code>opacity</code> is the stored logit,
+and the colour is written as SH (<code>f_dc</code> + <code>f_rest</code>). RGB colours are encoded to a DC-only
+SH; an <code>(N, K, 3)</code> SH input is written with full <code>f_rest</code>.</p>
+<p>Args:
+    gaussians: The splat to serialise.
+    path: Destination <code>.ply</code> path (parent dirs are created).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.io.from_gsplat" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.io.from_gsplat</span>
+
+
+<a href="#splatreg.io.from_gsplat" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">from_gsplat</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">means</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">quats</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">scales</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">opacities</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">colors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">log_scales</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Wrap gsplat-style rasteriser tensors as a :class:<code>Gaussians</code> (no copy of valid inputs).</p>
+<p>This is the entry point for "I already have my splat as gsplat tensors." It performs only
+light normalisation (shape/contiguity), leaving values untouched.</p>
+<p>Args:
+    means: <code>(N, 3)</code> centres.
+    quats: <code>(N, 4)</code> rotations, <code>wxyz</code> (gsplat's convention).
+    scales: <code>(N, 3)</code>. Linear by default; pass <code>log_scales=True</code> if these are log-scales.
+    opacities: <code>(N,)</code> or <code>(N, 1)</code>. Whatever activation state your gsplat call expects —
+        splatreg treats this as opaque and passes it back unchanged in :func:<code>to_gsplat</code>.
+    colors: optional <code>(N, 3)</code> RGB or <code>(N, K, 3)</code> SH coefficients.
+    log_scales: set True if <code>scales</code> are already log-transformed.</p>
+<p>Returns:
+    Gaussians.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.io.to_gsplat" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.io.to_gsplat</span>
+
+
+<a href="#splatreg.io.to_gsplat" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">to_gsplat</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Unpack a :class:<code>Gaussians</code> into the keyword bundle gsplat's rasteriser consumes.</p>
+<p>Scales are returned <strong>linear</strong> (<code>exp</code> applied if the <code>Gaussians</code> holds log-scales), since
+<code>gsplat.rasterization</code> expects linear scales. <code>opacities</code> and <code>colors</code> are passed
+through unchanged. The result is intended for <code>gsplat.rasterization(..., **to_gsplat(g))</code>::</p>
+<div class="highlight"><pre><span></span><code>from gsplat import rasterization
+out = rasterization(viewmats=..., Ks=..., width=W, height=H, **to_gsplat(g))
+</code></pre></div>
+<p>Args:
+    g: The splat to unpack.</p>
+<p>Returns:
+    dict: <code>{"means", "quats", "scales", "opacities", "colors"}</code> (<code>colors</code> omitted if
+    <code>g.colors is None</code>).</p>
+
+
+    </div>
+
+</div><h2 id="gaussian-sdf-field">Gaussian-SDF field<a class="headerlink" href="#gaussian-sdf-field" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.geometry.gaussian_sdf.gaussian_sdf" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.geometry.gaussian_sdf.gaussian_sdf</span>
+
+
+<a href="#splatreg.geometry.gaussian_sdf.gaussian_sdf" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">gaussian_sdf</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">gaussians</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">points</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">sigma</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">normals</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">trunc_sigmas</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">use_opacity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">knn</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">chunk_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">index</span><span class="o">=</span><span class="kc">None</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Sample the Gaussian-derived signed-distance proxy and its gradient at <code>points</code>.</p>
+<p>See the module docstring for the proxy definition and assumptions.</p>
+<p>Args:
+    gaussians: the splat providing the anchors (<code>means</code>, <code>opacities</code>). Only
+        <code>means</code> (and <code>opacities</code> when <code>use_opacity</code>) are read.
+    points: <code>(N, 3)</code> query positions, in the splat's own frame.
+    sigma: Gaussian kernel bandwidth (influence radius), same units as <code>means</code>.
+        <strong>Required</strong> — there is no universal default. Must be &gt; 0.
+    normals: optional <code>(M, 3)</code> per-anchor normals. If <code>None</code> they are estimated
+        once via :func:<code>estimate_anchor_normals</code> (k-NN PCA, outward-oriented).
+    trunc_sigmas: if set, only the anchors within <code>trunc_sigmas * sigma</code> of each query
+        (via a per-query top-k gather) contribute; <code>None</code> uses every anchor. A speed
+        knob for very large splats; does not change the proxy otherwise.
+    use_opacity: multiply each kernel weight by its anchor opacity.
+    knn: neighbourhood size passed to the normal estimator (ignored if <code>normals</code> given).
+    chunk_size: rows of <code>points</code> processed per block, bounding the <code>(chunk, M)</code> weight
+        matrix's memory.
+    index: optional prebuilt :class:<code>splatreg.spatial_index.SpatialIndex</code> over the target
+        anchors. When supplied <strong>with</strong> <code>trunc_sigmas</code> the per-query <code>k</code>-nearest gather is
+        served by the voxel-hash grid (near-O(N) candidate lookup) instead of the full
+        <code>(chunk, M)</code> distance matrix — the EXACT same truncated proxy, only the neighbour
+        search is pruned, so a scene-scale target field stays cheap. Ignored when
+        <code>trunc_sigmas</code> is <code>None</code> (the full-field path reads every anchor by definition).</p>
+<p>Returns:
+    <code>(sdf, grad)</code> where <code>sdf</code> is <code>(N,)</code> signed distances (<code>&gt; 0</code> outside) and
+    <code>grad</code> is <code>(N, 3)</code> unit surface normals <code>n~(p)</code> (the spatial gradient of the
+    proxy). Both live on <code>points</code>' device and dtype.</p>
+<p>Raises:
+    ValueError: empty splat, mismatched <code>normals</code>, malformed <code>points</code>, or <code>sigma&lt;=0</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.geometry.gaussian_sdf.gaussian_sdf_grad" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.geometry.gaussian_sdf.gaussian_sdf_grad</span>
+
+
+<a href="#splatreg.geometry.gaussian_sdf.gaussian_sdf_grad" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">gaussian_sdf_grad</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">gaussians</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">points</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">sigma</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">normals</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">use_opacity</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">knn</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">chunk_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">trunc_sigmas</span><span class="o">=</span><span class="kc">None</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Signed distance AND its EXACT spatial gradient <code>∇_p d</code>, computed in closed form.</p>
+<p>Same proxy as :func:<code>gaussian_sdf</code>, but the second return is the TRUE field gradient <code>∇_p d</code>
+analytically — so the SE(3) SDF-residual path needs neither an autograd graph nor a second
+forward (this is the fast path; :func:<code>gaussian_sdf</code> + autodiff is the truncated fallback).
+Derivation (<code>u = p - q~</code>, <code>a_i = p - q_i</code>, <code>c_i = q_i - q~</code>)::</p>
+<div class="highlight"><pre><span></span><code>∂q~/∂p = (1/σ²) Cov_w,   Cov_w = (1/W) Σ_i w_i c_i c_iᵀ   (weighted anchor covariance)
+∇_p d  = n~ - (1/σ²) Cov_w n~ - (1/(σ²‖S_n‖)) Σ_i w_i (n_i·x) a_i,   x = u - d n~
+</code></pre></div>
+<p>EXACT (~1e-8 vs central-difference numerical) wherever the field has anchor support — the
+entire regime where the SDF is meaningful and where the registration residual operates
+(residual audit <code>tests/test_jacobians.py</code> 8/8). At degenerate far queries (the weight-sum
+clamp activates, the field itself is undefined) it falls back to the bounded surface normal
+<code>n~</code> rather than the blown-up un-clamped expression. Returns <code>(sdf (N,), grad (N, 3))</code>
+where <code>grad</code> is <code>∇_p d</code> — NOT the surface normal <code>n~</code>.</p>
+
+
+<details class="truncation-(the-tracking-fast-path)" open>
+  <summary>Truncation (the tracking fast path)</summary>
+  <p><code>trunc_sigmas</code> (default <code>None</code> = every anchor) restricts each query to its <code>k</code> nearest
+anchors via a per-query top-k gather, then zeros the weight of any beyond <code>trunc_sigmas*sigma</code>
+— exactly the support :func:<code>gaussian_sdf</code> uses. Because all the closed-form sums above
+(<code>q~</code>, <code>S_n</code>, <code>Cov_w n~</code>, the normal-derivative term) are computed over the SAME truncated
+anchor set, the gradient stays the EXACT analytic field gradient of the <em>truncated</em> proxy with
+NO autodiff — so warm-start tracking with a tight sigma costs <code>N*k</code> not <code>N*M</code>. <code>k</code> is
+sized from <code>knn</code> (clamped to the cloud), the same convention as :func:<code>gaussian_sdf</code>.</p>
+</details>
+
+    </div>
+
+</div><h2 id="fusion-dedupe">Fusion / dedupe<a class="headerlink" href="#fusion-dedupe" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.fuse.voxel_dedupe" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.fuse.voxel_dedupe</span>
+
+
+<a href="#splatreg.fuse.voxel_dedupe" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">voxel_dedupe</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">voxel</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Collapse near-coincident Gaussians to one-per-voxel, keeping the highest-opacity survivor.</p>
+<p>Args:
+    g: the (typically concatenated) splat to dedupe.
+    voxel: grid edge length in the splat's units; <code>None</code> derives it via
+        :func:<code>auto_voxel_size</code> (a small multiple of the median Gaussian scale).</p>
+<p>Returns:
+    Gaussians: a subset of <code>g</code> with at most one Gaussian per occupied voxel. Fields,
+    <code>colors</code> (if present), <code>log_scales</code>, device and dtype are preserved. An empty or
+    single-Gaussian input is returned unchanged.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.fuse.knn_dedupe" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.fuse.knn_dedupe</span>
+
+
+<a href="#splatreg.fuse.knn_dedupe" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">knn_dedupe</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">radius</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">use_index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Cross-splat radius dedupe: keep the highest-opacity survivor within every <code>radius</code> ball.</p>
+<p>The translation-invariant complement to :func:<code>voxel_dedupe</code> — it removes the residual overlap a
+voxel grid leaves at cell boundaries (see this section's note). Use it (e.g. via
+<code>merge(..., dedupe_method="knn")</code>) when the voxel pass under-dedupes a registered seam.</p>
+<p>Args:
+    g: the (typically concatenated) splat to dedupe.
+    radius: suppression ball radius in the splat's units; <code>None</code> derives it via
+        :func:<code>auto_knn_radius</code> (half the median anchor spacing).
+    use_index: when <code>True</code> route the neighbour search through the voxel-hash
+        :class:<code>splatreg.spatial_index.SpatialIndex</code> (near-O(N) on scene-scale splats) instead of
+        the default O(N^2) chunked <code>cdist</code> scan. The survivor set is IDENTICAL either way — only
+        the neighbour search is pruned. Default <code>False</code> (the original brute-force path).</p>
+<p>Returns:
+    Gaussians: a subset of <code>g</code> with no two survivors closer than <code>radius</code> to a
+    higher-priority neighbour. Fields, <code>colors</code>, <code>log_scales</code>, device and dtype are
+    preserved. An empty / single-Gaussian input is returned unchanged.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.fuse.auto_voxel_size" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.fuse.auto_voxel_size</span>
+
+
+<a href="#splatreg.fuse.auto_voxel_size" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">auto_voxel_size</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Derive a dedupe voxel edge from the splat's anchor SPACING (median nearest-neighbour
+distance) -- <code>_VOXEL_SPACING_MULT x</code> it.</p>
+<p>NOTE: call this on a single, duplicate-free splat (e.g. the merge <em>reference</em>). Running it on an
+already-concatenated splat would read the overlap duplicates themselves as the spacing and
+under-dedupe. Falls back to the median scale, then a bbox fraction, for degenerate inputs.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.fuse.auto_knn_radius" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.fuse.auto_knn_radius</span>
+
+
+<a href="#splatreg.fuse.auto_knn_radius" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">auto_knn_radius</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Derive a cross-splat KNN-dedupe radius from the anchor SPACING -- <code>_KNN_RADIUS_MULT x</code> it.</p>
+<p>Same spacing basis (and the same "call on the clean reference, not the merged splat" caveat) as
+:func:<code>auto_voxel_size</code>; only the multiplier differs. A radius of half the anchor spacing
+suppresses a duplicate that landed <em>anywhere</em> within half a lattice step of a kept anchor —
+including the sub-voxel-boundary pairs a grid snap leaves behind — while never reaching a genuine
+one-spacing-away neighbour. Falls back to the median scale, then a bbox fraction, when degenerate.</p>
+
+
+    </div>
+
+</div><h2 id="spatial-index">Spatial index<a class="headerlink" href="#spatial-index" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.spatial_index.build_index" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.spatial_index.build_index</span>
+
+
+<a href="#splatreg.spatial_index.build_index" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_index</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">cell</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Build a :class:<code>SpatialIndex</code> over a splat's means (or a raw <code>(M, 3)</code> tensor).</p>
+<p>Convenience constructor: accepts a :class:<code>~splatreg.core.types.Gaussians</code> (indexes its
+<code>means</code>) or a point tensor directly. <code>cell</code> <code>None</code> auto-sizes to the median anchor spacing.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="splatreg.spatial_index.SpatialIndex" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">splatreg.spatial_index.SpatialIndex</span>
+
+
+<a href="#splatreg.spatial_index.SpatialIndex" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">SpatialIndex</span><span class="p">(</span><span class="n">points</span><span class="p">,</span> <span class="n">cell</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>A voxel-hash grid over a point set supporting radius / knn / region queries.</p>
+<p>Build once from a <code>(M, 3)</code> point tensor (or a :class:<code>~splatreg.core.types.Gaussians</code> via
+:func:<code>build_index</code>), then query repeatedly. All queries return results IDENTICAL to a
+brute-force scan — the grid only prunes which anchors are distance-tested, never the answer.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>points</code>
+            </td>
+            <td>
+                  <code>``(M, 3)`` positions to index (the anchor means).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cell</code>
+            </td>
+            <td>
+                  <code>voxel edge in the points&#39; units. ``None`` auto-derives it from the median anchor</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>spacing, so a radius up to one cell needs only the 27-cell neighbourhood. Must be &gt; 0.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.spatial_index.SpatialIndex.radius" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">radius</span>
+
+
+<a href="#splatreg.spatial_index.SpatialIndex.radius" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">radius</span><span class="p">(</span><span class="n">queries</span><span class="p">,</span> <span class="n">r</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>All anchors within distance <code>r</code> of each query, in flat (query, anchor) pair form.</p>
+<p>Returns <code>(pair_query_idx, pair_anchor_idx)</code> — two <code>(P,)</code> long tensors so that
+<code>points[pair_anchor_idx[j]]</code> is within <code>r</code> of <code>queries[pair_query_idx[j]]</code>. This flat
+form composes directly with the chunked SDF / dedupe code (no ragged padding). The result is
+EXACT: every in-radius anchor is returned and no out-of-radius anchor is, identical to a
+brute-force <code>cdist &lt;= r</code> — the grid only limits which anchors are distance-tested.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.spatial_index.SpatialIndex.radius_batch" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">radius_batch</span>
+
+
+<a href="#splatreg.spatial_index.SpatialIndex.radius_batch" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">radius_batch</span><span class="p">(</span><span class="n">queries</span><span class="p">,</span> <span class="n">r</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Loop-free batch radius query — identical result to :meth:<code>radius</code>, no Python per-query loop.</p>
+<p>Enumerates every query's candidate anchors in one vectorised pass (:meth:<code>_candidate_pairs</code>),
+then does a single batched exact distance test over all (query, candidate) pairs at once. The
+returned flat <code>(pair_query_idx, pair_anchor_idx)</code> pair set is identical (as a set) to
+:meth:<code>radius</code> / a brute-force <code>cdist &lt;= r</code> — only the <em>which-anchors-tested</em> pruning is
+shared. Wins over the looped path when there are many queries on a small/moderate cloud (the
+Python loop overhead dominates there).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.spatial_index.SpatialIndex.knn_batch" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">knn_batch</span>
+
+
+<a href="#splatreg.spatial_index.SpatialIndex.knn_batch" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">knn_batch</span><span class="p">(</span><span class="n">queries</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Loop-free batch knn — same <code>(Q, k)</code> (idx, dist) result as :meth:<code>knn</code>, no per-query loop.</p>
+<p>Picks one ring wide enough to contain the k-th neighbour for <em>every</em> query (grown until each
+query has <code>≥ k</code> candidates and the ring margin clears the k-th distance), enumerates all
+candidates vectorised, then does a single padded scatter + batched top-k. Falls back to
+growing the shared ring; for very non-uniform densities the ring may be larger than the
+per-query :meth:<code>knn</code> would use, but the result is identical (exact top-k over a superset).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.spatial_index.SpatialIndex.knn" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">knn</span>
+
+
+<a href="#splatreg.spatial_index.SpatialIndex.knn" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">knn</span><span class="p">(</span><span class="n">queries</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>The <code>k</code> nearest anchors to each query.</p>
+<p>Returns <code>(idx, dist)</code> of shape <code>(Q, k)</code> (<code>idx</code> into <code>points</code>, <code>dist</code> Euclidean),
+sorted nearest-first per query — EXACTLY the brute-force <code>cdist</code>-topk result. Expands the
+searched cell ring until at least <code>k</code> candidates are found AND the ring radius safely
+exceeds the k-th distance (so no closer anchor in an unsearched outer cell is missed), then
+does the exact top-k over the candidates. <code>k</code> is clamped to the anchor count.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.spatial_index.SpatialIndex.region" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">region</span>
+
+
+<a href="#splatreg.spatial_index.SpatialIndex.region" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">region</span><span class="p">(</span><span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Indices of every anchor inside the axis-aligned box <code>[lo, hi]</code> (inclusive).</p>
+<p><code>lo</code> / <code>hi</code> are length-3 (tensor or sequence). Gathers the box's covered cells, then
+does the exact per-axis bound test on those candidates — the EXACT set a brute-force
+<code>((points &gt;= lo) &amp; (points &lt;= hi)).all(-1)</code> would return.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="quality-policy">Quality policy<a class="headerlink" href="#quality-policy" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.quality.resolve_quality" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.quality.resolve_quality</span>
+
+
+<a href="#splatreg.quality.resolve_quality" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">resolve_quality</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">quality</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">device</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">target_anchors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">source_anchors</span><span class="o">=</span><span class="kc">None</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Turn a user <code>quality</code> request into a concrete, memory-fitted :class:<code>QualityConfig</code>.</p>
+<p>Two stages: (1) pick the ACCURACY knobs (<code>n_points</code> / <code>knn</code> / <code>max_iters</code>) from the
+requested policy, then (2) ALWAYS fit the quality-neutral CHUNK knobs (<code>jac_row_chunk</code> /
+<code>sdf_chunk_size</code>) to the available memory via :func:<code>_fit_chunks</code> so the Sim(3) autodiff peak
+can never OOM — for <em>every</em> mode, full included. Chunking is numerically lossless, so stage 2
+changes footprint, not the result.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>quality</code>
+            </td>
+            <td>
+                  <code><span title="typing.Union">Union</span>[<span title="str">str</span>, <span title="float">float</span>, <a class="autorefs autorefs-internal" title="splatreg.quality.QualityConfig
+
+
+  
+      dataclass
+  " href="#splatreg.quality.QualityConfig">QualityConfig</a>, None]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li><code>None</code> or <code>"full"</code> -&gt; full ACCURACY (all source anchors). <strong>This is the default.</strong> The
+  chunk knobs are still memory-fitted so full runs even on a small GPU.</li>
+<li><code>"balanced"</code> / <code>"low"</code> -&gt; named accuracy presets (bounded <code>n_points</code>).</li>
+<li>a float in <code>[0, 1]</code> -&gt; scaled accuracy (<code>1.0</code> == full, smaller == fewer points).</li>
+<li><code>"auto"</code> -&gt; detect free GPU/CPU memory and pick the largest <code>n_points</code> that fits
+  (full on a roomy machine; capped on a small one) — chunks fitted on top.</li>
+<li>a :class:<code>~splatreg.quality.QualityConfig</code> -&gt; returned UNCHANGED (advanced manual override;
+  no fitting, so you own the memory budget).</li>
+</ul>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>device</code>
+            </td>
+            <td>
+                  <code>the device the run will execute on (read for memory in ``&#34;auto&#34;`` and in the chunk</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>fit). Defaults to CUDA-current when available else CPU.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>target_anchors</code>
+            </td>
+            <td>
+                  <code>the target splat&#39;s Gaussian count, if known — sharpens both the ``&#34;auto&#34;``</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>n_points</code> budget and the chunk fit (peak <code>~ jac_row_chunk x min(n_points,sdf) x M</code>).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>source_anchors</code>
+            </td>
+            <td>
+                  <code>the source splat&#39;s Gaussian count, if known — sharpens the chunk fit for</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>full</code> (<code>n_points=None</code> samples ALL source anchors, so the true sample is the source size).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>QualityConfig</code></td>            <td>
+                  <code>the resolved, memory-fitted sizing for this run.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="splatreg.quality.QualityConfig" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">splatreg.quality.QualityConfig</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+  </span>
+
+<a href="#splatreg.quality.QualityConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">QualityConfig</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">n_points</span><span class="o">=</span><span class="n">_FULL_N_POINTS</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">jac_row_chunk</span><span class="o">=</span><span class="n">_FULL_JAC_ROW_CHUNK</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">sdf_chunk_size</span><span class="o">=</span><span class="n">_FULL_SDF_CHUNK</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">knn</span><span class="o">=</span><span class="n">_FULL_KNN</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">max_iters</span><span class="o">=</span><span class="n">_FULL_MAX_ITERS</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">refine_iters</span><span class="o">=</span><span class="n">_FULL_REFINE_ITERS</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">label</span><span class="o">=</span><span class="s2">&quot;full&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+
+        <p>Resolved per-run sizing knobs (the output of :func:<code>resolve_quality</code>).</p>
+
+
+<p><span class="doc-section-title">Attributes:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code><span title="splatreg.quality.QualityConfig.n_points">n_points</span></code></td>
+            <td>
+                  <code>source-anchor sample size for the SDF/ICP residuals, or ``None`` for *all* anchors</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(full quality). An explicit <code>residuals=[...]</code> overrides this; it only fills the default set.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="splatreg.quality.QualityConfig.jac_row_chunk">jac_row_chunk</span></code></td>
+            <td>
+                  <code>row-chunk for the Sim(3) autodiff Jacobian (``jacrev(chunk_size=...)``). Bounds</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>peak autodiff memory with <strong>no</strong> effect on the result.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="splatreg.quality.QualityConfig.sdf_chunk_size">sdf_chunk_size</span></code></td>
+            <td>
+                  <code>per-query row block for :func:`splatreg.geometry.gaussian_sdf.gaussian_sdf`.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="splatreg.quality.QualityConfig.knn">knn</span></code></td>
+            <td>
+                  <code>neighbourhood size for anchor-normal estimation.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="splatreg.quality.QualityConfig.max_iters">max_iters</span></code></td>
+            <td>
+                  <code>default LM iteration count (an explicit ``max_iters=`` to ``register`` wins).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="splatreg.quality.QualityConfig.refine_iters">refine_iters</span></code></td>
+            <td>
+                  <code>default LM iteration count for the opt-in photometric refinement stage</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(<code>register(..., refine="photometric")</code>); an explicit <code>max_iters</code> in <code>refine_kwargs</code>
+wins. Each iteration renders the splats from the camera ring, so this is the knob that
+sizes the refine's render budget.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code><span title="splatreg.quality.QualityConfig.label">label</span></code></td>
+            <td>
+                  <code>human-readable provenance (e.g. ``&#34;full&#34;``, ``&#34;auto:cuda 6.0GiB-free -&gt; 0.50&#34;``).</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="extension-points">Extension points<a class="headerlink" href="#extension-points" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="splatreg.residuals.base.Residual" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">splatreg.residuals.base.Residual</span>
+
+
+<a href="#splatreg.residuals.base.Residual" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">Residual</span><span class="p">(</span><span class="n">weight</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">robust</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="abc.ABC">ABC</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.residuals.base.Residual.residual" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">residual</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+<a href="#splatreg.residuals.base.Residual.residual" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">residual</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Return <code>r</code> with shape <code>(..., dim)</code>.</p>
+<p><code>target</code> is the reference splat; <code>source</code> is what is being aligned to it — a
+<code>Gaussians</code> (splat-to-splat registration) or a <code>Frame</code> (camera/object tracking),
+depending on the residual. Use <code>self.requires()</code> to declare which.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.residuals.base.Residual.jacobian" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">jacobian</span>
+
+
+<a href="#splatreg.residuals.base.Residual.jacobian" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">jacobian</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Optional analytic Jacobian, shape <code>(..., dim, dof)</code> wrt the se(3)/sim(3) tangent.</p>
+<p>Return <code>None</code> to let splatreg autodiff it (functorch <code>jacrev</code>/<code>vmap</code>).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.residuals.base.Residual.dim" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">dim</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+<a href="#splatreg.residuals.base.Residual.dim" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">dim</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Residual output dimension (last axis of <code>residual</code>).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.residuals.base.Residual.requires" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">requires</span>
+
+
+<a href="#splatreg.residuals.base.Residual.requires" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">requires</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Inputs this residual needs (e.g. <code>{'depth', 'K'}</code> or <code>{'source_gaussians'}</code>).</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="splatreg.solvers.base.Solver" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">splatreg.solvers.base.Solver</span>
+
+
+<a href="#splatreg.solvers.base.Solver" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="abc.ABC">ABC</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="splatreg.solvers.base.Solver.solve" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">solve</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-abstractmethod"><code>abstractmethod</code></small>
+  </span>
+
+<a href="#splatreg.solvers.base.Solver.solve" class="headerlink" title="Permanent link">&para;</a></h3>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">solve</span><span class="p">(</span><span class="n">problem</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Solve the (damped) normal equations <code>(JᵀWJ + λD) δ = −JᵀW r</code> and return the step.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.testing.assert_residual_jacobian" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.testing.assert_residual_jacobian</span>
+
+
+<a href="#splatreg.testing.assert_residual_jacobian" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">assert_residual_jacobian</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">residual</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">T</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">target</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">source</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">atol</span><span class="o">=</span><span class="mf">0.0001</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">eps</span><span class="o">=</span><span class="mf">1e-06</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">max_mismatch</span><span class="o">=</span><span class="mf">0.02</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Assert <code>residual.jacobian</code> matches the numerical Jacobian to <code>atol</code> for at least
+<code>(1 - max_mismatch)</code> of rows (a small NN-switch boundary fraction is tolerated for
+correspondence residuals). Returns the max per-row error. Raises <code>AssertionError</code>.</p>
+
+
+    </div>
+
+</div><h2 id="command-line">Command line<a class="headerlink" href="#command-line" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.cli.main" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.cli.main</span>
+
+
+<a href="#splatreg.cli.main" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">main</span><span class="p">(</span><span class="n">argv</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.cli.build_parser" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.cli.build_parser</span>
+
+
+<a href="#splatreg.cli.build_parser" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">build_parser</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "content.code.annotate", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
