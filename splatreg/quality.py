@@ -55,12 +55,14 @@ _FULL_JAC_ROW_CHUNK = 256  # autodiff row-chunk ceiling (memory-fitted down per 
 _FULL_SDF_CHUNK = 2048  # gaussian_sdf per-query block ceiling (memory-fitted down).
 _FULL_KNN = 50  # normal-estimation neighbourhood.
 _FULL_MAX_ITERS = 20  # LM iterations (api/Tracker default; callers may override).
+_FULL_REFINE_ITERS = 10  # photometric-refine LM iterations (the opt-in refine="photometric" stage).
 
 # Floors so even the smallest machine still does something sane.
 _MIN_N_POINTS = 128
 _MIN_JAC_ROW_CHUNK = 8
 _MIN_SDF_CHUNK = 64
 _MIN_MAX_ITERS = 8
+_MIN_REFINE_ITERS = 3
 
 # Empirical peak-memory model for the row-chunked Sim(3) SDF autodiff (measured on this box,
 # torch 2.12 / float32): the vmap'd reverse pass holds, per Jacobian row-chunk, one SDF forward
@@ -85,6 +87,10 @@ class QualityConfig:
     sdf_chunk_size : per-query row block for :func:`splatreg.geometry.gaussian_sdf.gaussian_sdf`.
     knn : neighbourhood size for anchor-normal estimation.
     max_iters : default LM iteration count (an explicit ``max_iters=`` to ``register`` wins).
+    refine_iters : default LM iteration count for the opt-in photometric refinement stage
+        (``register(..., refine="photometric")``); an explicit ``max_iters`` in ``refine_kwargs``
+        wins. Each iteration renders the splats from the camera ring, so this is the knob that
+        sizes the refine's render budget.
     label : human-readable provenance (e.g. ``"full"``, ``"auto:cuda 6.0GiB-free -> 0.50"``).
     """
 
@@ -93,6 +99,7 @@ class QualityConfig:
     sdf_chunk_size: int = _FULL_SDF_CHUNK
     knn: int = _FULL_KNN
     max_iters: int = _FULL_MAX_ITERS
+    refine_iters: int = _FULL_REFINE_ITERS
     label: str = "full"
 
 
@@ -103,12 +110,14 @@ BALANCED = QualityConfig(
     n_points=4096,
     knn=50,
     max_iters=_FULL_MAX_ITERS,
+    refine_iters=8,
     label="balanced",
 )
 LOW = QualityConfig(
     n_points=1024,
     knn=24,
     max_iters=_FULL_MAX_ITERS,
+    refine_iters=5,
     label="low",
 )
 
@@ -130,7 +139,14 @@ def _scale_config(scale: float) -> QualityConfig:
     ref_points = 16384  # full-reference sample to take a fraction of when asked for < full.
     n_points = max(_MIN_N_POINTS, int(round(ref_points * s)))
     knn = int(round(_FULL_KNN * s + LOW.knn * (1.0 - s)))
-    return QualityConfig(n_points=n_points, knn=knn, max_iters=_FULL_MAX_ITERS, label=f"scale={s:.2f}")
+    refine_iters = max(_MIN_REFINE_ITERS, int(round(_FULL_REFINE_ITERS * s + LOW.refine_iters * (1.0 - s))))
+    return QualityConfig(
+        n_points=n_points,
+        knn=knn,
+        max_iters=_FULL_MAX_ITERS,
+        refine_iters=refine_iters,
+        label=f"scale={s:.2f}",
+    )
 
 
 def _free_bytes(device: torch.device) -> tuple[Optional[int], str]:

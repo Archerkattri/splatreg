@@ -13,6 +13,14 @@ authors = [{ name = "Krishi Attri" }]
 keywords = ["gaussian-splatting", "3dgs", "registration", "pose-estimation", "se3", "sim3", "gsplat"]
 dependencies = ["torch", "numpy"]
 
+[project.urls]
+Homepage = "https://github.com/Archerkattri/splatreg"
+Repository = "https://github.com/Archerkattri/splatreg"
+Issues = "https://github.com/Archerkattri/splatreg/issues"
+
+[project.scripts]
+splatreg = "splatreg.cli:main"
+
 [project.optional-dependencies]
 render = ["gsplat>=1.4"]          # the Photometric residual + splatreg.render
 pypose = ["pypose"]               # solver backend
@@ -37,7 +45,7 @@ test = [
     "flake8>=6.0",
     "ruff",
 ]
-docs = ["sphinx", "furo", "myst-nb"]
+docs = ["mkdocs-material>=9.5", "mkdocstrings[python]>=0.24"]
 all = ["gsplat>=1.4", "pypose", "theseus-ai"]
 
 [tool.setuptools.packages.find]

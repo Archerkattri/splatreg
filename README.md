@@ -9,6 +9,8 @@
 [![PyPI](https://img.shields.io/pypi/v/splatreg)](https://pypi.org/project/splatreg/)
 [![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
+[![Docs](https://img.shields.io/badge/docs-archerkattri.github.io%2Fsplatreg-teal.svg)](https://archerkattri.github.io/splatreg/)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Archerkattri/splatreg/blob/main/examples/splatreg_quickstart.ipynb)
 [![gsplat](https://img.shields.io/badge/inverse%20of-gsplat-ee4c2c.svg)](https://github.com/nerfstudio-project/gsplat)
 
 <img src="assets/registration_demo.png" alt="splatreg before/after registration" width="92%">
@@ -41,6 +43,18 @@ pip install -e ".[test]"
 ```
 
 ## Quickstart
+
+From the shell — `pip install` puts a `splatreg` command on your PATH (standard 3DGS PLY in/out,
+so it composes with SuperSplat / gsplat / Nerfstudio exports; see the
+[CLI guide](https://archerkattri.github.io/splatreg/cli/)):
+
+```bash
+splatreg align target.ply source.ply -o aligned.ply    # register + write the aligned source
+splatreg merge a.ply b.ply -o fused.ply                # register + fuse + dedupe N splats
+splatreg info x.ply                                    # count / bounds / SH degree / stats
+```
+
+In Python:
 
 ```python
 from splatreg.api import register, merge
@@ -147,7 +161,7 @@ d(p)   = (p − q̃(p)) · ñ(p)                    # signed distance — the re
 Every number is reproducible; full record in [`RESULTS.md`](RESULTS.md).
 
 ```bash
-python -m pytest tests/ -q                        # 72 passing
+python -m pytest tests/ -q                        # 82 passing
 python tests/test_jacobians.py                    # analytic vs numerical Jacobian audit
 SPLATREG_DEVICE=cuda python examples/validate_recovery.py --device cuda   # 36/36 recovery
 SPLATREG_DEVICE=cuda python benchmarks/robustness_bench.py --device cuda
@@ -164,6 +178,31 @@ splatreg is honest about its edges (full detail in [`RESULTS.md`](RESULTS.md)):
 - **Scale is unobservable under thin overlap.** Under ~20% shared geometry the Sim(3) scale residual valley is flat — the golden-section line-search tightens scale on its own objective but cannot recover what the geometry doesn't carry. `merge` is reliable for high-overlap captures.
 - **Cost on rigid SE(3).** Plain ICP reaches the same SE(3) success and is far faster; the SDF residual buys scale + implicit-field robustness at a real compute cost. Use `track()` (~17 ms/frame) for the warm-start real-time path.
 
+## Documentation
+
+Full docs at **<https://archerkattri.github.io/splatreg/>** — [quickstart](https://archerkattri.github.io/splatreg/quickstart/),
+[CLI guide](https://archerkattri.github.io/splatreg/cli/), [init modes](https://archerkattri.github.io/splatreg/init-modes/),
+[PLY interop](https://archerkattri.github.io/splatreg/ply-interop/) (splatfacto/INRIA/SuperSplat round-trip + the
+SH-under-rotation detail), [benchmarks](https://archerkattri.github.io/splatreg/benchmarks/), and the
+[API reference](https://archerkattri.github.io/splatreg/api/). Or run the
+[Colab quickstart](https://colab.research.google.com/github/Archerkattri/splatreg/blob/main/examples/splatreg_quickstart.ipynb)
+(CPU-only, no assets needed).
+
+## Citation
+
+If splatreg is useful in your research, please cite it (see [`CITATION.cff`](CITATION.cff) — GitHub's
+"Cite this repository" button gives BibTeX/APA):
+
+```bibtex
+@software{attri_splatreg,
+  author  = {Attri, Krishi},
+  title   = {splatreg: composable SE(3)/Sim(3) registration for 3D Gaussian Splatting},
+  url     = {https://github.com/Archerkattri/splatreg},
+  version = {1.0.3},
+  year    = {2026}
+}
+```
+
 ## License & layout
 
-BSD 3-Clause — permissive, composes with the gsplat / Theseus / GTSAM ecosystem. `splatreg/` — library (`api`, `align`, `align_features`, `bundle`, `spatial_index`, `core/lie`, `geometry/gaussian_sdf`, `residuals/`, `solvers/lm`). `tests/` · `benchmarks/` · `examples/`. Full validation record: [`RESULTS.md`](RESULTS.md).
+BSD 3-Clause — permissive, composes with the gsplat / Theseus / GTSAM ecosystem. `splatreg/` — library (`api`, `align`, `align_features`, `bundle`, `spatial_index`, `core/lie`, `geometry/gaussian_sdf`, `residuals/`, `solvers/lm`, `cli`). `tests/` · `benchmarks/` · `examples/` · `docs_site/`. Full validation record: [`RESULTS.md`](RESULTS.md).
