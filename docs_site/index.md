@@ -78,6 +78,8 @@ Full record with reproduce commands: [Benchmarks](benchmarks.md).
 
 - [Quickstart](quickstart.md) — install + the core workflows in Python.
 - [CLI guide](cli.md) — `splatreg align / merge / info` from the shell.
+- [Photometric refinement](photometric.md) — *new in v1.1*: the opt-in stage for poses
+  geometry can't see (symmetry / texture-only DoF), with the measured when-and-why table.
 - [PLY interop](ply-interop.md) — splatfacto / INRIA / SuperSplat round-trip, and what
   happens to spherical harmonics under a recovered rotation.
 - [API reference](api.md) — every public function, autodoc'd.

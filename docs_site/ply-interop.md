@@ -50,6 +50,13 @@ Colour conventions on the `Gaussians` side: a 3-D `colors` tensor `(N, K, 3)` is
 encoded to a DC-only SH (`(rgb - 0.5) / C0`). If you build splats from your own tensors,
 hand SH in as `(N, K, 3)` — including `K == 1` — to keep coefficients untouched.
 
+!!! note "Fixed in v1.1: DC-only round-trip"
+    `load_ply` of a DC-only file used to return the **raw SH-DC coefficients in the RGB
+    slot**, so a following `save_ply` re-applied the RGB→DC encoding and colors drifted on
+    every load→save cycle. DC-only loads now decode to true RGB `(N, 3)`, making
+    load→save→load lossless (and full-SH files were and remain bit-exact). Regression-locked
+    in [`tests/test_io_roundtrip_dc.py`](https://github.com/Archerkattri/splatreg/blob/main/tests/test_io_roundtrip_dc.py).
+
 ## What happens to a splat under a recovered transform
 
 When `splatreg align` / `merge` bakes a recovered Sim(3) `T = [[s·R, t], [0, 1]]` into a

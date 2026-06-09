@@ -48,6 +48,18 @@ The default `init="fast"` (FPFH + GPU-batched RANSAC seed, ~17 ms) suits objects
 full-overlap captures. For real metre-scale scans use `init="robust"` or `init="learned"`;
 see [Init modes](init-modes.md).
 
+If the shape under-constrains the pose (rotational symmetry, texture-carried detail), add the
+opt-in photometric stage — geometric residuals can't see color, this stage can:
+
+```python
+result = register(target, source, transform="se3",
+                  refine="photometric")    # needs `pip install "splatreg[render]"`
+```
+
+Measured: on a rotation-symmetric colored sphere the geometric solve *worsens* 6.0°→11.2°
+while the photometric stage lands 2.2° (0.36° with the real gsplat rasterizer); on
+dense-overlap scans it is neutral. [When & why](photometric.md).
+
 ## Merge + dedupe
 
 ```python
