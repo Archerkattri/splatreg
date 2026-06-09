@@ -40,6 +40,7 @@ nav:
   - Quickstart: quickstart.md
   - CLI guide: cli.md
   - Init modes: init-modes.md
+  - Photometric refinement: photometric.md
   - PLY interop: ply-interop.md
   - Benchmarks: benchmarks.md
   - API reference: api.md

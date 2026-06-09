@@ -85,6 +85,21 @@ Most objects recover to 0.02–0.6 mm ADD at ~0.1° rotation. The ADD/ADD-S gap 
 symmetry story (cans/spheres have unobservable spin); `sugar_box` is the one honest failure
 (a real 180° geometric flip that only texture can break).
 
+## Photometric refinement (new in v1.1)
+
+The opt-in `refine="photometric"` stage, measured on three regimes (full table, scoping and
+PhotoReg positioning: [Photometric refinement](photometric.md); recorded runs:
+[`benchmarks/photometric_refine_results.md`](https://github.com/Archerkattri/splatreg/blob/main/benchmarks/photometric_refine_results.md)):
+
+| Case | Geometric register | + photometric refine |
+|---|---|---|
+| Rotation-symmetric colored sphere (mock renderer, CPU) | 6.0° → **11.2°** (worse) | **2.2°** |
+| Real gsplat rasterizer (CUDA), from 5°/7 mm | — | **0.36°/0.5 mm** in ~1.1 s |
+| Dense-overlap real 103k pair, injected 2°/1.24 mm seam | **0.239°/0.26 mm** in 56 s | +1.7 s, neutral |
+
+Decisive when geometry under-constrains the pose (symmetry / texture-only DoF); neutral when
+dense overlap already pins it; floor set by render resolution (~0.3°). Hence opt-in.
+
 ## Speed
 
 | Path | splatreg | reference |

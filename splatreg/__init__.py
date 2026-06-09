@@ -56,7 +56,7 @@ try:
 except ImportError:  # pragma: no cover
     SpatialIndex = build_index = None  # type: ignore
 
-__version__ = "1.0.3"
+__version__ = "1.1.0"
 __all__ = [
     "register",
     "merge",

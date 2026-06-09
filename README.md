@@ -29,6 +29,14 @@ Works with any 3DGS framework — gsplat, Nerfstudio, INRIA, custom — as long 
 
 ---
 
+## What's new in v1.1
+
+- **`refine="photometric"`** — opt-in PhotoReg-style ([arXiv 2410.05044](https://arxiv.org/abs/2410.05044)) splat-to-splat photometric stage after the geometric solve, for the poses geometry can't see (symmetry / texture-only DoF) — no real images needed. *Measured:* on a rotation-symmetric colored sphere, geometric registration **worsens** 6.0°→11.2° while the photometric stage lands **2.2°** (real gsplat rasterizer: 5°/7 mm → **0.36°/0.5 mm** in ~1.1 s); on a dense-overlap real 103k-Gaussian pair it is neutral (+1.7 s) because geometry already pins the pose — so it ships opt-in. 21 tests + bench: [when & why](https://archerkattri.github.io/splatreg/photometric/) · [recorded runs](benchmarks/photometric_refine_results.md).
+- **`splatreg` CLI** — `align` / `merge` / `info` from the shell, standard 3DGS PLY in/out (the SplatTransform-style workflow: 3DGS practitioners are CLI-first). *Measured:* the recorded `align` run takes a source from **154 mm Chamfer off the target to 0.05 mm** with no Python written. 10 end-to-end tests: [CLI guide](https://archerkattri.github.io/splatreg/cli/).
+- **DC-only PLY round-trip fix** — `load_ply` used to return raw SH-DC values in the RGB slot, so a following `save_ply` double-encoded them and colors drifted every load→save cycle; DC-only loads now return true RGB and round-trip losslessly (full-SH round-trip stays bit-exact). Regression-locked in [`tests/test_io_roundtrip_dc.py`](tests/test_io_roundtrip_dc.py).
+
+---
+
 ## Install
 
 ```bash
@@ -161,7 +169,7 @@ d(p)   = (p − q̃(p)) · ñ(p)                    # signed distance — the re
 Every number is reproducible; full record in [`RESULTS.md`](RESULTS.md).
 
 ```bash
-python -m pytest tests/ -q                        # 82 passing
+python -m pytest tests/ -q                        # 105 passing
 python tests/test_jacobians.py                    # analytic vs numerical Jacobian audit
 SPLATREG_DEVICE=cuda python examples/validate_recovery.py --device cuda   # 36/36 recovery
 SPLATREG_DEVICE=cuda python benchmarks/robustness_bench.py --device cuda
@@ -182,6 +190,7 @@ splatreg is honest about its edges (full detail in [`RESULTS.md`](RESULTS.md)):
 
 Full docs at **<https://archerkattri.github.io/splatreg/>** — [quickstart](https://archerkattri.github.io/splatreg/quickstart/),
 [CLI guide](https://archerkattri.github.io/splatreg/cli/), [init modes](https://archerkattri.github.io/splatreg/init-modes/),
+[photometric refinement](https://archerkattri.github.io/splatreg/photometric/) (when & why, with the measured three-case table),
 [PLY interop](https://archerkattri.github.io/splatreg/ply-interop/) (splatfacto/INRIA/SuperSplat round-trip + the
 SH-under-rotation detail), [benchmarks](https://archerkattri.github.io/splatreg/benchmarks/), and the
 [API reference](https://archerkattri.github.io/splatreg/api/). Or run the
@@ -198,7 +207,7 @@ If splatreg is useful in your research, please cite it (see [`CITATION.cff`](CIT
   author  = {Attri, Krishi},
   title   = {splatreg: composable SE(3)/Sim(3) registration for 3D Gaussian Splatting},
   url     = {https://github.com/Archerkattri/splatreg},
-  version = {1.0.3},
+  version = {1.1.0},
   year    = {2026}
 }
 ```
