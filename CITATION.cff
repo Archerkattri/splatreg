@@ -1,0 +1,34 @@
+# This CITATION.cff file was created so that researchers and tools (GitHub's
+# "Cite this repository" button, Zenodo, Zotero, ...) can cite splatreg.
+# Validate with: pip install cffconvert && cffconvert --validate
+cff-version: 1.2.0
+message: "If you use splatreg in your research, please cite it as below."
+type: software
+title: "splatreg: composable SE(3)/Sim(3) registration for 3D Gaussian Splatting"
+abstract: >-
+  splatreg registers native Gaussian splats: it finds the rigid (SE(3)) or
+  similarity (Sim(3), with scale) transform that aligns two 3DGS scans, then
+  merges and dedupes them into one splat. It combines a global initializer
+  (super-Fibonacci SO(3) sweep / FPFH+RANSAC / learned correspondences) with a
+  Levenberg-Marquardt refinement over ICP and a closed-form-Jacobian
+  Gaussian-SDF residual derived directly from the target Gaussians. Pure
+  PyTorch; no meshing, no CUDA extension.
+authors:
+  - family-names: "Attri"
+    given-names: "Krishi"
+    email: "krishiattriwork@gmail.com"
+version: "1.0.3"
+date-released: "2026-06-09"
+license: "BSD-3-Clause"
+repository-code: "https://github.com/Archerkattri/splatreg"
+url: "https://github.com/Archerkattri/splatreg"
+# doi: 10.5281/zenodo.XXXXXXX   # uncomment after the first Zenodo release (see docs/RELEASING.md)
+keywords:
+  - gaussian-splatting
+  - 3dgs
+  - registration
+  - point-cloud-registration
+  - pose-estimation
+  - se3
+  - sim3
+  - pytorch

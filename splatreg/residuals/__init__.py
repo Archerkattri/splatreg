@@ -24,8 +24,13 @@ try:
 except ImportError:
     pass
 try:
-    from .photometric import Photometric  # noqa: F401
+    from .photometric import (  # noqa: F401
+        Photometric,
+        SplatPhotometric,
+        camera_ring,
+        refine_photometric,
+    )
 
-    __all__.append("Photometric")
+    __all__ += ["Photometric", "SplatPhotometric", "camera_ring", "refine_photometric"]
 except ImportError:
     pass

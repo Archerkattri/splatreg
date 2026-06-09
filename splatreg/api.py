@@ -294,6 +294,8 @@ def register(
     backend: str = "builtin",
     max_iters: Optional[int] = None,
     quality: Union[str, float, QualityConfig, None] = "full",
+    refine: Optional[str] = None,
+    refine_kwargs: Optional[dict] = None,
 ) -> RegisterResult:
     """Register ``source`` onto ``target`` over a list of residuals, returning the 4x4 transform.
 
@@ -361,6 +363,22 @@ def register(
         down on a small GPU / CPU so it runs without OOM). A :class:`~splatreg.quality.QualityConfig`
         may be passed for full manual control. The Sim(3) autodiff Jacobian is always row-chunked
         (per ``quality``) so peak memory is bounded with **no** quality loss.
+    refine : optional OPT-IN second refinement stage run AFTER the geometric solve. The only value
+        today is ``"photometric"`` — a short extra LM whose residual renders the SOURCE splat under
+        the current ``T`` from a small synthetic camera ring around the target and compares it
+        against renders of the TARGET splat from the same cameras
+        (:func:`splatreg.residuals.photometric.refine_photometric`; PhotoReg-style, arXiv
+        2410.05044, adapted splat-vs-splat so NO real images are needed). Geometric alignment
+        leaves a visibly coloured seam that pure geometry cannot see; this stage fixes the part of
+        it that is pose error. Requires BOTH splats to carry ``colors`` and gsplat to be installed
+        (``pip install "splatreg[render]"``) unless ``refine_kwargs['render_fn']`` supplies a
+        custom renderer — checked at call time with a clear ``ImportError``, never at import.
+        Works for both ``transform="se3"`` and ``"sim3"``; iteration count defaults to the quality
+        policy's ``refine_iters``.
+    refine_kwargs : optional dict of keyword overrides for the refine stage (see
+        :func:`splatreg.residuals.photometric.refine_photometric`: ``n_views``, ``width`` /
+        ``height``, ``radius`` / ``radius_mult``, ``dssim_weight``, ``jac_mode``, ``max_iters``,
+        ``render_fn``, ``sh_degree``, ...). Ignored when ``refine`` is ``None``.
 
     Returns
     -------
@@ -373,6 +391,9 @@ def register(
         raise ValueError(f"transform must be one of {sorted(_DOF)}, got {transform!r}")
     if backend not in _BACKENDS:
         raise ValueError(f"backend must be one of {sorted(_BACKENDS)}, got {backend!r}")
+    if refine not in (None, "photometric"):
+        # Validated up-front (fail fast, before the geometric solve burns time).
+        raise ValueError(f"refine must be None or 'photometric', got {refine!r}")
     if backend == "gtsam":
         # gtsam is a factor-graph engine that needs hand-written analytic factor Jacobians (its
         # Python `CustomFactor` does not autodiff). Wiring splatreg's residual plugins into gtsam
@@ -472,7 +493,43 @@ def register(
         result.info["feature"] = feature_info
         result.info["ambiguous"] = bool(feature_info.get("ambiguous", False))
         result.info["confidence"] = float(feature_info.get("confidence", 0.0))
+    if refine == "photometric":
+        result = _refine_photometric_stage(
+            result, target, source, transform=transform, quality=q, refine_kwargs=refine_kwargs
+        )
     return result
+
+
+def _refine_photometric_stage(
+    result: RegisterResult,
+    target,
+    source: Any,
+    *,
+    transform: str,
+    quality: QualityConfig,
+    refine_kwargs: Optional[dict],
+) -> RegisterResult:
+    """Run the opt-in PhotoReg-style photometric stage on top of a geometric ``RegisterResult``.
+
+    Seeds :func:`splatreg.residuals.photometric.refine_photometric` with the geometric ``T`` and a
+    short iteration budget from the quality policy (``quality.refine_iters``; an explicit
+    ``max_iters`` in ``refine_kwargs`` wins). The refined pose/scale replace the geometric ones and
+    the stage's LM diagnostics land under ``info["refine"]`` — the geometric diagnostics (cost,
+    feature confidence, ...) stay where they were, so callers can see both stages honestly.
+
+    gsplat availability (or a custom ``render_fn``) is enforced inside the refine call — at CALL
+    time, with the install hint — keeping ``refine`` honest-optional like every other extra.
+    """
+    from .residuals.photometric import refine_photometric  # local: keeps gsplat fully optional
+
+    kwargs = dict(refine_kwargs or {})
+    kwargs.setdefault("max_iters", quality.refine_iters)
+    kwargs.setdefault("jac_row_chunk", quality.jac_row_chunk)
+    refined = refine_photometric(target, source, result.T, transform=transform, **kwargs)
+    info = dict(result.info)
+    info["refine"] = dict(refined.info)
+    info["refine"]["converged"] = bool(refined.converged)
+    return RegisterResult(T=refined.T, scale=refined.scale, converged=result.converged, info=info)
 
 
 def _apply_transform_to_gaussians(g: Gaussians, T: torch.Tensor, scale: float = 1.0) -> Gaussians:
@@ -559,6 +616,8 @@ def merge(
     knn_radius: Optional[float] = None,
     max_iters: Optional[int] = None,
     quality: Union[str, float, QualityConfig, None] = "full",
+    refine: Optional[str] = None,
+    refine_kwargs: Optional[dict] = None,
 ) -> Gaussians:
     """Register every splat onto ``gaussians_list[ref]``, fuse, and return one ``Gaussians``.
 
@@ -595,6 +654,12 @@ def merge(
     quality : quality / machine-adaptivity policy applied to every pairwise registration — ``"full"``
         (DEFAULT), ``"balanced"`` / ``"low"``, a ``0..1`` float, or ``"auto"`` (fit detected memory).
         See :func:`register` / :func:`splatreg.quality.resolve_quality`.
+    refine : optional opt-in per-pair refinement stage, forwarded to :func:`register`. The merge
+        seam is exactly where ``refine="photometric"`` earns its keep: after the geometric solve a
+        short photometric LM renders each moving splat against the reference from a synthetic
+        camera ring and polishes the pose so the seam *looks* aligned, not just measures aligned
+        (PhotoReg-style; needs ``colors`` on the splats + gsplat or a custom render_fn).
+    refine_kwargs : keyword overrides for the refine stage, forwarded to :func:`register`.
 
     Returns
     -------
@@ -620,6 +685,8 @@ def merge(
             transform=transform,
             max_iters=max_iters,
             quality=quality,
+            refine=refine,
+            refine_kwargs=refine_kwargs,
         )
         pieces.append(_apply_transform_to_gaussians(g, result.T, result.scale))
 

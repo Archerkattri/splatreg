@@ -18,7 +18,8 @@ This module is the I/O boundary of splatreg. It does two jobs:
 
 Spherical-harmonics layout
 --------------------------
-``Gaussians.colors`` for the SH case is ``(N, K, 3)`` — *coefficient-major, channel-last*
+``Gaussians.colors`` for the SH case is ``(N, K, 3)`` — *coefficient-major, channel-last*;
+a 2-D ``(N, 3)`` value is always RGB (DC-only files are converted to RGB on load)
 (``K`` SH coefficients, each an RGB triple), matching gsplat's internal ``sh0``/``shN``
 tensors. The standard PLY stores SH **channel-major** (all coefficients of R, then G, then B),
 i.e. gsplat's ``features.transpose(0, 2, 1).reshape(N, -1)``. The conversions below apply that
@@ -213,7 +214,7 @@ def load_ply(
     Recognises the canonical INRIA/gsplat layout (``x y z``, ``f_dc_0..2``, ``f_rest_*``,
     ``opacity``, ``scale_0..2``, ``rot_0..3``). Stored values are raw — the returned
     ``Gaussians`` has ``log_scales=True``, raw (pre-sigmoid) ``opacities``, ``wxyz`` ``quats``,
-    and ``colors`` as SH coefficients shaped ``(N, K, 3)`` (or ``(N, 3)`` if only DC is present,
+    and ``colors`` as SH coefficients shaped ``(N, K, 3)`` (or RGB ``(N, 3)`` if only DC is present,
     i.e. ``K == 1``, kept 2-D for convenience).
 
     Args:
@@ -267,7 +268,11 @@ def load_ply(
         dc_k = dc.reshape(n, 1, 3)  # (N, 1, 3)
         colors_np = np.concatenate([dc_k, rest], axis=1)  # (N, K, 3), K=1+k_rest
     else:
-        colors_np = dc  # (N, 3) — DC only
+        # DC-only file: convert the SH-DC coefficients to RGB so the returned
+        # 2-D ``colors`` honours the repo-wide "(N, 3) = RGB" convention that
+        # ``save_ply`` (and the render paths) assume. Returning raw DC here
+        # made a load->save round-trip double-encode DC-only files.
+        colors_np = sh_dc_to_rgb(torch.from_numpy(dc)).numpy()  # (N, 3) RGB
 
     t_kw = dict(device=device, dtype=dtype)
     return Gaussians(

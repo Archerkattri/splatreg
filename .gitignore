@@ -13,5 +13,11 @@ _scratch/
 data/
 third_party_models/
 examples/_out/
+# mkdocs build output (built locally; deployed manually via `mkdocs gh-deploy`)
+site/
 # Internal planning/design notes — "for us", not part of the public package.
-docs/
+# (The maintainer-facing RELEASING/DEPLOY_DOCS notes ARE tracked; the user-facing
+# documentation site lives in docs_site/.)
+docs/*
+!docs/RELEASING.md
+!docs/DEPLOY_DOCS.md
