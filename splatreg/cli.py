@@ -3,13 +3,13 @@
 Three subcommands wrap the library's public API for the common PLY-in / PLY-out
 workflows (SuperSplat, gsplat, Nerfstudio, INRIA exports all speak this format):
 
-* ``splatreg align target.ply source.ply -o aligned.ply`` — register ``source`` onto
+* ``splatreg align target.ply source.ply -o aligned.ply``, register ``source`` onto
   ``target`` (:func:`splatreg.api.register`), bake the recovered SE(3)/Sim(3) into the
   source splat, and write it. Prints the 4x4 transform, scale, and solver diagnostics.
-* ``splatreg merge a.ply b.ply [c.ply ...] -o fused.ply`` — register every splat onto the
+* ``splatreg merge a.ply b.ply [c.ply ...] -o fused.ply``, register every splat onto the
   reference (``--ref``, default the first), fuse, dedupe the overlap
   (:func:`splatreg.api.merge`), and write one splat.
-* ``splatreg info x.ply`` — print what is inside a 3DGS PLY (count, bounds, SH degree,
+* ``splatreg info x.ply``, print what is inside a 3DGS PLY (count, bounds, SH degree,
   opacity/scale statistics).
 
 Everything heavy is delegated to :mod:`splatreg.api` / :mod:`splatreg.io`; this module is
@@ -69,7 +69,7 @@ def _load(path: str, device: str):
     if not p.exists():
         raise SystemExit(f"error: file not found: {p}")
     if p.suffix.lower() != ".ply":
-        print(f"warning: {p} does not end in .ply — trying anyway", file=sys.stderr)
+        print(f"warning: {p} does not end in .ply, trying anyway", file=sys.stderr)
     try:
         return load_ply(p, device=device)
     except ValueError as e:
@@ -98,7 +98,7 @@ def _print_result(result, elapsed: float) -> None:
     if info.get("ambiguous"):
         conf = info.get("confidence", 0.0)
         print(
-            f"WARNING   : pose flagged AMBIGUOUS (confidence {conf:.2f}) — the overlap does "
+            f"WARNING   : pose flagged AMBIGUOUS (confidence {conf:.2f}); the overlap does "
             "not constrain the pose; treat the result as unreliable.",
             file=sys.stderr,
         )
@@ -109,7 +109,7 @@ def _print_result(result, elapsed: float) -> None:
 # Subcommands
 # --------------------------------------------------------------------------------------
 def _cmd_align(args: argparse.Namespace) -> int:
-    from splatreg.api import _apply_transform_to_gaussians, register
+    from splatreg.api import apply_transform, register
     from splatreg.io import save_ply
 
     device = _resolve_device(args.device)
@@ -131,7 +131,7 @@ def _cmd_align(args: argparse.Namespace) -> int:
     elapsed = time.perf_counter() - t0
     _print_result(result, elapsed)
 
-    aligned = _apply_transform_to_gaussians(source, result.T, result.scale)
+    aligned = apply_transform(source, result.T, result.scale)
     save_ply(aligned, args.output)
     print(f"wrote {args.output} ({len(aligned)} Gaussians, source aligned into the target frame)")
     return 0
@@ -225,8 +225,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="splatreg",
         description=(
-            "Register Gaussian splats — align & merge 3DGS .ply scans into one "
-            "SE(3)/Sim(3) frame. Docs: https://github.com/Archerkattri/splatreg"
+            "Register Gaussian splats: align and merge 3DGS .ply scans into one "
+            "SE(3)/Sim(3) frame. Docs: https://archerkattri.github.io/splatreg/"
         ),
     )
     parser.add_argument("--version", action="version", version=f"splatreg {_version()}")
@@ -260,7 +260,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="register source.ply onto target.ply and write the aligned source",
         description=(
             "Register SOURCE onto TARGET, print the recovered transform, and write the "
-            "source splat with the transform baked in (same frame as the target — open both "
+            "source splat with the transform baked in (same frame as the target: open both "
             "in SuperSplat and they line up)."
         ),
     )
@@ -307,7 +307,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--init",
         choices=("fast", "robust", "learned", "mac", "global", "features"),
         default="global",
-        help="per-pair initializer (default: global — robust to large inter-capture offsets)",
+        help="per-pair initializer (default: global, robust to large inter-capture offsets)",
     )
     p_merge.add_argument(
         "--no-dedupe", action="store_true", help="skip the overlap dedupe (plain registered concat)"

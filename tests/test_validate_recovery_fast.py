@@ -46,7 +46,7 @@ def test_fast_preset_shrinks_budget_only():
 def test_fast_flag_parses():
     import argparse
 
-    vr = _load_module()
+    _load_module()  # module must stay importable for the flag contract below
     # the flag must exist on the parser main() builds; reproduce the parser cheaply by
     # checking apply_fast_preset is reachable and --fast is in the source contract
     src = (_EXAMPLES / "validate_recovery.py").read_text()

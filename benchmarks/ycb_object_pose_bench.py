@@ -143,7 +143,9 @@ def run(args):
                 add = add_metric(model, op.T_SO, T)
                 adds = adds_metric(model, op.T_SO, T)
                 rot = rot_angle_deg(op.T_SO[:3, :3], T[:3, :3])
-                add_e.append(add); adds_e.append(adds); rot_e.append(rot)
+                add_e.append(add)
+                adds_e.append(adds)
+                rot_e.append(rot)
                 per.setdefault(obj, []).append((add, adds, rot))
                 print(f"  {obj:22s} rot{int(rd):>3} keep{kf:.2f}: "
                       f"ADD {add*1000:7.2f}mm  ADD-S {adds*1000:7.2f}mm  rot {rot:6.2f}deg")

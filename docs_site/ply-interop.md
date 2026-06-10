@@ -1,6 +1,6 @@
 # PLY interop
 
-splatreg reads and writes the **standard 3D Gaussian Splatting PLY** — the layout INRIA's
+splatreg reads and writes the **standard 3D Gaussian Splatting PLY**, the layout INRIA's
 reference implementation (`graphdeco`) defined and the whole ecosystem adopted:
 
 ```text
@@ -12,11 +12,11 @@ anywhere.
 
 | Producer / consumer | Format | Works with splatreg |
 |---|---|---|
-| INRIA `gaussian-splatting` (`point_cloud.ply`) | standard PLY, SH degree 3 | yes — bit-for-bit round-trip |
-| gsplat / Nerfstudio **splatfacto** (`ns-export gaussian-splat`) | standard PLY | yes — bit-for-bit round-trip |
-| SuperSplat (import & export) | standard PLY (+ a *compressed* `.ply` variant) | yes — export **uncompressed** PLY from SuperSplat |
-| PlayCanvas SplatTransform | standard PLY in/out | yes — pipe either way |
-| antimatter15 `.splat`, `.ksplat`, `.spz` | packed binary variants | no — convert to PLY first (SuperSplat or SplatTransform do this) |
+| INRIA `gaussian-splatting` (`point_cloud.ply`) | standard PLY, SH degree 3 | yes, bit-for-bit round-trip |
+| gsplat / Nerfstudio **splatfacto** (`ns-export gaussian-splat`) | standard PLY | yes, bit-for-bit round-trip |
+| SuperSplat (import & export) | standard PLY (+ a *compressed* `.ply` variant) | yes, export **uncompressed** PLY from SuperSplat |
+| PlayCanvas SplatTransform | standard PLY in/out | yes, pipe either way |
+| antimatter15 `.splat`, `.ksplat`, `.spz` | packed binary variants | no, convert to PLY first (SuperSplat or SplatTransform do this) |
 
 ASCII-PLY files need the optional permissive parser: `pip install plyfile` (3DGS exporters
 write binary, so this rarely comes up).
@@ -24,7 +24,7 @@ write binary, so this rarely comes up).
 ## Raw parameters: what's actually inside the file
 
 The standard PLY stores **raw (pre-activation)** values. `load_ply` / `save_ply` keep them
-raw — what comes out is what went in, no silent re-encoding of geometry:
+raw: what comes out is what went in, no silent re-encoding of geometry:
 
 | PLY property | meaning | splatreg `Gaussians` field |
 |---|---|---|
@@ -48,7 +48,7 @@ Two details every hand-rolled loader trips over, handled at splatreg's PLY bound
 Colour conventions on the `Gaussians` side: a 3-D `colors` tensor `(N, K, 3)` is SH
 (coefficient-major); a 2-D `(N, 3)` tensor is treated as **linear RGB** by `save_ply` and
 encoded to a DC-only SH (`(rgb - 0.5) / C0`). If you build splats from your own tensors,
-hand SH in as `(N, K, 3)` — including `K == 1` — to keep coefficients untouched.
+hand SH in as `(N, K, 3)`, including `K == 1`, to keep coefficients untouched.
 
 !!! note "Fixed in v1.1: DC-only round-trip"
     `load_ply` of a DC-only file used to return the **raw SH-DC coefficients in the RGB
@@ -60,7 +60,7 @@ hand SH in as `(N, K, 3)` — including `K == 1` — to keep coefficients untouc
 ## What happens to a splat under a recovered transform
 
 When `splatreg align` / `merge` bakes a recovered Sim(3) `T = [[s·R, t], [0, 1]]` into a
-splat, each parameter needs its own, different update — this is where naive merges go wrong:
+splat, each parameter needs its own, different update; this is where naive merges go wrong:
 
 ```text
 means'  = s · (R @ means) + t        # the homogeneous point transform
@@ -76,9 +76,9 @@ What splatreg gets right (each one a classic naive-merge bug):
   surface). splatreg composes `quat(R)` onto every anchor quaternion (Hamilton product,
   wxyz), with `R` first de-scaled out of the Sim(3) block so the quaternion stays unit.
 - **Scale under Sim(3).** The similarity scales each anchor's extent: linear scales are
-  multiplied by `s`; log-stored scales get `+ log s` — the `log_scales` flag is preserved
+  multiplied by `s`; log-stored scales get `+ log s`, the `log_scales` flag is preserved
   either way, so the written PLY stays standard.
-- **Raw opacity.** Logits pass through untouched — no double-sigmoid.
+- **Raw opacity.** Logits pass through untouched, no double-sigmoid.
 - **DC colour.** The degree-0 SH basis function is constant over directions, so the DC
   coefficient is **rotation-invariant**: carrying `f_dc` through unchanged is exactly
   correct, not an approximation.
@@ -86,12 +86,12 @@ What splatreg gets right (each one a classic naive-merge bug):
 ### The spherical-harmonics rotation detail
 
 Here is the subtle one. View-dependent colour is stored as SH coefficients **in world
-space**. When you rotate the splat by `R`, the appearance field should rotate with it — and
+space**. When you rotate the splat by `R`, the appearance field should rotate with it; and
 for SH that means each degree-ℓ band of coefficients must be mixed by the corresponding
 **Wigner rotation matrix** `D^ℓ(R)` (a 3×3 rotation of the degree-1 triple, a 5×5 for
 degree 2, 7×7 for degree 3). Degree 0 (DC) is invariant; the higher bands are not.
 
-Almost every merge pipeline skips this — including manual gizmo workflows in most editors —
+Almost every merge pipeline skips this, including manual gizmo workflows in most editors,
 because the coefficients still *look* plausible: the diffuse (DC) term dominates, and the
 error only shows as view-dependent sheen/specular highlights that stay "stuck" in the old
 world orientation while the geometry rotates away under them.
@@ -102,7 +102,7 @@ built for any degree by the Ivanic–Ruedenberg recurrence (*J. Phys. Chem. A* 1
 with the 1998 erratum corrections) in `splatreg.sh`. The blocks are produced directly in the
 3DGS/gsplat sign convention (the `(-y, +z, -x)` degree-1 basis), so the rotated coefficients
 drop straight back into a standard PLY. `apply_transform`, `merge`, and the `align` CLI all
-route through this — view-dependent sheen now turns **with** the splat instead of staying
+route through this, view-dependent sheen now turns **with** the splat instead of staying
 stuck in the old capture frame.
 
 ```python
@@ -121,7 +121,7 @@ through `save_ply`/`load_ply` exactly.
 
 ## Inspecting a file
 
-`splatreg info` prints the layout it found — count, bounds, SH degree, raw-opacity range,
+`splatreg info` prints the layout it found, count, bounds, SH degree, raw-opacity range,
 log/linear scale stats:
 
 ```text
@@ -138,7 +138,7 @@ scales    : log-stored, linear median 0.00521  max 0.19883
 
 ## Nerfstudio recipe
 
-No plugin needed — splatfacto's export is the standard PLY:
+No plugin needed, splatfacto's export is the standard PLY:
 
 ```bash
 ns-export gaussian-splat --load-config outputs/.../config.yml --output-dir exports/a

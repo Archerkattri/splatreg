@@ -1,19 +1,19 @@
-"""MAC maximal-clique correspondence seed — Zhang et al., CVPR 2023, reimplemented in torch.
+"""MAC maximal-clique correspondence seed, Zhang et al., CVPR 2023, reimplemented in torch.
 
 ``init="mac"`` replaces RANSAC-style hypothesis generation with the **MAC** (3D Registration
-with Maximal Cliques, Zhang, Sun, Wang & Guo, CVPR 2023 — https://github.com/zhangxy0517/
+with Maximal Cliques, Zhang, Sun, Wang & Guo, CVPR 2023, https://github.com/zhangxy0517/
 3D-Registration-with-Maximal-Cliques) scheme:
 
 1. **Compatibility graph.** Two correspondences ``(p_i, q_i)`` / ``(p_j, q_j)`` are first-order
    compatible when the rigidity constraint holds: ``| ||p_i - p_j|| - ||q_i - q_j|| | < gamma``.
    Each surviving edge carries the soft score ``s(i,j) = exp(-d^2 / (2 gamma^2))`` and is then
    re-weighted by the paper's **second-order (SC^2) measure** (from Chen et al., SC^2-PCR):
-   ``w2 = s * (S @ S)`` element-wise — an edge is only as strong as the *common compatible
+   ``w2 = s * (S @ S)`` element-wise, an edge is only as strong as the *common compatible
    neighbourhood* the two correspondences share. Chance-compatible outlier pairs have no common
    neighbours, so SC^2 drives their weight to ~0 and they are dropped from the graph.
-2. **Maximal cliques** of the SC^2 graph (networkx ``find_cliques`` — Bron-Kerbosch with
+2. **Maximal cliques** of the SC^2 graph (networkx ``find_cliques``, Bron-Kerbosch with
    pivoting). Every maximal clique is a mutually-rigidity-consistent correspondence subset, i.e.
-   one *consensus hypothesis* — including consensus sets a greedy max-degree pre-filter or a
+   one *consensus hypothesis*, including consensus sets a greedy max-degree pre-filter or a
    minimal-sample RANSAC draw would never isolate.
 3. **Per-clique weighted SVD.** Each selected clique fits a pose by Kabsch/Umeyama with each
    correspondence weighted by its summed SC^2 edge weight inside the clique; hypotheses are
@@ -24,7 +24,7 @@ Worst-case control (the paper applies the same kind of caps; ours are explicit c
 
 * correspondences capped at ``max_corr`` (deterministic strided subsample),
 * per-node **degree cap** (keep each node's top-``degree_cap`` edges by SC^2 weight, AND-
-  symmetrised so the cap is a hard guarantee) — Bron-Kerbosch blowup is driven by dense graphs,
+  symmetrised so the cap is a hard guarantee), Bron-Kerbosch blowup is driven by dense graphs,
 * **clique-count cap** + **wall-clock budget** on the enumeration generator (networkx
   ``find_cliques`` yields lazily, so both caps are exact, not post-hoc),
 * **hypothesis cap**: node-guided selection (per node keep its heaviest clique, the paper's
@@ -34,19 +34,19 @@ Sim(3) note (the paper is SE(3)-only)
 -------------------------------------
 A similarity breaks the rigidity constraint in (1), so for ``with_scale=True`` the scale is
 estimated **first** from the correspondence pairwise-distance ratios (median of
-``||q_i - q_j|| / ||p_i - p_j||`` over subsampled pairs — robust to moderate outlier rates
+``||q_i - q_j|| / ||p_i - p_j||`` over subsampled pairs, robust to moderate outlier rates
 because the median of a contaminated ratio set still sits in the inlier mode), the source is
 de-scaled, and SE(3) MAC runs on the de-scaled set; the consensus refit then re-estimates a
 residual scale on the winning inlier set (Umeyama ``with_scale=True``) so the median seed only
 has to be approximately right. At very high outlier rates (>~70 %) the median ratio itself
-degrades — the honest ``success`` flag covers that case.
+degrades, the honest ``success`` flag covers that case.
 
 Honesty
 -------
 The MAC paper reports lifting GeoTransformer's 3DLoMatch registration recall ~71 % -> ~78 %
 when MAC replaces its hypothesis generation. splatreg's implementation is validated here on
 synthetic correspondence sets (see ``tests/test_mac.py``); the 3DLoMatch number requires the
-GeoTransformer features + dataset on a GPU box and is **pending** — we cite the paper for the
+GeoTransformer features + dataset on a GPU box and is **pending**, we cite the paper for the
 expectation and do not claim the number.
 
 Pure torch + numpy + networkx (clique enumeration only); CPU-runnable.
@@ -90,10 +90,10 @@ def compatibility_graph(
     Args:
         cs: ``(M, 3)`` source correspondence points.
         ct: ``(M, 3)`` target correspondence points (``cs[i] <-> ct[i]``).
-        gamma: rigidity tolerance — edge iff ``| ||cs_i-cs_j|| - ||ct_i-ct_j|| | < gamma``.
+        gamma: rigidity tolerance, edge iff ``| ||cs_i-cs_j|| - ||ct_i-ct_j|| | < gamma``.
 
     Returns:
-        ``(adj, w2)`` — ``(M, M)`` bool adjacency (SC^2-pruned: first-order edges whose
+        ``(adj, w2)``, ``(M, M)`` bool adjacency (SC^2-pruned: first-order edges whose
         second-order weight is positive) and the ``(M, M)`` SC^2 weight matrix
         ``w2 = s * (S @ S)`` with ``s = exp(-d^2 / (2 gamma^2))`` on first-order edges.
         Both symmetric with a zero/false diagonal.
@@ -111,7 +111,7 @@ def _cap_degree(adj: torch.Tensor, w2: torch.Tensor, cap: int) -> torch.Tensor:
     """Cap each node's degree at ``cap`` by keeping its top-``cap`` edges by SC^2 weight.
 
     The kept set is AND-symmetrised (an edge survives only if it is in BOTH endpoints' top
-    lists), so ``cap`` is a hard per-node guarantee — that bounds the Bron-Kerbosch branching.
+    lists), so ``cap`` is a hard per-node guarantee, that bounds the Bron-Kerbosch branching.
     """
     M = adj.shape[0]
     if cap <= 0 or M <= cap + 1:
@@ -137,7 +137,7 @@ def enumerate_maximal_cliques(
     """All maximal cliques of ``adj`` (size >= ``min_size``), capped by count and wall clock.
 
     networkx ``find_cliques`` is a lazy Bron-Kerbosch-with-pivoting generator, so both caps cut
-    the enumeration itself (not just the returned list). Returns ``(cliques, truncated)`` —
+    the enumeration itself (not just the returned list). Returns ``(cliques, truncated)``,
     ``truncated=True`` when either cap fired (the search was not exhaustive).
     """
     try:
@@ -238,20 +238,20 @@ def mac_pose(
 
     Args:
         src_corr / tgt_corr: ``(M, 3)`` matched point pairs (``src_corr[i] <-> tgt_corr[i]``).
-        with_scale: Sim(3) — median-ratio scale seed first, SE(3) MAC on the de-scaled set,
+        with_scale: Sim(3), median-ratio scale seed first, SE(3) MAC on the de-scaled set,
             residual scale re-fit on the consensus inliers (see module docstring).
         inlier_tol: 3-D inlier distance for hypothesis scoring (target units).
         gamma: rigidity tolerance for the compatibility graph; ``None`` ->
             ``_MAC_GAMMA_MULT * inlier_tol``.
         max_corr / degree_cap / max_cliques / max_hyps / time_budget_s: worst-case caps
             (module docstring).
-        min_inliers: consensus floor — a winning hypothesis below this is reported as an
+        min_inliers: consensus floor, a winning hypothesis below this is reported as an
             honest failure (chance-compatible cliques score 3-5 inliers even on all-outlier
             sets; the same gate the feature path's ``_FS_MIN_INLIERS`` applies).
 
     Returns:
         dict with ``T`` (4x4, ``src -> tgt``, source dtype/device; for Sim(3) the top-left block
-        is ``s*R``), ``success`` (bool — ``False`` means the correspondences carried no
+        is ``s*R``), ``success`` (bool, ``False`` means the correspondences carried no
         consistent consensus: T is identity, do NOT trust it), ``n_inliers``, ``n_matches``,
         ``n_cliques`` (enumerated), ``n_hypotheses`` (evaluated), ``scale`` (1.0 for SE(3)),
         ``truncated`` (a cap/time budget cut the clique enumeration).
@@ -397,7 +397,7 @@ def mac_feature_align(
         target / source: reference / to-align splats (only ``.means`` read).
         transform: ``"se3"`` or ``"sim3"`` (median-ratio scale seed + residual refit; see
             :func:`mac_pose`).
-        correspondences: optional pre-matched ``(src_pts (M, 3), tgt_pts (M, 3))`` pairs — the
+        correspondences: optional pre-matched ``(src_pts (M, 3), tgt_pts (M, 3))`` pairs, the
             injection seam for learned correspondences (e.g. GeoTransformer's) or tests; when
             ``None`` the FPFH ratio-test mutual-NN matcher of the feature path supplies them.
         inlier_tol: hypothesis-scoring inlier distance; ``None`` -> the feature path default.
@@ -405,10 +405,10 @@ def mac_feature_align(
         **mac_kwargs: forwarded to :func:`mac_pose` (``gamma``, the caps, ...).
 
     Returns:
-        ``(T_4x4, info)`` — ``info`` carries ``n_matches`` / ``n_inliers`` / ``n_cliques`` /
+        ``(T_4x4, info)``, ``info`` carries ``n_matches`` / ``n_inliers`` / ``n_cliques`` /
         ``n_hypotheses`` / ``truncated`` / ``success`` plus the honest ``ambiguous`` /
         ``confidence`` the other registrars report. ``success=False`` (all-outlier / no
-        consensus) returns identity with ``ambiguous=True`` and ``confidence=0.0`` — never a
+        consensus) returns identity with ``ambiguous=True`` and ``confidence=0.0``, never a
         silent wrong pose.
     """
     from .align_features import (

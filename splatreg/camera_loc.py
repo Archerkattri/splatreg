@@ -1,17 +1,17 @@
 """Camera localization in a splat (v0.2): estimate a camera pose from a query image + a splat.
 
 The dual of object-pose estimation. There the scene moves and the camera is fixed; **here the splat
-is fixed in world and the camera pose ``T_WC`` is the unknown** — "where was this photo taken, given
+is fixed in world and the camera pose ``T_WC`` is the unknown**, "where was this photo taken, given
 this 3DGS scene?". This is the relocalisation / pose-refinement task iNeRF, NeRF-based localisers,
 and photometric visual-SLAM front-ends solve, ported onto a Gaussian splat rendered by **gsplat**.
 
-Implementation — differentiable rendering (the robust path)
+Implementation, differentiable rendering (the robust path)
 -----------------------------------------------------------
 :func:`localize_camera` optimizes the camera pose directly through **gsplat's own differentiable
 rasteriser**. The pose lives as a right-perturbation tangent ``δ`` of the camera→world extrinsic
 (``T_WC ← T_WC · exp(δ)``, splatreg's standard convention); each step renders the splat from the
 current pose, takes the photometric loss against the query image, and back-props *through the render*
-to ``δ``. The Jacobian is therefore exact-by-construction (gsplat's analytic render gradient) — no
+to ``δ``. The Jacobian is therefore exact-by-construction (gsplat's analytic render gradient), no
 hand-derived image Jacobian to get the inverse-compositional sign wrong. Verified to converge on a
 synthetic textured scene (rotation 7°→1.7°, translation 132→37 mm from a cold-ish init; see
 ``tests/test_camera_loc.py``).
@@ -26,7 +26,7 @@ seed). It refines a prior; it is not a global relocaliser.
 
 An experimental **analytic** residual (:class:`CameraPhotometric`) is also provided for users who want
 the inverse-compositional residual in the LM stack, but the differentiable-render path above is the
-recommended, validated one. gsplat is OPTIONAL — guarded with a clear install hint.
+recommended, validated one. gsplat is OPTIONAL, guarded with a clear install hint.
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ __all__ = ["localize_camera", "CameraPhotometric", "coarse_localize_camera"]
 def _project_points(means: torch.Tensor, T_WC: torch.Tensor, K: torch.Tensor):
     """Project world points into pixel coords for camera pose ``T_WC``. Returns ``(uv, z, in_front)``.
 
-    Pure pinhole projection (``T_CW = inv(T_WC)``, then ``K · X_c``) — no rasteriser, so it runs on
+    Pure pinhole projection (``T_CW = inv(T_WC)``, then ``K · X_c``), no rasteriser, so it runs on
     CPU with no gsplat. ``uv`` is ``(M, 2)`` float pixel coords, ``z`` the camera-frame depth, and
     ``in_front`` a bool mask of points with ``z > 0``. This is the cheap scoring primitive the coarse
     pose sweep uses (project-and-count-overlap), not a photometric render.
@@ -86,7 +86,7 @@ def _occupancy(
     A point set splat is a *sparse* sampling, so a bare hit-bitmap leaves the silhouette interior
     full of holes and makes the IoU score both low and viewpoint-ambiguous. A small binary
     ``dilate`` closes those holes into a connected silhouette, which is what the coarse score should
-    compare — it raises the score and, more importantly, sharpens the discrimination between
+    compare, it raises the score and, more importantly, sharpens the discrimination between
     viewpoints (the filled outline is far more viewpoint-specific than scattered hits).
     """
     occ = torch.zeros(grid * grid, dtype=torch.bool, device=uv.device)
@@ -108,7 +108,7 @@ def _candidate_poses(center: torch.Tensor, radius: float, n_az: int, n_el: int, 
 
     Samples ``n_az`` azimuths × ``n_el`` elevations; each camera sits on the sphere and looks at
     ``center`` (OpenCV convention: ``+z`` forward, ``+y`` down). This is the coarse viewpoint grid the
-    sweep scores — wide enough to seed a localiser that has no prior at all.
+    sweep scores, wide enough to seed a localiser that has no prior at all.
     """
     poses = []
     up = torch.tensor([0.0, 1.0, 0.0], device=device, dtype=dtype)
@@ -155,8 +155,8 @@ def coarse_localize_camera(
     it needs a decent prior. This provides that prior when none exists (a *wide-baseline* relocalise):
     it scores a sphere of candidate camera poses by how well the splat's **projected occupancy**
     overlaps the query frame's foreground silhouette (from ``frame.mask``, or a luminance threshold of
-    ``frame.rgb``), and returns the best-scoring pose. Pure pinhole projection — it runs on CPU and
-    needs no rasteriser — so it is a coarse *seed*, deliberately cheap, not a final pose. Feed its
+    ``frame.rgb``), and returns the best-scoring pose. Pure pinhole projection, it runs on CPU and
+    needs no rasteriser, so it is a coarse *seed*, deliberately cheap, not a final pose. Feed its
     result as ``init_T_WC`` to :func:`localize_camera` for the fine refine.
 
     Parameters
@@ -169,7 +169,7 @@ def coarse_localize_camera(
         ⇒ ~2.5× the splat's bounding radius, a typical object-framing distance).
     grid : occupancy-bitmap resolution the IoU score is computed at (coarse on purpose).
     dilate : binary-dilation radius (in grid cells) applied to both the projected and the query
-        occupancy before scoring — closes the holes a *sparse* point splat leaves so the IoU compares
+        occupancy before scoring, closes the holes a *sparse* point splat leaves so the IoU compares
         connected silhouettes (higher and far more viewpoint-discriminative). ``0`` disables it.
     return_score : also return the best IoU score (diagnostic).
 
@@ -274,11 +274,11 @@ def localize_camera(
     Parameters
     ----------
     splat : the world-fixed Gaussian splat (must carry ``colors``).
-    frame : the query observation — needs ``rgb`` and ``K`` (optional ``mask``).
+    frame : the query observation, needs ``rgb`` and ``K`` (optional ``mask``).
     init_T_WC : ``(4, 4)`` initial camera→world prior, OR the string ``"coarse"`` to first run the
         prior-free :func:`coarse_localize_camera` viewpoint sweep and refine its seed. Direct image
         alignment has a limited basin (a few degrees / a few percent of depth), so without ``"coarse"``
-        a *wide-baseline* query (no good prior) falls outside it — that is exactly what the coarse
+        a *wide-baseline* query (no good prior) falls outside it, that is exactly what the coarse
         seed bridges. ``coarse_kwargs`` is forwarded to the sweep.
     iters : Adam steps on the pose tangent.
     lr : Adam learning rate on the 6-vector right-perturbation tangent.
@@ -372,7 +372,7 @@ class CameraPhotometric(Residual):
     (:func:`splatreg.solvers.lm.run_lm`). The geometry block ``∂X_c/∂δ = [−I | [X_c]_×]`` is
     verified against numerical differentiation, but the full inverse-compositional Jacobian (image
     gradients sampled on the *rendered* image) shares the narrow, sign-sensitive basin of direct
-    image alignment and is **not** the validated path — prefer :func:`localize_camera` (differentiable
+    image alignment and is **not** the validated path, prefer :func:`localize_camera` (differentiable
     render), which is exact-by-construction.
 
     Args mirror the kept knobs of the photometric residual: ``rgb_gt`` / ``K`` / ``mask`` /

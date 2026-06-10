@@ -1,4 +1,4 @@
-"""The ``Residual`` plugin ABC — splatreg's public extension point ("bring your own residual").
+"""The ``Residual`` plugin ABC, splatreg's public extension point ("bring your own residual").
 
 Mirrors a Theseus cost function but specialized to a single SE(3)/Sim(3) pose variable, so a
 subclass reads like math instead of factor-graph boilerplate. The optimization variable is the
@@ -28,7 +28,7 @@ class Residual(ABC):
     def residual(self, T: torch.Tensor, target: "Gaussians", source: Any) -> torch.Tensor:
         """Return ``r`` with shape ``(..., dim)``.
 
-        ``target`` is the reference splat; ``source`` is what is being aligned to it — a
+        ``target`` is the reference splat; ``source`` is what is being aligned to it, a
         ``Gaussians`` (splat-to-splat registration) or a ``Frame`` (camera/object tracking),
         depending on the residual. Use ``self.requires()`` to declare which.
         """

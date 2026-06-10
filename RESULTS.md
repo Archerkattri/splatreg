@@ -9,8 +9,9 @@ against them).
 it — and the honest limitations. Validation is held to the bar of the libraries splatreg
 sits beside (gsplat / Theseus / GTSAM / SymForce).
 
-_Last validated 2026-06-07, single box, CUDA. v1.2 additions (§5j) validated 2026-06-10 on
-CPU (`CUDA_VISIBLE_DEVICES=""`, `OMP_NUM_THREADS=2`): full suite 126 passed / 3 CUDA-skips._
+_Last validated 2026-06-07, single box, CUDA. v1.2 additions (§5j) + the v1.3 MAC seed (§5k)
+validated 2026-06-10 on CPU (`CUDA_VISIBLE_DEVICES=""`, `OMP_NUM_THREADS=2`): full suite
+143 passed / 3 CUDA-skips._
 
 ---
 

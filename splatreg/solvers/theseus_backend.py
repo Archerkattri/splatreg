@@ -3,18 +3,18 @@
 Solves the SAME SE(3)/Sim(3) registration problem as the builtin core, but hands each nonlinear
 least-squares step to `Theseus <https://sites.google.com/view/theseus-ai>`_'s
 ``th.LevenbergMarquardt`` (its differentiable nonlinear optimiser). splatreg supplies only the
-residual via a single ``AutoDiffCostFunction`` — Theseus autodiffs the Jacobian — so a user can
+residual via a single ``AutoDiffCostFunction``, Theseus autodiffs the Jacobian, so a user can
 swap in Theseus's solver (and its end-to-end differentiability) without writing a Jacobian.
 
 Design
 ------
 Like the PyPose backend, the optimisation variable is the tangent ``delta`` (6-vector SE(3) /
-7-vector Sim(3) — Theseus has no native Sim(3) group), applied as a right-perturbation
+7-vector Sim(3), Theseus has no native Sim(3) group), applied as a right-perturbation
 ``T0 @ exp(delta)`` through splatreg's own ``exp`` so the recovered pose matches the builtin path
 exactly. Each iteration runs ONE Theseus LM step on the local tangent, then re-bases
 ``T0 <- T0 @ exp(delta*)`` and resets ``delta`` to zero. The single step per re-basing is what makes
 a correspondence residual (ICP) converge to machine precision rather than stalling on frozen
-correspondences — it reproduces the builtin's re-linearise (and re-match) every iteration.
+correspondences, it reproduces the builtin's re-linearise (and re-match) every iteration.
 
 Theseus is CPU-clean on this box; it builds an optional CUDA extension for its sparse
 ``baspacho``/``cusolver`` linear solvers, but the default dense ``CHOLESKY`` solver runs on either

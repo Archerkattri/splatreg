@@ -1,7 +1,7 @@
 """Real spherical-harmonic rotation (Wigner-D) for 3DGS colour coefficients.
 
 When a rotation ``R`` is baked into a splat (:func:`splatreg.api.apply_transform`, ``merge``,
-the ``align`` CLI), the geometry is easy — means moved, quats composed — but the **colour** is a
+the ``align`` CLI), the geometry is easy, means moved, quats composed, but the **colour** is a
 function on the view-direction sphere: ``c(d) = Σ_k f_k Y_k(d)`` with the real-SH basis ``Y_k``.
 Rotating the splat means the new coefficients ``f'`` must satisfy::
 
@@ -20,7 +20,7 @@ Ivanic–Ruedenberg recurrence:
 Basis convention
 ----------------
 The recurrence is formulated in the "plain" real-SH basis (no Condon–Shortley phase), whose
-``l = 1`` band is ordered ``(y, z, x)`` — there the Wigner block is simply the permuted rotation
+``l = 1`` band is ordered ``(y, z, x)``, there the Wigner block is simply the permuted rotation
 matrix ``M¹_{ij} = R_{q(i) q(j)}`` with ``q = (y, z, x)``. The 3DGS / gsplat / plenoxels basis
 (the one ``f_dc/f_rest`` PLY coefficients live in) carries an extra sign ``(-1)^{|m|}`` per
 coefficient relative to that plain basis (e.g. its ``l = 1`` band is ``(-y, +z, -x)``-
@@ -30,7 +30,7 @@ proportional). A diagonal ±1 basis change conjugates the block::
 
 :func:`sh_rotation_matrix` returns ``D`` **in the 3DGS convention**, ready to multiply the
 ``(N, K, 3)`` coefficient tensor splatreg's :class:`~splatreg.core.types.Gaussians` carries
-(coefficient-major, channel-last — the layout :mod:`splatreg.io` round-trips with standard PLYs).
+(coefficient-major, channel-last, the layout :mod:`splatreg.io` round-trips with standard PLYs).
 
 Everything is built in float64 for accuracy and cast to the caller's dtype at the end; the
 matrices are tiny (K ≤ 16 for degree-3 splats), so cost is negligible next to the transform bake.
@@ -118,8 +118,8 @@ def sh_rotation_matrix(R: torch.Tensor, n_coeffs: int) -> torch.Tensor:
 
     Args:
         R: ``(3, 3)`` pure rotation (orthonormal; de-scale a similarity block first).
-        n_coeffs: total SH coefficient count ``K`` including DC — must be a perfect square
-            ``(degree+1)²`` (1, 4, 9, 16, ... — the only counts standard 3DGS PLYs produce).
+        n_coeffs: total SH coefficient count ``K`` including DC, must be a perfect square
+            ``(degree+1)²`` (1, 4, 9, 16, ..., the only counts standard 3DGS PLYs produce).
 
     Returns:
         ``(K, K)`` matrix ``D`` (device/dtype of ``R``) such that ``f' = D @ f`` are the
@@ -133,7 +133,7 @@ def sh_rotation_matrix(R: torch.Tensor, n_coeffs: int) -> torch.Tensor:
         raise ValueError(f"sh_rotation_matrix needs a (3, 3) rotation, got {tuple(R.shape)}.")
     if n_coeffs < 1 or int(round(math.isqrt(n_coeffs))) ** 2 != n_coeffs:
         raise ValueError(
-            f"n_coeffs must be a perfect square (1, 4, 9, 16, ...) — got {n_coeffs}. "
+            f"n_coeffs must be a perfect square (1, 4, 9, 16, ...), got {n_coeffs}. "
             "Standard 3DGS SH stacks are complete through their max degree."
         )
     deg = math.isqrt(n_coeffs) - 1
@@ -162,7 +162,7 @@ def sh_rotation_matrix(R: torch.Tensor, n_coeffs: int) -> torch.Tensor:
 def rotate_sh(colors: torch.Tensor, R: torch.Tensor) -> torch.Tensor:
     """Rotate an ``(N, K, 3)`` SH coefficient tensor by ``R`` (3DGS convention; see module doc).
 
-    ``colors`` is coefficient-major / channel-last — exactly what :class:`Gaussians` carries and
+    ``colors`` is coefficient-major / channel-last, exactly what :class:`Gaussians` carries and
     :mod:`splatreg.io` round-trips. The DC row passes through unchanged; every higher-degree band
     is multiplied by its Wigner-D block, so the view-dependent lobes turn WITH the splat.
 

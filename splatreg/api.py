@@ -1,7 +1,7 @@
 """High-level registration API: :func:`register`, :func:`merge`, and :class:`Tracker`.
 
 These wrap the builtin Levenberg-Marquardt core (:mod:`splatreg.solvers.lm`) behind the three verbs
-in the package docstring. Everything is self-contained — torch + numpy only — and obeys the
+in the package docstring. Everything is self-contained, torch + numpy only, and obeys the
 right-perturbation convention ``T_new = T @ se3_exp(delta)``.
 """
 
@@ -79,7 +79,7 @@ def _feature_init(target, source: Any, transform: str, device, dtype) -> tuple[t
 
     Returns ``(T, info)`` where ``info`` carries the honest diagnostics from ``feature_align``
     (``n_matches``, ``n_inliers``, ``ambiguous``, ``confidence``, ``ambiguity_deg``).  When the
-    overlap does not constrain the pose — the disambiguating feature was cropped away — ``info``
+    overlap does not constrain the pose, the disambiguating feature was cropped away, ``info``
     reports ``ambiguous=True`` / a low ``confidence`` rather than a misleadingly precise pose.
     """
     empty_info = {
@@ -112,7 +112,7 @@ def _feature_init(target, source: Any, transform: str, device, dtype) -> tuple[t
 def _robust_init(target, source: Any, transform: str, device, dtype) -> tuple[torch.Tensor, dict]:
     """Scale-robust coarse init from :func:`splatreg.align_features.robust_feature_align` + info.
 
-    Uses an Open3D FPFH+RANSAC seed (scale-correct, auto-voxelled — the robustness Open3D itself
+    Uses an Open3D FPFH+RANSAC seed (scale-correct, auto-voxelled, the robustness Open3D itself
     reports on real indoor scans like 3DMatch) refined by splatreg's overlap-aware ICP (and Sim(3)
     scale).  This is the recommended init for real metre-scale partial-overlap scans, where the
     object-tuned ``init="fast"``/``"features"`` FPFH seed collapses.  Falls back to the pure-splatreg
@@ -137,7 +137,7 @@ def _learned_init(target, source: Any, transform: str, device, dtype) -> tuple[t
     """Learned coarse init: pretrained GeoTransformer seed + splatreg overlap-aware refine + info.
 
     Mirrors :func:`_robust_init` but uses the LEARNED GeoTransformer 3DMatch correspondence model
-    (CVPR 2022, ~92 % RR — past the classical FPFH ~77 % ceiling) for the seed, then splatreg's own
+    (CVPR 2022, ~92 % RR, past the classical FPFH ~77 % ceiling) for the seed, then splatreg's own
     overlap-aware ICP (and Sim(3) scale) on top.  Falls back inside ``learned_feature_align`` to the
     classical ``robust`` seed when GeoTransformer (its module / built CUDA-ext / pretrained weights)
     is unavailable; falls back to identity if the feature module itself cannot be imported.
@@ -168,7 +168,7 @@ def _mac_init(target, source: Any, transform: str, device, dtype) -> tuple[torch
 
     MAC (Zhang et al., CVPR 2023) replaces RANSAC-style hypothesis generation: a rigidity
     compatibility graph over the FPFH correspondences (SC^2 second-order weighted), maximal
-    cliques as consensus hypotheses, a weighted SVD per clique, and the inlier-count winner —
+    cliques as consensus hypotheses, a weighted SVD per clique, and the inlier-count winner,
     then the same overlap-aware ICP polish the other registrars use.  Falls back to identity
     (with ``ambiguous=True``) when the feature/mac modules are unavailable or when the
     correspondences carry no consistent consensus (honest ``success=False``, never silently
@@ -199,7 +199,7 @@ def _fast_init(target, source: Any, transform: str, device, dtype) -> torch.Tens
     """Coarse 4x4 LM seed from the FAST feature path (FPFH + GPU-batched RANSAC), or identity.
 
     Same FPFH-descriptor + batched-RANSAC registrar as ``init="features"`` (so it inherits the
-    feature path's full-rotation robustness) but returns ONLY the 4x4 seed — the caller's LM then
+    feature path's full-rotation robustness) but returns ONLY the 4x4 seed, the caller's LM then
     polishes it.  This is the default ``register`` init: ~20-35 ms versus the ~0.8-1.4 s blind
     super-Fibonacci sweep of ``init="global"``.  Guarded: falls back to ``init="global"`` (then
     identity) if the feature module is unavailable.
@@ -268,7 +268,7 @@ def _auto_sdf_sigma(target: Any) -> float:
 def _default_residuals(target: Any, quality: QualityConfig) -> list:
     """The ICP-dominant default residual set for ``register`` / ``merge`` when none is given.
 
-    ``[ICP(point_to_plane=False, weight=1.0), SDF(sigma=auto, weight=0.3, n_points=<quality>)]`` —
+    ``[ICP(point_to_plane=False, weight=1.0), SDF(sigma=auto, weight=0.3, n_points=<quality>)]``,
     ICP leads so the Gaussian-SDF's small surface bias only regularises an already-good global init
     (verified in Phase 2: an SDF-dominant fine step can pull a good init *off* the true pose).
     ``sigma`` is derived from the target via :func:`_auto_sdf_sigma`. The SDF point sample comes from
@@ -334,25 +334,25 @@ def register(
     Parameters
     ----------
     target : the reference (a :class:`~splatreg.core.types.Gaussians`, usually).
-    source : what is aligned to ``target`` — a ``Gaussians`` (splat-to-splat) or a ``Frame``
+    source : what is aligned to ``target``, a ``Gaussians`` (splat-to-splat) or a ``Frame``
         (tracking); handed straight to each residual.
     residuals : sequence of :class:`~splatreg.residuals.base.Residual`, or ``None`` (default) to
         build an ICP-dominant default set ``[ICP(point_to_plane=False, weight=1.0),
-        SDF(sigma=auto, weight=0.3, n_points=<quality>)]`` — the SDF ``sigma`` auto-derived from the
+        SDF(sigma=auto, weight=0.3, n_points=<quality>)]``, the SDF ``sigma`` auto-derived from the
         target geometry (``~2x`` its median Gaussian scale; see :func:`_auto_sdf_sigma`) and the
         sample size / chunking from ``quality``. An explicit list is honoured unchanged (``quality``
         then only sets the autodiff row-chunk). ``None`` requires ``target`` to be a non-empty
         ``Gaussians``.
     init : initial 4x4 transform, or ``None`` for identity, or one of the strings:
 
-        * ``"fast"`` — the recommended fast coarse-init: FPFH descriptors + GPU-batched 3-point
+        * ``"fast"``, the recommended fast coarse-init: FPFH descriptors + GPU-batched 3-point
           RANSAC (:func:`splatreg.align_features.feature_align`), returning ONLY the seed for the LM
           to polish. ~20-35 ms vs the ~0.8-1.4 s blind sweep, with the feature path's full-rotation
           robustness. Falls back to ``"global"`` then identity if the feature module is unavailable.
-        * ``"global"`` — coarse-init from :func:`splatreg.align.global_align` (super-Fibonacci
+        * ``"global"``, coarse-init from :func:`splatreg.align.global_align` (super-Fibonacci
           SO(3) sweep + batched trimmed ICP; robust to noise/outliers and near-symmetric clouds;
           assumes full overlap).
-        * ``"features"`` — a complete partial-overlap registrar from
+        * ``"features"``, a complete partial-overlap registrar from
           :func:`splatreg.align_features.feature_align` (FPFH descriptors + ratio-test mutual-NN +
           clique-prefiltered RANSAC + an overlap-aware target->source ICP refine, with an
           overlap-aware *point-to-plane* super-Fibonacci basin-sweep fallback that recovers the pose
@@ -365,19 +365,19 @@ def register(
           (its ICP would pull a good partial-overlap init off-pose), ``init="features"`` with the
           default residuals returns the feature registration DIRECTLY and skips that LM; pass an
           explicit overlap-safe ``residuals=[...]`` to run the LM seeded from the feature init.
-        * ``"robust"`` — scale-robust registrar (:func:`splatreg.align_features.robust_feature_align`):
-          an Open3D FPFH+RANSAC seed (scale-correct, auto-voxelled — the ~77 % RR Open3D reports on
+        * ``"robust"``, scale-robust registrar (:func:`splatreg.align_features.robust_feature_align`):
+          an Open3D FPFH+RANSAC seed (scale-correct, auto-voxelled, the ~77 % RR Open3D reports on
           real indoor scans like 3DMatch) refined by splatreg's overlap-aware ICP (+ Sim(3) scale).
           Like ``"features"`` it returns the registration DIRECTLY under the default residuals.
-        * ``"learned"`` — LEARNED registrar (:func:`splatreg.align_features.learned_feature_align`):
-          the pretrained GeoTransformer 3DMatch correspondence model (CVPR 2022, ~92 % RR — past the
+        * ``"learned"``, LEARNED registrar (:func:`splatreg.align_features.learned_feature_align`):
+          the pretrained GeoTransformer 3DMatch correspondence model (CVPR 2022, ~92 % RR, past the
           classical FPFH ~77 % ceiling) supplies the coarse seed, then the SAME overlap-aware ICP
           (+ Sim(3) scale) refine as ``"robust"``.  Falls back to ``"robust"`` (then identity) when
           GeoTransformer's module / built CUDA-ext / pretrained weights are unavailable.
-        * ``"mac"`` — MAC maximal-clique registrar (:func:`splatreg.mac.mac_feature_align`;
+        * ``"mac"``, MAC maximal-clique registrar (:func:`splatreg.mac.mac_feature_align`;
           Zhang et al., CVPR 2023): instead of RANSAC minimal samples, hypotheses come from the
           **maximal cliques** of an SC²-weighted rigidity-compatibility graph over the FPFH
-          correspondences — each clique gets a weighted-SVD pose, the inlier-count winner is
+          correspondences, each clique gets a weighted-SVD pose, the inlier-count winner is
           refit on its consensus set, then the same overlap-aware ICP polish as ``"robust"``.
           Robust to heavily outlier-contaminated correspondence sets (including multi-consensus
           decoys that defeat a greedy prefilter + RANSAC); on an all-outlier set it returns an
@@ -385,12 +385,12 @@ def register(
           wrong pose.  Like the other registrars it returns the registration DIRECTLY under the
           default residuals.  Needs networkx (``pip install "splatreg[mac]"``).
 
-        All string forms are guarded — fall back to identity with a logged note if the module
+        All string forms are guarded, fall back to identity with a logged note if the module
         is unavailable. For ``init="global"`` the chosen transform seeds the LM.
     transform : ``"se3"`` (dof 6) or ``"sim3"`` (dof 7; the scale DoF is solved, autodiffed).
     backend : the solver engine. ``"builtin"`` (DEFAULT, fastest) is splatreg's closed-form-Jacobian
         Levenberg-Marquardt core. ``"pypose"`` / ``"theseus"`` hand the whole nonlinear least-squares
-        problem to that external engine instead — they optimise the same right-perturbation tangent
+        problem to that external engine instead, they optimise the same right-perturbation tangent
         through splatreg's own ``exp`` (so the recovered SE(3)/Sim(3) pose matches the builtin
         convention) and autodiff the Jacobian, so a user can bring their own solver without writing
         one. Both need the matching optional dependency (``pip install splatreg[pypose|theseus]``) and
@@ -399,14 +399,14 @@ def register(
     max_iters : maximum LM iterations. ``None`` (default) takes the value from ``quality``
         (``QualityConfig.max_iters``); an explicit int always wins.
     quality : the quality / machine-adaptivity policy (see :func:`splatreg.quality.resolve_quality`):
-        ``"full"`` (DEFAULT — nothing capped, all source anchors, full fidelity), ``"balanced"`` /
+        ``"full"`` (DEFAULT, nothing capped, all source anchors, full fidelity), ``"balanced"`` /
         ``"low"`` (bounded sample + tighter chunks), a ``0..1`` float (scaled), or ``"auto"`` (detect
-        free GPU/CPU memory and pick the largest sizes that *fit* — full on a big machine, scaled
+        free GPU/CPU memory and pick the largest sizes that *fit*, full on a big machine, scaled
         down on a small GPU / CPU so it runs without OOM). A :class:`~splatreg.quality.QualityConfig`
         may be passed for full manual control. The Sim(3) autodiff Jacobian is always row-chunked
         (per ``quality``) so peak memory is bounded with **no** quality loss.
     refine : optional OPT-IN second refinement stage run AFTER the geometric solve. The only value
-        today is ``"photometric"`` — a short extra LM whose residual renders the SOURCE splat under
+        today is ``"photometric"``, a short extra LM whose residual renders the SOURCE splat under
         the current ``T`` from a small synthetic camera ring around the target and compares it
         against renders of the TARGET splat from the same cameras
         (:func:`splatreg.residuals.photometric.refine_photometric`; PhotoReg-style, arXiv
@@ -414,7 +414,7 @@ def register(
         leaves a visibly coloured seam that pure geometry cannot see; this stage fixes the part of
         it that is pose error. Requires BOTH splats to carry ``colors`` and gsplat to be installed
         (``pip install "splatreg[render]"``) unless ``refine_kwargs['render_fn']`` supplies a
-        custom renderer — checked at call time with a clear ``ImportError``, never at import.
+        custom renderer, checked at call time with a clear ``ImportError``, never at import.
         Works for both ``transform="se3"`` and ``"sim3"``; iteration count defaults to the quality
         policy's ``refine_iters``.
     refine_kwargs : optional dict of keyword overrides for the refine stage (see
@@ -559,11 +559,11 @@ def _refine_photometric_stage(
     Seeds :func:`splatreg.residuals.photometric.refine_photometric` with the geometric ``T`` and a
     short iteration budget from the quality policy (``quality.refine_iters``; an explicit
     ``max_iters`` in ``refine_kwargs`` wins). The refined pose/scale replace the geometric ones and
-    the stage's LM diagnostics land under ``info["refine"]`` — the geometric diagnostics (cost,
+    the stage's LM diagnostics land under ``info["refine"]``, the geometric diagnostics (cost,
     feature confidence, ...) stay where they were, so callers can see both stages honestly.
 
-    gsplat availability (or a custom ``render_fn``) is enforced inside the refine call — at CALL
-    time, with the install hint — keeping ``refine`` honest-optional like every other extra.
+    gsplat availability (or a custom ``render_fn``) is enforced inside the refine call, at CALL
+    time, with the install hint, keeping ``refine`` honest-optional like every other extra.
     """
     from .residuals.photometric import refine_photometric  # local: keeps gsplat fully optional
 
@@ -668,7 +668,7 @@ def apply_transform(gaussians: Gaussians, T: torch.Tensor, scale: float = 1.0) -
     """Bake an SE(3)/Sim(3) transform into a splat and return the transformed copy.
 
     The align-without-merging workflow: :func:`register` two scans, apply the recovered
-    transform to the source, and save each scan as its **own** PLY — aligned into a common
+    transform to the source, and save each scan as its **own** PLY, aligned into a common
     frame but never fused::
 
         result = register(target, source, transform="sim3")
@@ -702,7 +702,7 @@ def merge(
 ) -> Gaussians:
     """Register every splat onto ``gaussians_list[ref]``, fuse, and return one ``Gaussians``.
 
-    This is the v0.1 headline — a merge that is **not a naive cat**. For each non-reference splat
+    This is the v0.1 headline, a merge that is **not a naive cat**. For each non-reference splat
     it :func:`register`\\ s onto the reference (``init="global"`` so large offsets recover; default
     ICP-dominant ``residuals``; ``transform="sim3"`` so scale differences are absorbed), bakes the
     recovered Sim(3)/SE(3) into that splat's means / quats / scales, concatenates everything, then
@@ -732,7 +732,7 @@ def merge(
         anchor spacing, :func:`splatreg.fuse.auto_knn_radius`). Used only when ``dedupe_method="knn"``.
     max_iters : LM iterations per pairwise registration. ``None`` (default) takes the value from
         ``quality``; an explicit int wins.
-    quality : quality / machine-adaptivity policy applied to every pairwise registration — ``"full"``
+    quality : quality / machine-adaptivity policy applied to every pairwise registration, ``"full"``
         (DEFAULT), ``"balanced"`` / ``"low"``, a ``0..1`` float, or ``"auto"`` (fit detected memory).
         See :func:`register` / :func:`splatreg.quality.resolve_quality`.
     refine : optional opt-in per-pair refinement stage, forwarded to :func:`register`. The merge

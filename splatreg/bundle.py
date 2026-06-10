@@ -1,4 +1,4 @@
-"""Multi-splat joint / bundle registration — N splats into one loop-consistent frame.
+"""Multi-splat joint / bundle registration, N splats into one loop-consistent frame.
 
 :func:`splatreg.merge` registers every splat onto a single reference *sequentially* and independently.
 That is correct for a star topology, but when the splats form a **loop** (capture 0 overlaps 1, 1
@@ -31,9 +31,9 @@ right-perturbation convention as the rest of splatreg), so no factor Jacobian is
 a plain least-squares pose graph, corrupt every absolute pose. The joint solve is therefore an
 **IRLS** with a per-edge **Huber / Cauchy** kernel (``robust="huber"`` by default) and a
 **graduated-non-convexity (GNC)** schedule (start near-convex so the outlier surfaces as the largest
-residual, then anneal the robust scale down to reject it) — so one bad edge is down-weighted out
+residual, then anneal the robust scale down to reject it), so one bad edge is down-weighted out
 instead of dragging the solution. ``robust=None`` recovers the plain solve. Note a *bare ring* (every
-node degree 2) has no redundancy to localise an outlier — the error spreads evenly and is
+node degree 2) has no redundancy to localise an outlier, the error spreads evenly and is
 indistinguishable at the optimum; rejection needs a redundant graph (chords / multiple loops), the
 realistic loop-closure case.
 
@@ -108,7 +108,7 @@ class BundleResult:
 def _auto_pairs(n: int) -> List[Tuple[int, int]]:
     """Default graph: the chain ``0-1-2-…-(n-1)`` plus the loop-closure edge ``(n-1, 0)``.
 
-    This is the topology the module is built for — a ring of overlapping captures. For ``n == 2``
+    This is the topology the module is built for, a ring of overlapping captures. For ``n == 2``
     it is the single pair ``(0, 1)`` (no loop). The caller can override with an explicit pair list
     for star / arbitrary graphs.
     """
@@ -143,7 +143,7 @@ def _robust_weight(norm: float, scale: float, kernel: Optional[str]) -> float:
     The Gauss-Newton/IRLS reweighting: minimising ``Σ ρ(‖e‖)`` is, at each iteration, a weighted
     least-squares ``Σ w·‖e‖²`` with ``w = ρ'(r)/r``. For Huber ``w = 1`` while ``r ≤ c`` and
     ``w = c/r`` beyond (so a gross outlier's pull falls off as ``1/r`` instead of growing); for
-    Cauchy ``w = 1/(1 + (r/c)²)`` (redescending — a far outlier is suppressed even harder).
+    Cauchy ``w = 1/(1 + (r/c)²)`` (redescending, a far outlier is suppressed even harder).
     ``kernel=None`` returns 1 (plain least squares). ``scale = c`` is the inlier/outlier knee.
     """
     if kernel is None:
@@ -203,7 +203,7 @@ def solve_pose_graph(
 
     Returns
     -------
-    ``(poses, cost_history, edge_weights)`` — refined absolute poses, the per-iteration robust cost
+    ``(poses, cost_history, edge_weights)``, refined absolute poses, the per-iteration robust cost
     (plus a final-cost tail), and the final per-edge IRLS weight dict.
     """
     poses = list(poses)
@@ -306,7 +306,7 @@ def pairwise_consistency(
 ) -> Tuple[float, float]:
     """Max and mean per-edge tangent inconsistency of an absolute-pose set against the measurements.
 
-    ``rel`` maps ``(i, j) -> T_ij``. Returns ``(max||e_ij||, mean||e_ij||)`` — the metric the joint
+    ``rel`` maps ``(i, j) -> T_ij``. Returns ``(max||e_ij||, mean||e_ij||)``, the metric the joint
     solve drives down and the headline "loop closes" number. The tangent norm mixes rotation
     (radians) and translation (splat units); for the synthetic loop both are small so it is a fair
     single scalar, but callers comparing regimes should look at the components.
@@ -333,7 +333,7 @@ def _sequential_poses(
     """Open-loop absolute poses by chaining the chain edges out from ``ref`` (the merge-style baseline).
 
     Breadth-first from the reference over the chain edges (ignores the loop-closure edge), composing
-    ``T_child = T_parent @ T_(parent,child)`` — exactly the independent sequential alignment
+    ``T_child = T_parent @ T_(parent,child)``, exactly the independent sequential alignment
     :func:`splatreg.merge` performs, so it is the drift baseline the joint solve is compared against.
     """
     poses: List[Optional[torch.Tensor]] = [None] * n
@@ -381,7 +381,7 @@ def bundle_register(
 
     Builds a relative-pose constraint ``T_ij`` for every edge in ``pairs`` (each from
     :func:`splatreg.register`), then optimises all ``N`` absolute poses ``T_i`` so every edge
-    ``T_i @ T_ij ≈ T_j`` holds *simultaneously* — Gauss-Newton in the SE(3)/Sim(3) tangent, with the
+    ``T_i @ T_ij ≈ T_j`` holds *simultaneously*, Gauss-Newton in the SE(3)/Sim(3) tangent, with the
     reference pose pinned to identity to fix the gauge. Unlike the sequential merge (which chains the
     edges and accumulates drift around a loop) the joint optimum spreads the closure error over the
     whole graph, so the max pairwise inconsistency drops.
@@ -410,9 +410,9 @@ def bundle_register(
         estimate of the inlier spread) each iteration, so it adapts to the loop's noise level; pass a
         float to pin it.
     reject_threshold : an edge whose final IRLS weight is below this is reported in
-        ``info.rejected_edges`` (it was effectively excluded from the solution). Diagnostic only —
+        ``info.rejected_edges`` (it was effectively excluded from the solution). Diagnostic only,
         the down-weighting itself is continuous, not a hard cut.
-    fuse : also return one merged :class:`~splatreg.core.types.Gaussians` — every splat baked into
+    fuse : also return one merged :class:`~splatreg.core.types.Gaussians`, every splat baked into
         its recovered absolute pose, concatenated, and (``dedupe``) overlap-deduped, like
         :func:`splatreg.merge` but with the *jointly* optimised poses.
     return_info : also return a :class:`BundleResult` with the consistency diagnostics.
@@ -475,11 +475,10 @@ def _edge_jac(T_i, T_j, T_ij, exp_fn, log_map, dof, device, dtype):
     """Edge residual ``e`` and its Jacobians ``(Ji, Jj)`` w.r.t. the right-increments of ``T_i``/``T_j``.
 
     Differentiates ``delta -> log( (T_i exp(d_i) T_ij)^{-1} (T_j exp(d_j)) )`` at ``delta = 0`` via
-    autodiff through splatreg's own ``exp``/``log`` — the same right-perturbation convention as the
+    autodiff through splatreg's own ``exp``/``log``, the same right-perturbation convention as the
     pairwise solves, so the joint solve composes cleanly. Returns ``e`` (dof,), ``Ji`` (dof, dof),
     ``Jj`` (dof, dof).
     """
-    zero = torch.zeros(dof, device=device, dtype=dtype, requires_grad=True)
 
     def res_of(di, dj):
         pred = (T_i @ exp_fn(di)) @ T_ij

@@ -1,4 +1,4 @@
-"""SE(3) / Sim(3) Lie-algebra helpers — the matrix exp/log at the heart of the registration loop.
+"""SE(3) / Sim(3) Lie-algebra helpers, the matrix exp/log at the heart of the registration loop.
 
 Convention: right-perturbation, ``T_new = T @ se3_exp(xi)`` with the tangent ordered
 ``xi = [tx, ty, tz, rx, ry, rz]`` (translation first, then rotation). Every Jacobian in

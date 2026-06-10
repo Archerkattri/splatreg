@@ -3,7 +3,7 @@
 Every serious geometric-optimisation library checks each analytic Jacobian against a
 numerical one (GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS`, SymForce manifold-native
 `NumericalDerivative`, Theseus `autograd.functional.jacobian`). This exposes the same
-for splatreg's `Residual` ABC: audit any residual — built-in or user/AI-added — in one
+for splatreg's `Residual` ABC: audit any residual, built-in or user/AI-added, in one
 call, so a wrong gradient (which silently corrupts every pose estimate) is caught.
 
     from splatreg.testing import assert_residual_jacobian

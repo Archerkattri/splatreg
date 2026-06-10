@@ -2,7 +2,7 @@
 
 This module is the I/O boundary of splatreg. It does two jobs:
 
-1. **PLY round-trip** — :func:`load_ply` / :func:`save_ply` read and write the *standard*
+1. **PLY round-trip**, :func:`load_ply` / :func:`save_ply` read and write the *standard*
    3D Gaussian Splatting PLY (the INRIA ``graphdeco`` / gsplat layout):
 
        x y z  f_dc_0..2  f_rest_0..M  opacity  scale_0..2  rot_0..3
@@ -12,13 +12,13 @@ This module is the I/O boundary of splatreg. It does two jobs:
    quaternion, and the colour is spherical-harmonics (DC = ``f_dc``, higher orders =
    ``f_rest``). Loaded ``Gaussians`` therefore carry ``log_scales=True`` and SH colours.
 
-2. **gsplat bridge** — :func:`from_gsplat` / :func:`to_gsplat` convert to and from the tensor
+2. **gsplat bridge**, :func:`from_gsplat` / :func:`to_gsplat` convert to and from the tensor
    bundle gsplat's rasteriser consumes (``means, quats, scales, opacities, colors``), so a
    splatreg ``Gaussians`` drops straight into ``gsplat.rasterization(**to_gsplat(g))``.
 
 Spherical-harmonics layout
 --------------------------
-``Gaussians.colors`` for the SH case is ``(N, K, 3)`` — *coefficient-major, channel-last*;
+``Gaussians.colors`` for the SH case is ``(N, K, 3)``, *coefficient-major, channel-last*;
 a 2-D ``(N, 3)`` value is always RGB (DC-only files are converted to RGB on load)
 (``K`` SH coefficients, each an RGB triple), matching gsplat's internal ``sh0``/``shN``
 tensors. The standard PLY stores SH **channel-major** (all coefficients of R, then G, then B),
@@ -151,7 +151,7 @@ def _read_ply_vertex(path: _PathLike) -> dict[str, np.ndarray]:
 
     Uses :mod:`plyfile` when available (handles ASCII and unusual headers); otherwise falls back
     to a built-in binary-PLY reader. Every column is returned as float64 for uniform downstream
-    indexing — callers cast to the precision they need.
+    indexing, callers cast to the precision they need.
     """
     path = Path(path)
     if not path.exists():
@@ -212,7 +212,7 @@ def load_ply(
     """Load a standard 3D Gaussian Splatting ``.ply`` into a :class:`Gaussians`.
 
     Recognises the canonical INRIA/gsplat layout (``x y z``, ``f_dc_0..2``, ``f_rest_*``,
-    ``opacity``, ``scale_0..2``, ``rot_0..3``). Stored values are raw — the returned
+    ``opacity``, ``scale_0..2``, ``rot_0..3``). Stored values are raw, the returned
     ``Gaussians`` has ``log_scales=True``, raw (pre-sigmoid) ``opacities``, ``wxyz`` ``quats``,
     and ``colors`` as SH coefficients shaped ``(N, K, 3)`` (or RGB ``(N, 3)`` if only DC is present,
     i.e. ``K == 1``, kept 2-D for convenience).
@@ -374,7 +374,7 @@ def from_gsplat(
         means: ``(N, 3)`` centres.
         quats: ``(N, 4)`` rotations, ``wxyz`` (gsplat's convention).
         scales: ``(N, 3)``. Linear by default; pass ``log_scales=True`` if these are log-scales.
-        opacities: ``(N,)`` or ``(N, 1)``. Whatever activation state your gsplat call expects —
+        opacities: ``(N,)`` or ``(N, 1)``. Whatever activation state your gsplat call expects,
             splatreg treats this as opaque and passes it back unchanged in :func:`to_gsplat`.
         colors: optional ``(N, 3)`` RGB or ``(N, K, 3)`` SH coefficients.
         log_scales: set True if ``scales`` are already log-transformed.

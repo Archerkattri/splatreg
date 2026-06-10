@@ -1,6 +1,6 @@
 """Core data contracts for splatreg.
 
-Pure-python + torch tensors. NOTHING here imports gsplat/CUDA — these types are the stable
+Pure-python + torch tensors. NOTHING here imports gsplat/CUDA, these types are the stable
 interface every module (solver, residuals, io, api) agrees on. Do not add heavy deps to this file.
 """
 
@@ -45,7 +45,7 @@ class Gaussians:
 class Frame:
     """A single observation (for the camera/object tracking modes).
 
-    For splat-to-splat registration the 'source' is another ``Gaussians``, not a Frame —
+    For splat-to-splat registration the 'source' is another ``Gaussians``, not a Frame,
     residuals receive whichever is relevant via the ``source`` argument.
     """
 
@@ -61,7 +61,7 @@ class LinearizedProblem:
     """Assembled normal-equation inputs handed to a Solver backend.
 
     ``dof`` is 6 for SE(3) or 7 for Sim(3) (the 7th is log-scale). ``weight`` holds per-row
-    sqrt-weights (a backend may apply them or assume J/r are already weighted — see the builtin LM).
+    sqrt-weights (a backend may apply them or assume J/r are already weighted, see the builtin LM).
     """
 
     J: torch.Tensor  # (R, dof) stacked Jacobian
@@ -85,12 +85,16 @@ class RegisterResult:
     """Output of ``register`` / ``Tracker.track``.
 
     ``T`` is the 4x4 transform aligning ``source`` to ``target`` (rotation*scale | translation
-    for Sim(3); plain SE(3) when ``transform='se3'``). ``info`` carries diagnostics
-    (per-iter cost, rmse, overlap, n_iters, timings, residual breakdown). Builtin-LM solves also
-    fill ``info["information"]`` (the undamped ``JᵀWJ`` at the final accepted linearisation —
-    (6, 6) SE(3) / (7, 7) Sim(3), tangent order ``[t, r, (log_s)]``) and ``info["covariance"]``
-    (its inverse scaled by the residual-variance estimate; ``None`` if singular) for
-    pose-graph / loop-closure weighting — see :func:`splatreg.solvers.lm.run_lm`.
+    for Sim(3); plain SE(3) when ``transform='se3'``). ``scale`` is the recovered similarity
+    scale (already baked into ``T``'s top-left block; ``1.0`` for SE(3)). ``converged`` is the
+    solver's convergence flag (step/cost tolerance reached before the iteration cap). ``info``
+    carries diagnostics (per-iter cost, rmse, overlap, n_iters, timings, residual breakdown,
+    and for the feature initializers the honest ``info["ambiguous"]`` / ``info["confidence"]``
+    flags). Builtin-LM solves also fill ``info["information"]`` (the undamped ``JᵀWJ`` at the
+    final accepted linearisation, (6, 6) SE(3) / (7, 7) Sim(3), tangent order ``[t, r,
+    (log_s)]``) and ``info["covariance"]`` (its inverse scaled by the residual-variance
+    estimate; ``None`` if singular, never faked) for pose-graph / loop-closure weighting,
+    see :func:`splatreg.solvers.lm.run_lm`.
     """
 
     T: torch.Tensor  # (4, 4)

@@ -1,20 +1,20 @@
-"""Scene-scale spatial index over Gaussian means — O(1)-ish neighbour queries for big splats.
+"""Scene-scale spatial index over Gaussian means, O(1)-ish neighbour queries for big splats.
 
 The Gaussian-SDF / dedupe / merge query path is a *spatial* one: "which anchors lie near this
-query point?". The naive answer forms the full ``(queries, anchors)`` distance matrix — an O(N·M)
+query point?". The naive answer forms the full ``(queries, anchors)`` distance matrix, an O(N·M)
 scan that is fine for an object splat (a few thousand anchors) but quadratic-blows-up on a
 scene-scale splat (hundreds of thousands of anchors). This module builds a **voxel-hash grid**
 over the anchor means once, then answers the three queries the rest of splatreg needs against only
 the anchors in the relevant cells:
 
-* :meth:`SpatialIndex.radius` — every anchor within ``r`` of each query (the dedupe / SDF support).
-* :meth:`SpatialIndex.knn` — the ``k`` nearest anchors to each query (the truncated-SDF support).
-* :meth:`SpatialIndex.region` — every anchor inside an axis-aligned box (region / crop queries).
+* :meth:`SpatialIndex.radius`, every anchor within ``r`` of each query (the dedupe / SDF support).
+* :meth:`SpatialIndex.knn`, the ``k`` nearest anchors to each query (the truncated-SDF support).
+* :meth:`SpatialIndex.region`, every anchor inside an axis-aligned box (region / crop queries).
 
 The ``radius`` / ``knn`` queries also have **loop-free vectorised batch variants**
 (:meth:`SpatialIndex.radius_batch` / :meth:`SpatialIndex.knn_batch`) that answer all ``M`` queries in
 one pass (cell keys located by ``searchsorted`` + run-expansion, then a single batched distance /
-top-k) — identical results, but without the Python per-query loop, so they win on a moderate cloud
+top-k), identical results, but without the Python per-query loop, so they win on a moderate cloud
 with many queries (the warm-start-tracking regime).
 
 Why a voxel hash (not a kd-tree)
@@ -22,7 +22,7 @@ Why a voxel hash (not a kd-tree)
 A uniform voxel grid is the natural structure for a Gaussian splat: the anchors already trace a
 surface at a roughly uniform spacing (the Gaussian footprint), so a grid sized to that spacing
 holds ~O(1) anchors per occupied cell and a radius/knn query only has to look at the query's cell
-plus its neighbours — independent of the total anchor count. It is also pure ``torch`` (a
+plus its neighbours, independent of the total anchor count. It is also pure ``torch`` (a
 ``sort`` + bucketing, no recursion, no Python per-node walk), so it stays vectorised and
 device-agnostic, and it is **deterministic** (a stable sort keys the buckets). A balanced kd-tree
 would give the same asymptotics but needs a Python build/descent that does not vectorise on a
@@ -34,7 +34,7 @@ The grid is built by snapping each anchor to integer voxel coordinates ``floor((
 cell)`` and bucketing anchors by a flattened, collision-free cell key (an argsort gives contiguous
 per-cell runs; a hash map ``cell_key -> (run_start, run_len)`` then locates a cell in O(1)). A
 query gathers the candidate anchors from the query cell's 3x3x3 (radius) or expanding-ring (knn)
-neighbourhood and does the *exact* distance test only on those — so the result is exact (identical
+neighbourhood and does the *exact* distance test only on those, so the result is exact (identical
 to brute force), just without touching the far anchors. ``cell`` defaults to the splat's median
 anchor spacing (so a radius up to one cell only ever needs the 27-neighbourhood), auto-derived via
 :func:`splatreg.fuse.auto_voxel_size`-style spacing.
@@ -88,7 +88,7 @@ class SpatialIndex:
 
     Build once from a ``(M, 3)`` point tensor (or a :class:`~splatreg.core.types.Gaussians` via
     :func:`build_index`), then query repeatedly. All queries return results IDENTICAL to a
-    brute-force scan — the grid only prunes which anchors are distance-tested, never the answer.
+    brute-force scan, the grid only prunes which anchors are distance-tested, never the answer.
 
     Parameters
     ----------
@@ -133,9 +133,6 @@ class SpatialIndex:
         self._cell_keys = keys[order]
         # cell_key -> (run_start, run_len). Built on CPU once (host map); query gathers slices.
         keys_cpu = self._cell_keys.cpu()
-        uniq, first_idx, counts = torch.unique_consecutive(
-            keys_cpu, return_inverse=False, return_counts=True
-        ), None, None
         # unique_consecutive with return_counts gives run lengths in order; recompute starts.
         u, cnt = torch.unique_consecutive(keys_cpu, return_counts=True)
         starts = torch.cumsum(torch.cat([torch.zeros(1, dtype=cnt.dtype), cnt[:-1]]), dim=0)
@@ -199,11 +196,11 @@ class SpatialIndex:
     def radius(self, queries: torch.Tensor, r: float) -> Tuple[torch.Tensor, torch.Tensor]:
         """All anchors within distance ``r`` of each query, in flat (query, anchor) pair form.
 
-        Returns ``(pair_query_idx, pair_anchor_idx)`` — two ``(P,)`` long tensors so that
+        Returns ``(pair_query_idx, pair_anchor_idx)``, two ``(P,)`` long tensors so that
         ``points[pair_anchor_idx[j]]`` is within ``r`` of ``queries[pair_query_idx[j]]``. This flat
         form composes directly with the chunked SDF / dedupe code (no ragged padding). The result is
         EXACT: every in-radius anchor is returned and no out-of-radius anchor is, identical to a
-        brute-force ``cdist <= r`` — the grid only limits which anchors are distance-tested.
+        brute-force ``cdist <= r``, the grid only limits which anchors are distance-tested.
         """
         if queries.dim() != 2 or queries.shape[-1] != 3:
             raise ValueError(f"radius: queries must be (Q, 3), got {tuple(queries.shape)}.")
@@ -217,7 +214,6 @@ class SpatialIndex:
         # A radius r spans ceil(r / cell) cells in each direction.
         ring = int(torch.ceil(torch.tensor(r / self.cell)).item())
         q_coords = self._coords(queries)
-        r2 = float(r) * float(r)
         for qi in range(int(queries.shape[0])):
             cand = self._gather_cells(self._neighbour_keys(q_coords[qi], ring))
             if cand.numel() == 0:
@@ -247,8 +243,8 @@ class SpatialIndex:
         Vectorised core of the batch queries: builds every (query, neighbour-cell) pair, locates each
         cell's anchor run by a single ``searchsorted`` into the sorted unique cell keys (no Python
         per-query dict walk), then expands the runs into flat ``(query_idx, anchor_idx)`` candidate
-        pairs with ``repeat_interleave`` + a per-run ``arange``. Returns ``(q_of_pair, anchor_idx)``
-        — still *candidates* (cell-level); the caller applies the exact distance / top-k test.
+        pairs with ``repeat_interleave`` + a per-run ``arange``. Returns ``(q_of_pair,
+        anchor_idx)``, still *candidates* (cell-level); the caller applies the exact distance / top-k test.
         """
         Q = int(q_coords.shape[0])
         if Q == 0 or self.n == 0:
@@ -293,12 +289,12 @@ class SpatialIndex:
         return q_pair, anchor
 
     def radius_batch(self, queries: torch.Tensor, r: float) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Loop-free batch radius query — identical result to :meth:`radius`, no Python per-query loop.
+        """Loop-free batch radius query, identical result to :meth:`radius`, no Python per-query loop.
 
         Enumerates every query's candidate anchors in one vectorised pass (:meth:`_candidate_pairs`),
         then does a single batched exact distance test over all (query, candidate) pairs at once. The
         returned flat ``(pair_query_idx, pair_anchor_idx)`` pair set is identical (as a set) to
-        :meth:`radius` / a brute-force ``cdist <= r`` — only the *which-anchors-tested* pruning is
+        :meth:`radius` / a brute-force ``cdist <= r``, only the *which-anchors-tested* pruning is
         shared. Wins over the looped path when there are many queries on a small/moderate cloud (the
         Python loop overhead dominates there).
         """
@@ -322,7 +318,7 @@ class SpatialIndex:
         return q_pair[keep], anchor[keep]
 
     def knn_batch(self, queries: torch.Tensor, k: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Loop-free batch knn — same ``(Q, k)`` (idx, dist) result as :meth:`knn`, no per-query loop.
+        """Loop-free batch knn, same ``(Q, k)`` (idx, dist) result as :meth:`knn`, no per-query loop.
 
         Picks one ring wide enough to contain the k-th neighbour for *every* query (grown until each
         query has ``≥ k`` candidates and the ring margin clears the k-th distance), enumerates all
@@ -398,7 +394,7 @@ class SpatialIndex:
         """The ``k`` nearest anchors to each query.
 
         Returns ``(idx, dist)`` of shape ``(Q, k)`` (``idx`` into ``points``, ``dist`` Euclidean),
-        sorted nearest-first per query — EXACTLY the brute-force ``cdist``-topk result. Expands the
+        sorted nearest-first per query, EXACTLY the brute-force ``cdist``-topk result. Expands the
         searched cell ring until at least ``k`` candidates are found AND the ring radius safely
         exceeds the k-th distance (so no closer anchor in an unsearched outer cell is missed), then
         does the exact top-k over the candidates. ``k`` is clamped to the anchor count.
@@ -446,7 +442,7 @@ class SpatialIndex:
         """Indices of every anchor inside the axis-aligned box ``[lo, hi]`` (inclusive).
 
         ``lo`` / ``hi`` are length-3 (tensor or sequence). Gathers the box's covered cells, then
-        does the exact per-axis bound test on those candidates — the EXACT set a brute-force
+        does the exact per-axis bound test on those candidates, the EXACT set a brute-force
         ``((points >= lo) & (points <= hi)).all(-1)`` would return.
         """
         lo = torch.as_tensor(lo, device=self.device, dtype=self.dtype).reshape(3)

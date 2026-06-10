@@ -1,4 +1,4 @@
-"""Splat-to-splat signed-distance residual — splatreg's flagship, Gaussian-SDF residual.
+"""Splat-to-splat signed-distance residual, splatreg's flagship, Gaussian-SDF residual.
 
 The optimisation variable ``T`` maps the *source* splat into the *target* splat's frame. This
 residual samples points from the source, pushes them through ``T``, and reads the target's
@@ -6,11 +6,11 @@ Gaussian-derived signed-distance field (:func:`~splatreg.geometry.gaussian_sdf.g
 at the transformed points. The signed distances *are* the residual: they vanish exactly when
 the source points land on the target's surface, i.e. when the two splats are aligned.
 
-No competitor packages this — registration here is driven by an implicit field derived straight
+No competitor packages this, registration here is driven by an implicit field derived straight
 from the target Gaussians, with no mesh and no correspondences.
 
 Convention: right-perturbation ``T_new = T @ exp(xi)``, ``xi = [tx, ty, tz, rx, ry, rz, (rho)]``.
-The analytic Jacobian below covers the six SE(3) columns AND — when ``dof=7`` — the Sim(3)
+The analytic Jacobian below covers the six SE(3) columns AND, when ``dof=7``, the Sim(3)
 log-scale (7th) column in closed form: under ``T @ sim3_exp(xi)`` the source scales by
 ``s = exp(rho)``, so ``dp_k/drho = R_T s_k = p_k - t`` and ``d r_k/drho = g_k^T (p_k - t)`` chains
 the SAME exact field gradient ``g_k`` used by the rigid columns. The Sim(3) solve therefore stays
@@ -25,17 +25,17 @@ Jacobian
 
 Under the right-perturbation ``T @ exp(xi)`` the transformed point moves (to first order) by
 ``dp_k = R . (v + w x s_k)`` where ``R`` is ``T``'s rotation and ``xi = [v | w]``. The chain rule
-then needs the SDF's TRUE spatial gradient ``g_k = ∇_p d(p_k)`` — which is **not** the proxy
+then needs the SDF's TRUE spatial gradient ``g_k = ∇_p d(p_k)``, which is **not** the proxy
 surface normal ``n~`` that ``gaussian_sdf`` also returns: ``n~`` drops the first-order
 ``∂q~/∂p`` term of the kernel-weighted centroid (a numerical audit, ``tests/test_jacobians.py``,
 measured ``max|Δ|≈10.8`` from using ``n~``). The exact ``g_k`` is computed in CLOSED FORM by
-``gaussian_sdf_grad`` (non-truncated path — one fused pass, no autograd graph; the fast SE(3)
+``gaussian_sdf_grad`` (non-truncated path, one fused pass, no autograd graph; the fast SE(3)
 path) or by autodiff (truncated path). Chaining it through the pose Jacobian::
 
     d r_k / d v = g_k^T R                          (translation block, 1x3)
     d r_k / d w = -g_k^T R [s_k]_x = (R^T g_k) x s_k    (rotation block, 1x3)
 
-stacked as ``J_k = [ g_k^T R | (R^T g_k) x s_k ]`` (shape ``(N, 6)``) — the same gradient-times-
+stacked as ``J_k = [ g_k^T R | (R^T g_k) x s_k ]`` (shape ``(N, 6)``), the same gradient-times-
 pose-Jacobian chain the ICP residual uses (numerically verified there), now with the EXACT field
 gradient rather than the dropped-curvature ``n~`` proxy.
 """
@@ -143,7 +143,7 @@ class SDF(Residual):
         return src_pts, p, R
 
     def _resolve_normals(self, target: Gaussians):
-        """Target anchor normals — explicit if given, else estimated ONCE and cached.
+        """Target anchor normals, explicit if given, else estimated ONCE and cached.
 
         The target is fixed across a registration, so its k-NN-PCA normals are constant; caching
         avoids re-running the per-anchor SVD on every residual/Jacobian call (the dominant SDF cost;

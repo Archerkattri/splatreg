@@ -1,9 +1,9 @@
-"""ICP residual — align ``source`` points to ``target``'s nearest Gaussian surface.
+"""ICP residual, align ``source`` points to ``target``'s nearest Gaussian surface.
 
 Each ``source`` point ``p_s`` is mapped into ``target``'s frame by the pose under
 optimization, ``p = R·p_s + t`` (right-perturbation ``T_new = T · exp(ξ)``). Its nearest
 ``target`` Gaussian supplies a surface point ``q`` (the Gaussian mean) and a unit surface
-normal ``n`` (the Gaussian's thinnest axis — the eigenvector of the smallest scale, which
+normal ``n`` (the Gaussian's thinnest axis, the eigenvector of the smallest scale, which
 for a surface-fit splat points across the surface). The residual is then
 
     point-to-plane (default):  r_i = nᵀ (p_i − q_i)            scalar per correspondence
