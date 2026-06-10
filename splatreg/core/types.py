@@ -86,7 +86,11 @@ class RegisterResult:
 
     ``T`` is the 4x4 transform aligning ``source`` to ``target`` (rotation*scale | translation
     for Sim(3); plain SE(3) when ``transform='se3'``). ``info`` carries diagnostics
-    (per-iter cost, rmse, overlap, n_iters, timings, residual breakdown).
+    (per-iter cost, rmse, overlap, n_iters, timings, residual breakdown). Builtin-LM solves also
+    fill ``info["information"]`` (the undamped ``JᵀWJ`` at the final accepted linearisation —
+    (6, 6) SE(3) / (7, 7) Sim(3), tangent order ``[t, r, (log_s)]``) and ``info["covariance"]``
+    (its inverse scaled by the residual-variance estimate; ``None`` if singular) for
+    pose-graph / loop-closure weighting — see :func:`splatreg.solvers.lm.run_lm`.
     """
 
     T: torch.Tensor  # (4, 4)
