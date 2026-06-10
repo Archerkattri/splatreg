@@ -603,6 +603,25 @@ def _quat_mul_wxyz(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     return out.squeeze(0) if squeeze else out
 
 
+
+def apply_transform(gaussians: Gaussians, T: torch.Tensor, scale: float = 1.0) -> Gaussians:
+    """Bake an SE(3)/Sim(3) transform into a splat and return the transformed copy.
+
+    The align-without-merging workflow: :func:`register` two scans, apply the recovered
+    transform to the source, and save each scan as its **own** PLY — aligned into a common
+    frame but never fused::
+
+        result = register(target, source, transform="sim3")
+        save_ply(apply_transform(source, result.T, result.scale), "source_aligned.ply")
+        # target.ply stays untouched; the two files now sit registered in any viewer.
+
+    Equivalent to the CLI: ``splatreg align target.ply source.ply -o source_aligned.ply``.
+    ``T`` is the 4x4 from :class:`RegisterResult` (top-left block ``scale * R``); pass
+    ``result.scale`` for Sim(3) (``1.0`` for SE(3)). Note: DC color is rotation-invariant and
+    quats are composed correctly; higher-order SH lobes are not yet Wigner-rotated.
+    """
+    return _apply_transform_to_gaussians(gaussians, T, scale)
+
 def merge(
     gaussians_list: Sequence[Gaussians],
     ref: int = 0,
