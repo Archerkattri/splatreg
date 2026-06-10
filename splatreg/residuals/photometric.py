@@ -370,6 +370,16 @@ _SSIM_C2 = 0.03**2
 _FD_ROT_EPS = 1.0e-3
 _FD_SCALE_EPS = 1.0e-3
 _FD_TRANS_FRAC = 1.0e-3
+# Exposure-compensation defaults: per-channel gain clamp + |bias| clamp for the per-pair
+# appearance model (independently-trained splats disagree on exposure/white balance — PhotoReg
+# fits the analogous model). Bounded so the model can absorb a global tint but NOT real
+# misalignment (which is spatially structured, not a global affine colour map).
+_EXPOSURE_GAIN_BOUNDS = (0.5, 2.0)
+_EXPOSURE_BIAS_BOUND = 0.2
+# Pixels participate in the exposure fit only when either render is non-background (sum-RGB
+# above this): the shared black background carries no appearance information and would drag
+# the affine fit toward (gain·0 + bias = 0).
+_EXPOSURE_FG_THRESH = 0.02
 
 
 def _look_at_T_WC(cam: torch.Tensor, center: torch.Tensor, device, dtype) -> torch.Tensor:
@@ -602,6 +612,12 @@ class SplatPhotometric(Residual):
     fd_rot_eps / fd_scale_eps : FD step for the rotation / log-scale channels (rad / nats).
     fd_trans_eps : FD step for translation; ``None`` auto-derives ``1e-3 x`` the target bounding
         radius at first use (scene-scale aware).
+    gain_bounds / bias_bound : clamps for the per-pair exposure model fitted by
+        :meth:`fit_exposure` (per-channel ``gain`` in ``[gain_bounds]``, ``|bias| <= bias_bound``).
+        The bounds stop the appearance model from absorbing real misalignment: a pose error
+        changes WHERE colour lands, which a global gain/bias cannot (and now may not) explain
+        away. The model is inert (identity) until :meth:`fit_exposure` is called —
+        :func:`refine_photometric` alternates the fit with the pose LM when ``exposure=True``.
     weight, robust : forwarded to :class:`Residual`.
     """
 
@@ -620,6 +636,8 @@ class SplatPhotometric(Residual):
         fd_rot_eps: float = _FD_ROT_EPS,
         fd_scale_eps: float = _FD_SCALE_EPS,
         fd_trans_eps: Optional[float] = None,
+        gain_bounds: tuple = _EXPOSURE_GAIN_BOUNDS,
+        bias_bound: float = _EXPOSURE_BIAS_BOUND,
         weight: float = 1.0,
         robust: Optional[Any] = None,
     ):
@@ -656,6 +674,13 @@ class SplatPhotometric(Residual):
         self.fd_rot_eps = float(fd_rot_eps)
         self.fd_scale_eps = float(fd_scale_eps)
         self.fd_trans_eps = None if fd_trans_eps is None else float(fd_trans_eps)
+        self.gain_bounds = (float(gain_bounds[0]), float(gain_bounds[1]))
+        self.bias_bound = float(bias_bound)
+        # Per-pair exposure model (per-channel gain/bias applied to the rendered SOURCE).
+        # Identity until fit_exposure() stores a fit; held FIXED inside an LM stage so the pose
+        # Jacobian stays clean (alternation, not joint optimisation — see fit_exposure()).
+        self._gain: Optional[torch.Tensor] = None  # (3,)
+        self._bias: Optional[torch.Tensor] = None  # (3,)
         self._dim = 0
         # Target render cache: the target splat is fixed across an LM run, so its V renders are
         # computed once (keyed by the target object's id; a new target invalidates).
@@ -681,13 +706,56 @@ class SplatPhotometric(Residual):
             self._tgt_cache_key = id(target)
         return self._tgt_cache
 
+    # ── exposure compensation ────────────────────────────────────────────────────
+
+    def fit_exposure(self, T: torch.Tensor, target: Gaussians, source: Any) -> tuple:
+        """Fit the per-pair appearance model: per-channel ``gain``/``bias`` on the SOURCE render.
+
+        Closed-form per-channel least squares of ``gain * I_src + bias ~ I_tgt`` over the
+        non-background pixels of the current renders (one extra source render at ``T``), with
+        ``gain`` clamped to ``self.gain_bounds`` and ``|bias| <= self.bias_bound``. The fit is
+        STORED on the residual and held fixed by subsequent :meth:`residual` /:meth:`jacobian`
+        calls — :func:`refine_photometric` alternates fit <-> pose-LM (stable: the pose Jacobian
+        never differentiates through the appearance fit, and the bounds keep the model from
+        explaining structured misalignment away as colour).
+
+        Returns ``(gain, bias)`` as ``(3,)`` tensors (also kept in ``self._gain``/``self._bias``).
+        """
+        if not isinstance(source, Gaussians) or source.colors is None:
+            raise ValueError("SplatPhotometric needs source to be a Gaussians with .colors")
+        tgt = self._target_images(target)  # (V, H, W, 3)
+        pred = self._render(_transform_gaussians_diff(source, T)).detach()
+        fg = (pred.sum(-1) > _EXPOSURE_FG_THRESH) | (tgt.sum(-1) > _EXPOSURE_FG_THRESH)  # (V, H, W)
+        lo, hi = self.gain_bounds
+        if int(fg.sum()) < 16:  # nothing rendered: keep the identity model
+            gain = pred.new_ones(3)
+            bias = pred.new_zeros(3)
+        else:
+            p = pred[fg]  # (M, 3)
+            t = tgt[fg]  # (M, 3)
+            p_mean = p.mean(dim=0)
+            t_mean = t.mean(dim=0)
+            var = ((p - p_mean) ** 2).mean(dim=0)
+            cov = ((p - p_mean) * (t - t_mean)).mean(dim=0)
+            gain = torch.where(var > 1e-8, cov / var.clamp_min(1e-8), torch.ones_like(var))
+            gain = gain.clamp(lo, hi)
+            bias = (t_mean - gain * p_mean).clamp(-self.bias_bound, self.bias_bound)
+        self._gain, self._bias = gain, bias
+        return gain, bias
+
+    def _compensate(self, pred: torch.Tensor) -> torch.Tensor:
+        """Apply the stored exposure model to a source render (identity until fitted)."""
+        if self._gain is None:
+            return pred
+        return pred * self._gain + self._bias
+
     # ── residual / jacobian ──────────────────────────────────────────────────────
 
     def residual(self, T: torch.Tensor, target: Gaussians, source: Any) -> torch.Tensor:
         if not isinstance(source, Gaussians) or source.colors is None:
             raise ValueError("SplatPhotometric needs source to be a Gaussians with .colors")
         tgt = self._target_images(target)
-        pred = self._render(_transform_gaussians_diff(source, T))
+        pred = self._compensate(self._render(_transform_gaussians_diff(source, T)))
 
         # RAW difference rows — robustness is the IRLS `robust` kernel (solver-applied), see class
         # docstring. Keeping r smooth is what makes the FD and autodiff Jacobians consistent.
@@ -744,10 +812,14 @@ def refine_photometric(
     width: int = 64,
     height: int = 64,
     fov_deg: float = _RING_FOV_DEG,
+    ladder: Optional[Sequence[int]] = None,
     render_fn: Optional[Callable] = None,
     sh_degree: Optional[int] = None,
     huber_k: float = 0.1,
     dssim_weight: float = 0.0,
+    exposure: bool = True,
+    gain_bounds: tuple = _EXPOSURE_GAIN_BOUNDS,
+    bias_bound: float = _EXPOSURE_BIAS_BOUND,
     jac_mode: str = "fd",
     max_iters: int = 10,
     damping: float = 1e-4,
@@ -770,6 +842,22 @@ def refine_photometric(
     conservative (``max_trans_step`` = 2% of the target bounding radius, ``max_rot_step`` ~ 2.9 deg)
     because the stage polishes, never re-bases.
 
+    Exposure compensation (``exposure=True``, DEFAULT): independently-captured splat pairs
+    disagree on exposure / white balance, and that global colour offset otherwise leaks into the
+    pose (the LM trades real alignment against tint). A per-pair appearance model — per-channel
+    ``gain``/``bias`` on the rendered source — is ALTERNATED with the pose: fitted closed-form at
+    the start of every LM stage (:meth:`SplatPhotometric.fit_exposure`), held fixed within it,
+    then refitted once more after the final stage with a short polish LM. Bounds
+    (``gain_bounds`` / ``bias_bound``) stop the model from absorbing real misalignment. The
+    fitted model lands in ``info["exposure"]``.
+
+    Coarse-to-fine ladder (``ladder=(96, 160, 256)`` style): a single render size trades basin
+    width against the accuracy floor (~0.3 deg at 96 px). When ``ladder`` is given the stage runs
+    once per rung — square renders at each listed size, each rung warm-starting the next, camera
+    intrinsics rescaled per rung — so the coarse rung supplies the basin and the fine rung the
+    floor. ``width``/``height`` are ignored for rendering when a ladder is given; per-rung
+    diagnostics land in ``info["ladder"]``.
+
     gsplat is required unless a custom ``render_fn`` is supplied — checked at residual
     construction (i.e. here, at call time) with a clear install hint, never at import.
 
@@ -784,45 +872,100 @@ def refine_photometric(
         raise ValueError("refine_photometric() needs a non-empty source Gaussians with .colors")
     T0 = T0.to(device=target.means.device)  # render-side tensors live on the target's device
 
+    rungs: list[tuple[int, int]]
+    if ladder is not None:
+        rungs = [(int(s), int(s)) for s in ladder]
+        if not rungs:
+            raise ValueError("refine_photometric(): ladder must list at least one render size")
+        base_w, base_h = rungs[-1]  # build the ring/K at the finest rung; coarser rungs rescale
+    else:
+        rungs = [(int(width), int(height))]
+        base_w, base_h = int(width), int(height)
+
     if cameras is None:
         cameras, ring_K = camera_ring(
-            target, n_views, radius=radius, radius_mult=radius_mult, width=width, height=height, fov_deg=fov_deg
+            target, n_views, radius=radius, radius_mult=radius_mult, width=base_w, height=base_h, fov_deg=fov_deg
         )
         if K is None:
             K = ring_K
     elif K is None:
         raise ValueError("refine_photometric(): explicit cameras need an explicit K")
 
-    res = SplatPhotometric(
-        cameras,
-        K,
-        width=width,
-        height=height,
-        render_fn=render_fn,
-        sh_degree=sh_degree,
-        huber_k=huber_k,
-        dssim_weight=dssim_weight,
-        jac_mode=jac_mode,
-    )
-
     if max_trans_step is None:
         means = target.means
         brad = float((means - means.mean(dim=0)).norm(dim=1).max().item())
         max_trans_step = max(0.02 * brad, 1e-8)
 
-    result = run_lm(
-        T0,
-        [res],
-        target,
-        source,
-        transform=transform,
-        n_iters=int(max_iters),
-        damping=damping,
-        max_trans_step=float(max_trans_step),
-        max_rot_step=float(max_rot_step),
-        convergence_tol=convergence_tol,
-        jac_row_chunk=int(jac_row_chunk),
-    )
+    def _make_residual(w: int, h: int) -> SplatPhotometric:
+        # Intrinsics scale linearly with resolution (focal + principal point), K[2] stays (0,0,1).
+        K_rung = K.clone()
+        K_rung[0, :] *= w / float(base_w)
+        K_rung[1, :] *= h / float(base_h)
+        return SplatPhotometric(
+            cameras,
+            K_rung,
+            width=w,
+            height=h,
+            render_fn=render_fn,
+            sh_degree=sh_degree,
+            huber_k=huber_k,
+            dssim_weight=dssim_weight,
+            gain_bounds=gain_bounds,
+            bias_bound=bias_bound,
+            jac_mode=jac_mode,
+        )
+
+    def _run_stage(res: SplatPhotometric, T: torch.Tensor, n: int) -> RegisterResult:
+        if exposure:
+            res.fit_exposure(T, target, source)
+        return run_lm(
+            T,
+            [res],
+            target,
+            source,
+            transform=transform,
+            n_iters=int(n),
+            damping=damping,
+            max_trans_step=float(max_trans_step),
+            max_rot_step=float(max_rot_step),
+            convergence_tol=convergence_tol,
+            jac_row_chunk=int(jac_row_chunk),
+        )
+
+    T = T0
+    rung_infos: list[dict] = []
+    cost_history: list[float] = []
+    n_iters_total = 0
+    result: RegisterResult
+    res = None
+    for w, h in rungs:
+        res = _make_residual(w, h)
+        result = _run_stage(res, T, max_iters)
+        T = result.T
+        cost_history += result.info.get("cost_history", [])
+        n_iters_total += int(result.info.get("n_iters", 0))
+        rung_infos.append({"size": (w, h), "n_iters": result.info.get("n_iters"), "cost": result.info.get("cost")})
+
+    if exposure:
+        # One more alternation round on the finest rung: refit the appearance model at the
+        # refined pose (the first fit saw the unrefined one), then a short pose polish.
+        result = _run_stage(res, T, max(2, int(max_iters) // 3))
+        T = result.T
+        cost_history += result.info.get("cost_history", [])
+        n_iters_total += int(result.info.get("n_iters", 0))
+
     result.info["stage"] = "photometric"
     result.info["n_views"] = int(cameras.shape[0])
+    # Diagnostics span ALL stages (ladder rungs + exposure alternation rounds): the per-stage
+    # exposure refit / render size mean the entries are not one fixed objective, but the
+    # start-to-finish trajectory is what callers want to see. n_iters is the total spent.
+    result.info["cost_history"] = cost_history
+    result.info["n_iters"] = n_iters_total
+    if ladder is not None:
+        result.info["ladder"] = rung_infos
+    if exposure and res is not None and res._gain is not None:
+        result.info["exposure"] = {
+            "gain": [float(v) for v in res._gain],
+            "bias": [float(v) for v in res._bias],
+        }
     return result
