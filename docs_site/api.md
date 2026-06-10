@@ -10,6 +10,8 @@ degrade to `None` at import time rather than breaking the package.
 
 ::: splatreg.api.merge
 
+::: splatreg.api.apply_transform
+
 ::: splatreg.api.Tracker
 
 ## Multi-splat bundle registration
@@ -53,6 +55,12 @@ degrade to `None` at import time rather than breaking the package.
 ::: splatreg.io.from_gsplat
 
 ::: splatreg.io.to_gsplat
+
+## Spherical-harmonic rotation (Wigner-D)
+
+::: splatreg.sh.rotate_sh
+
+::: splatreg.sh.sh_rotation_matrix
 
 ## Gaussian-SDF field
 

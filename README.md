@@ -30,6 +30,14 @@ Works with any 3DGS framework — gsplat, Nerfstudio, INRIA, custom — as long 
 
 ---
 
+## What's new in v1.2
+
+- **Spherical harmonics rotate WITH the splat** — when a recovered transform is baked in (`apply_transform`, `merge`, the `align` CLI), the higher-order SH bands (`f_rest`) are now mixed by the real-basis **Wigner-D** matrix (Ivanic–Ruedenberg recurrence, 1996 + the 1998 erratum, built directly in the 3DGS sign convention — `splatreg.sh`). Every other splat tool we know of leaves the view-dependent lobes stuck in the old capture frame after a registration, so glossy highlights point the wrong way; splatreg is, to our knowledge, the only splat registrar that rotates view-dependent colour correctly. *Evidence (renderer-free math tests vs an independent hand-coded 3DGS basis evaluator, [`tests/test_sh_rotation.py`](tests/test_sh_rotation.py)):* rotated coefficients evaluated at `d` equal the originals at `R⁻¹d` to < 1e-5 over random rotations up to degree 3; degree-1 equals its signed-permutation closed form; `D(R₁R₂) = D(R₁)D(R₂)`; rotated stacks round-trip PLY exactly.
+- **Photometric exposure compensation (default ON)** — independently-captured pairs disagree on exposure/white balance; the refine stage now alternates a bounded per-channel gain/bias fit on the rendered source (gain ∈ [0.5, 2.0]) with the pose LM. *Measured:* a ×1.3 + 0.05 source tint absorbs into the Sim(3) **scale** without it (scale err 0.10% → **3.99%**); with it the tinted pair recovers **0.47%** and the fitted gain lands at ≈ 1/1.3 — harmless on clean pairs (0.01%). [Details](https://archerkattri.github.io/splatreg/photometric/).
+- **Coarse-to-fine render ladder** — `refine_kwargs=dict(ladder=(96, 160, 256))` breaks the fixed-resolution accuracy floor; each rung warm-starts the next. *Measured:* from a 6° offset a cold 96 px rung stalls at **5.61°**, the 32→64→96 ladder lands **2.55°** at equal per-stage budget.
+- **Pose covariance for pose graphs** — builtin-LM results now expose `info["information"]` (the undamped `JᵀWJ` at the final accepted linearisation; 6×6 SE(3) / 7×7 Sim(3)) and `info["covariance"]` (`σ̂²(JᵀWJ)⁻¹`; `None` if singular — never faked). *Tested:* symmetry/SPD on well-constrained solves, 2× noise → looser covariance, singular → `None` ([`tests/test_pose_covariance.py`](tests/test_pose_covariance.py)).
+- **`validate_recovery.py --fast`** — a CPU smoke preset of the recovery harness (same protocol/gates, smaller budget: 1 seed × the grid corners, 400 anchors, 30 iters). *Measured (CPU, `OMP_NUM_THREADS=2`):* **6/6 cells within gate in 41 s wall** — worst rot err 0.16°, worst scale err 0.14%.
+
 ## What's new in v1.1
 
 - **`refine="photometric"`** — opt-in PhotoReg-style ([arXiv 2410.05044](https://arxiv.org/abs/2410.05044)) splat-to-splat photometric stage after the geometric solve, for the poses geometry can't see (symmetry / texture-only DoF) — no real images needed. *Measured:* on a rotation-symmetric colored sphere, geometric registration **worsens** 6.0°→11.2° while the photometric stage lands **2.2°** (real gsplat rasterizer: 5°/7 mm → **0.36°/0.5 mm** in ~1.1 s); on a dense-overlap real 103k-Gaussian pair it is neutral (+1.7 s) because geometry already pins the pose — so it ships opt-in. 21 tests + bench: [when & why](https://archerkattri.github.io/splatreg/photometric/) · [recorded runs](benchmarks/photometric_refine_results.md).
@@ -170,8 +178,9 @@ d(p)   = (p − q̃(p)) · ñ(p)                    # signed distance — the re
 Every number is reproducible; full record in [`RESULTS.md`](RESULTS.md).
 
 ```bash
-python -m pytest tests/ -q                        # 105 passing
+python -m pytest tests/ -q                        # 126 passing
 python tests/test_jacobians.py                    # analytic vs numerical Jacobian audit
+python examples/validate_recovery.py --fast       # CPU smoke: 6/6 recovery in ~41 s
 SPLATREG_DEVICE=cuda python examples/validate_recovery.py --device cuda   # 36/36 recovery
 SPLATREG_DEVICE=cuda python benchmarks/robustness_bench.py --device cuda
 python examples/merge_demo.py                     # real-splat merge demo
@@ -208,7 +217,7 @@ If splatreg is useful in your research, please cite it (see [`CITATION.cff`](CIT
   author  = {Attri, Krishi},
   title   = {splatreg: composable SE(3)/Sim(3) registration for 3D Gaussian Splatting},
   url     = {https://github.com/Archerkattri/splatreg},
-  version = {1.1.0},
+  version = {1.2.0},
   year    = {2026}
 }
 ```

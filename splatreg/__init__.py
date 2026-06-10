@@ -59,7 +59,7 @@ except ImportError:  # pragma: no cover
 # v1.2: real-SH Wigner-D rotation (pure torch — rotates f_rest with the splat).
 from .sh import rotate_sh, sh_rotation_matrix  # noqa: F401
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 __all__ = [
     "apply_transform",
     "register",

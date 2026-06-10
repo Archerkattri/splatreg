@@ -64,6 +64,33 @@ Rules of thumb:
 - It refines, it does not rescue: start it from the geometric result (that is what
   `refine="photometric"` does automatically), not from scratch.
 
+## Exposure compensation (v1.2, default ON)
+
+Independently-captured splat pairs disagree on exposure / white balance, and without a model
+for it that *global colour offset leaks into the pose* — the LM trades real alignment against
+tint. The stage therefore fits a bounded per-pair appearance model — per-channel `gain`/`bias`
+on the rendered source — **alternated** with the pose: fitted closed-form at the start of every
+LM stage, held fixed within it (so the pose Jacobian stays clean), then refitted once more with
+a short polish round. Bounds (`gain ∈ [0.5, 2.0]`, `|bias| ≤ 0.2`) stop the model from
+absorbing real misalignment; the fit lands in `info["refine"]["exposure"]`.
+
+*Measured* (mock renderer, Sim(3), source tinted ×1.3 + 0.05): the tint absorbs into the
+**scale** DoF without compensation — scale error clean **0.10%** → tinted **3.99%** — and the
+compensated run recovers **0.47%** with the fitted gain landing at ≈ 1/1.3 per channel; on a
+clean pair the default-ON model is harmless (0.01%). Both directions asserted in
+[`tests/test_photometric_refine.py`](https://github.com/Archerkattri/splatreg/blob/main/tests/test_photometric_refine.py).
+
+## Coarse-to-fine ladder (v1.2)
+
+A single render size trades basin width against the accuracy floor (≈0.3° at 96 px). Pass
+`refine_kwargs=dict(ladder=(96, 160, 256))` to run the stage once per rung — square renders at
+each size, each rung warm-starting the next, intrinsics rescaled per rung — so the coarse rung
+supplies the basin and the fine rung the floor. Per-rung diagnostics land in
+`info["refine"]["ladder"]`.
+
+*Measured* (mock renderer, 6° initial offset, equal per-stage iteration budget): a cold single
+96 px rung stalls at **5.61°**; the 32→64→96 ladder lands **2.55°**.
+
 ## Knobs
 
 All forwarded through `refine_kwargs`:
@@ -72,7 +99,10 @@ All forwarded through `refine_kwargs`:
 |---|---|---|
 | `n_views` | 8 | cameras on the synthetic ring |
 | `width` / `height` | 128 | render resolution — the accuracy floor |
-| `max_iters` | from `quality` policy (`full`=10, `balanced`=8, `low`=5) | LM iterations |
+| `ladder` | `None` | coarse-to-fine render sizes, e.g. `(96, 160, 256)`; overrides `width`/`height` |
+| `exposure` | `True` | per-pair gain/bias appearance model, alternated with the pose |
+| `gain_bounds` / `bias_bound` | `(0.5, 2.0)` / `0.2` | exposure-model clamps |
+| `max_iters` | from `quality` policy (`full`=10, `balanced`=8, `low`=5) | LM iterations per stage |
 | `dssim_weight` | 0.0 | append D-SSIM rows to the RGB residual |
 | `jac_mode` | `"fd"` | `"fd"` finite differences or `"autodiff"` (row-chunked `jacrev`) |
 | `render_fn` | gsplat | any differentiable `(splat, T_CW, K, W, H, sh_degree) -> images` |
@@ -82,6 +112,6 @@ All forwarded through `refine_kwargs`:
 ## Reproduce
 
 ```bash
-python -m pytest tests/test_photometric_refine.py -q          # 21 tests, CPU mock renderer
+python -m pytest tests/test_photometric_refine.py -q          # 27 tests, CPU mock renderer
 python benchmarks/photometric_refine_bench.py                 # real 103k-Gaussian pair (GPU)
 ```
