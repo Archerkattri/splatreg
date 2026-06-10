@@ -3,6 +3,27 @@
 All notable changes to splatreg. Every claim below is backed by a recorded run or a test;
 the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
 
+## Unreleased
+
+### Fixed
+
+- SDF residual weight is now applied exactly once. `SDF.residual` / `SDF.jacobian` pre-multiplied
+  by `self.weight` while the solver also folds in `sqrt(weight)`, so the effective least-squares
+  objective scaled as `weight**3` (every other residual lets the solver own the weight). The default
+  `register` stack `[ICP(weight=1.0), SDF(weight=0.3)]` therefore ran the SDF term at an effective
+  weight of `0.3**3 ≈ 0.027` instead of `0.3`. Fixed so the SDF contribution scales linearly with
+  its weight (`tests/test_weighting_and_fusion_fixes.py::test_sdf_weight_applied_once`). The feature
+  (`init="learned"`) 3DMatch / 3DLoMatch headline numbers are NOT affected (that path never uses the
+  SDF residual); the synthetic-recovery smoke stays at 100% of the gate, with slightly relaxed
+  precision now that the SDF term contributes at its intended weight.
+- `merge()` and bundle fusion now normalise every piece to the reference's `log_scales` convention
+  before concatenating scales. Previously a mix of linear-scale and log-scale splats was concatenated
+  raw and labelled with the reference flag, silently mis-exponentiating the odd-one-out
+  (`tests/test_weighting_and_fusion_fixes.py::test_merge_preserves_scales_across_log_convention`).
+- `SpatialIndex.knn()` on an index built from zero points now returns empty `(Q, 0)` results,
+  matching `radius()`'s contract, instead of crashing in `topk`
+  (`tests/test_weighting_and_fusion_fixes.py::test_empty_index_knn_returns_empty`).
+
 ## 1.3.0 (2026-06-10)
 
 ### Added

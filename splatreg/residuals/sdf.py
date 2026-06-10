@@ -66,7 +66,9 @@ class SDF(Residual):
             single most important knob; no universal default). Same units as the splat means.
         n_points: number of source anchors sampled per evaluation (the residual length). If the
             source has fewer Gaussians, all of them are used.
-        weight: scalar multiplier on the residual (sqrt-weight is applied by the solver).
+        weight: scalar multiplier on this residual's contribution to the least-squares objective.
+            Applied exactly once, as ``sqrt(weight)``, by the solver (NOT pre-multiplied here),
+            matching every other residual.
         robust: optional robust kernel forwarded to the solver (unchanged here).
         target_normals: optional ``(M_target, 3)`` precomputed normals for the target anchors
             (e.g. from a mesh); otherwise estimated once per call by ``gaussian_sdf``.
@@ -173,9 +175,15 @@ class SDF(Residual):
     # ------------------------------------------------------------------ contract
 
     def residual(self, T: torch.Tensor, target: Gaussians, source: Any) -> torch.Tensor:
+        # NOTE: do NOT pre-multiply by ``self.weight`` here. The solver folds each residual's
+        # ``sqrt(weight)`` into the stacked system exactly once (see
+        # ``solvers/_backend_common.stacked_residual`` and ``solvers/lm._assemble``), matching the
+        # convention every other residual (ICP/prior/photometric) follows. Pre-multiplying here too
+        # would scale the objective as ``weight**3`` instead of ``weight`` and inflate the magnitude
+        # the robust IRLS kernel sees.
         _, p, _ = self._transformed(T, source)
         sd, _ = self._sdf(target, p)
-        return sd * self.weight
+        return sd
 
     def jacobian(
         self, T: torch.Tensor, target: Gaussians, source: Any, *, dof: int = 6
@@ -228,7 +236,10 @@ class SDF(Residual):
             j_scale = (grad * (p - t)).sum(dim=-1, keepdim=True)  # (N, 1)
             cols.append(j_scale)
         jac = torch.cat(cols, dim=-1)  # (N, dof)
-        return jac * self.weight
+        # No ``* self.weight``: the solver applies the sqrt-weight to J and r together (see
+        # ``residual`` above). Pre-weighting the Jacobian alongside the residual would compound
+        # into a ``weight**3`` objective scaling.
+        return jac
 
     def dim(self) -> int:
         return self.n_points

@@ -401,8 +401,15 @@ class SpatialIndex:
         """
         if queries.dim() != 2 or queries.shape[-1] != 3:
             raise ValueError(f"knn: queries must be (Q, 3), got {tuple(queries.shape)}.")
-        kk = max(1, min(int(k), self.n))
         q = int(queries.shape[0])
+        if self.n == 0:
+            # No anchors to return: match radius()'s "empty index -> empty result" contract
+            # rather than crashing in topk (max(1, min(k, 0)) == 1 would index an empty cloud).
+            return (
+                torch.empty((q, 0), dtype=torch.int64, device=self.device),
+                torch.empty((q, 0), dtype=self.dtype, device=self.device),
+            )
+        kk = max(1, min(int(k), self.n))
         out_idx = torch.empty((q, kk), dtype=torch.int64, device=self.device)
         out_dist = torch.empty((q, kk), dtype=self.dtype, device=self.device)
         q_coords = self._coords(queries)

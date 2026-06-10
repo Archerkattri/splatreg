@@ -55,7 +55,7 @@ import torch
 
 from .core.types import Gaussians
 from .core.lie import se3_exp, se3_log, sim3_exp, sim3_log
-from .api import register, _apply_transform_to_gaussians
+from .api import register, _apply_transform_to_gaussians, _cat_scales
 
 __all__ = ["bundle_register", "pairwise_consistency", "BundleResult", "solve_pose_graph"]
 
@@ -532,7 +532,9 @@ def _fuse_with_poses(
     fused = Gaussians(
         means=torch.cat([p.means for p in pieces], dim=0),
         quats=torch.cat([p.quats for p in pieces], dim=0),
-        scales=torch.cat([p.scales for p in pieces], dim=0),
+        # Normalise each piece to the reference (splat 0) log_scales convention before
+        # concatenation - mixing linear and log scales under one label corrupts the odd one out.
+        scales=_cat_scales(pieces, splats[0].log_scales),
         opacities=torch.cat([p.opacities.reshape(-1) for p in pieces], dim=0),
         colors=None if any(p.colors is None for p in pieces) else torch.cat([p.colors for p in pieces], 0),
         log_scales=splats[0].log_scales,
