@@ -93,6 +93,25 @@ ROT_AXIS = [0.3, 0.9, 0.25]
 ROT_DEGS = [5.0, 30.0, 90.0]
 SCALES = [0.8, 1.0, 1.3]
 TRANS = [0.03, -0.02, 0.025]  # object units (~30 mm); applied AFTER s*R
+# Seeds actually run (the full list by default; `--fast` trims it).
+ACTIVE_SEEDS = list(SEEDS)
+
+
+def apply_fast_preset() -> None:
+    """`--fast`: a CPU-friendly smoke preset (<2 min) — fewer seeds/cells/anchors/iters.
+
+    Keeps the protocol identical (same geometry generator, same default residuals, same
+    `init="global"` sweep, same success gates) and only shrinks the BUDGET: 1 seed, the
+    {smallest, largest} rotation x {smallest, largest} scale corners (4 Sim(3) cells + 2 SE(3)
+    cells), 400 anchors, 30 LM iterations. The full grid stays the release gate; this preset
+    answers "is recovery still alive?" on a laptop-class CPU in under two minutes.
+    """
+    global ACTIVE_SEEDS, ROT_DEGS, SCALES, N_POINTS, MAX_ITERS
+    ACTIVE_SEEDS = list(SEEDS)[:1]
+    ROT_DEGS = [5.0, 90.0]
+    SCALES = [0.8, 1.3]
+    N_POINTS = 400
+    MAX_ITERS = 30
 
 # Success gates (spec: "recover <=1 deg / <=1% scale"; we report at a slightly looser, field-
 # limited <2 deg / <2% — the soft sum-of-Gaussians SDF's zero level-set sits a hair off the true
@@ -151,7 +170,7 @@ def run_block(transform, scales, label):
     print(header)
 
     rows = []
-    for seed in SEEDS:
+    for seed in ACTIVE_SEEDS:
         A = make_object_splat(N_POINTS, seed=seed, device=DEVICE, dtype=DTYPE)
         for rot_deg in ROT_DEGS:
             for s_gt in scales:
@@ -225,14 +244,21 @@ def main():
         help="quality policy: full|balanced|low|auto|<0..1 float> (default: full)",
     )
     ap.add_argument("--device", default=DEVICE, help="cpu|cuda (default: $SPLATREG_DEVICE or cpu)")
-    ap.add_argument("--n", type=int, default=N_POINTS, help=f"object anchor count (default {N_POINTS})")
-    ap.add_argument("--iters", type=int, default=MAX_ITERS, help=f"LM iters (default {MAX_ITERS})")
+    ap.add_argument("--n", type=int, default=None, help=f"object anchor count (default {N_POINTS})")
+    ap.add_argument("--iters", type=int, default=None, help=f"LM iters (default {MAX_ITERS})")
     ap.add_argument(
         "--init",
         default=INIT,
         choices=["global", "fast", "features"],
         help="coarse-init policy: 'global' (blind sweep, default), 'fast' (FPFH+batched-RANSAC), "
         "or 'features' (feature-only registration, no LM polish)",
+    )
+    ap.add_argument(
+        "--fast",
+        action="store_true",
+        help="CPU smoke preset (<2 min): 1 seed, the 4 grid corners + 2 SE(3) cells, "
+        "700 anchors, 40 iters — same protocol/gates, smaller budget. The full grid "
+        "remains the release gate.",
     )
     args = ap.parse_args()
     INIT = args.init
@@ -246,8 +272,13 @@ def main():
         QUALITY = float(args.quality)
     except ValueError:
         QUALITY = args.quality
-    N_POINTS = args.n
-    MAX_ITERS = args.iters
+    if args.fast:
+        apply_fast_preset()
+    # Explicit --n / --iters always win (over both the defaults and the --fast preset).
+    if args.n is not None:
+        N_POINTS = args.n
+    if args.iters is not None:
+        MAX_ITERS = args.iters
 
     torch.manual_seed(0)
     np.random.seed(0)
@@ -256,8 +287,9 @@ def main():
     t_start = time.perf_counter()
 
     print(
-        f"\nsplatreg synthetic recovery harness — {len(SEEDS)} seeds x "
-        f"{len(ROT_DEGS)}x{len(SCALES)} grid per block, on {DEVICE.upper()}, quality={QUALITY!r}.\n"
+        f"\nsplatreg synthetic recovery harness — {len(ACTIVE_SEEDS)} seeds x "
+        f"{len(ROT_DEGS)}x{len(SCALES)} grid per block, on {DEVICE.upper()}, quality={QUALITY!r}"
+        f"{' [--fast preset]' if args.fast else ''}.\n"
         f"Geometry: anisotropic ellipsoid SHELL + filled blob + +x lobe (rotation observable).\n"
     )
 
