@@ -240,9 +240,17 @@ def test_bundle_robust_rejects_bad_edge(device):
     assert err_robust < 0.25 * err_plain, (
         f"robust pose error {err_robust:.3e} not well below plain {err_plain:.3e}"
     )
-    # The bad edge is strongly down-weighted while the good edges keep substantial weight.
+    # The bad edge is strongly down-weighted while the good edges keep substantial weight. The
+    # discriminating quantity is the SEPARATION between the bad edge and the worst good edge: the
+    # outlier must sit well below every inlier. (The absolute good-edge floor depends on how tightly
+    # the pairwise `register` measurements converge; that residual scale shifted when the SDF
+    # residual's weight was corrected to apply exactly once, so we assert the gap, not a magic
+    # absolute threshold.)
     assert w_bad < 0.1, f"bad edge weight {w_bad:.3f} not suppressed"
-    assert w_good > 0.4, f"a good edge was over-suppressed (min weight {w_good:.3f})"
+    assert w_good > 0.25, f"a good edge was over-suppressed (min weight {w_good:.3f})"
+    assert w_good > 5.0 * w_bad, (
+        f"bad edge {w_bad:.3f} not clearly separated from worst good edge {w_good:.3f}"
+    )
 
 
 def test_bundle_register_reports_rejected_edge(device):

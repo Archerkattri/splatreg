@@ -774,7 +774,10 @@ def merge(
     fused = Gaussians(
         means=torch.cat([p.means for p in pieces], dim=0),
         quats=torch.cat([p.quats for p in pieces], dim=0),
-        scales=torch.cat([p.scales for p in pieces], dim=0),
+        # Normalise every piece to the reference's log_scales convention BEFORE concatenation -
+        # otherwise a piece with the opposite flag is silently mis-exponentiated under the fused
+        # label.
+        scales=_cat_scales(pieces, reference.log_scales),
         opacities=torch.cat([_as_col(p.opacities) for p in pieces], dim=0),
         colors=_cat_optional([p.colors for p in pieces]),
         log_scales=reference.log_scales,
@@ -795,6 +798,28 @@ def merge(
             "merge(): %s-dedupe at %.4g kept %d/%d Gaussians", dedupe_method, used, len(fused), n_before
         )
     return fused
+
+
+def _to_log_scales_convention(g: Gaussians, log_scales: bool) -> torch.Tensor:
+    """Return ``g``'s ``scales`` tensor expressed in the target ``log_scales`` convention.
+
+    Splats may store ``scales`` linearly (``log_scales=False``) or as ``log(scale)``
+    (``log_scales=True``). Concatenating pieces with mismatched conventions and labelling the
+    result with one fixed flag silently mis-exponentiates the odd-one-out. Convert each piece's
+    scales to the reference convention BEFORE concatenation so the fused flag is always honest.
+    """
+    if bool(g.log_scales) == bool(log_scales):
+        return g.scales
+    if log_scales:
+        # piece is linear, target is log: log(scale)
+        return torch.log(g.scales.clamp_min(1e-20))
+    # piece is log, target is linear: exp(log_scale)
+    return torch.exp(g.scales)
+
+
+def _cat_scales(pieces, log_scales: bool) -> torch.Tensor:
+    """Concatenate piece scales after normalising each to the ``log_scales`` convention."""
+    return torch.cat([_to_log_scales_convention(p, log_scales) for p in pieces], dim=0)
 
 
 def _as_col(o: torch.Tensor) -> torch.Tensor:
