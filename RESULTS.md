@@ -9,7 +9,8 @@ against them).
 it — and the honest limitations. Validation is held to the bar of the libraries splatreg
 sits beside (gsplat / Theseus / GTSAM / SymForce).
 
-_Last validated 2026-06-07, single box, CUDA._
+_Last validated 2026-06-07, single box, CUDA. v1.2 additions (§5j) validated 2026-06-10 on
+CPU (`CUDA_VISIBLE_DEVICES=""`, `OMP_NUM_THREADS=2`): full suite 126 passed / 3 CUDA-skips._
 
 ---
 
@@ -77,7 +78,8 @@ is scale + implicit-field robustness, and it costs ~80× in SE(3) (see limitatio
 
 ## 5. Test suite (library-bar rigor)
 
-`pytest tests/` → **44 passing** (Jacobian audit + Lie ops + LM solver). `tests/conftest.py` (deterministic
+`pytest tests/` → **126 passing** (Jacobian audit + Lie ops + LM solver + io round-trip + CLI +
+photometric/exposure/ladder + SH Wigner rotation + pose covariance). `tests/conftest.py` (deterministic
 seed fixture), `splatreg/testing.py` (a shippable `assert_residual_jacobian` so every future
 residual gets the numerical audit — the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS` equivalent).
 `black` + `mypy` are clean and `splatreg/py.typed` ships.
@@ -417,6 +419,49 @@ dedupe win above is unchanged.
 
 *Scope:* on a *small* cloud the heavily-vectorised brute `cdist` can still win outright; the index
 (looped or batch) is the scene-scale / many-query path.
+
+## 5j. v1.2 — SH Wigner rotation · exposure compensation · render ladder · pose covariance
+
+Five limitation-matrix items closed (2026-06-10), each with its verifying evidence:
+
+**SH (`f_rest`) Wigner rotation** (`splatreg/sh.py`, wired into `apply_transform`/`merge`/CLI
+`align`). Real-basis Wigner-D blocks for any degree via the Ivanic–Ruedenberg recurrence
+(J. Phys. Chem. A 100 (1996) 6342 + the 1998 erratum), produced directly in the 3DGS sign
+convention. Math locked renderer-free against an **independent hand-coded 3DGS basis
+evaluator** (`tests/test_sh_rotation.py`, 13 tests):
+
+| check | result |
+|---|---|
+| eval(rotated coeffs, d) == eval(originals, R⁻¹d), deg ≤ 3, random R | max err < 1e-5 (measured ~2.4e-15 in float64) |
+| degree-1 block == signed (y,z,x) permutation closed form | exact (atol 1e-12) |
+| D(I) == I · D(R₁R₂) == D(R₁)D(R₂) · D orthogonal | exact / <1e-10 |
+| Sim(3): colour rotation uses the de-scaled R | atol 1e-5 |
+| rotated stack PLY round-trip | exact (atol 1e-6) |
+
+**Photometric exposure compensation** (default ON in `refine="photometric"`). Bounded
+per-channel gain/bias on the rendered source (gain ∈ [0.5, 2.0], |bias| ≤ 0.2), closed-form
+fit ALTERNATED with the pose LM (per-stage fit + final refit/polish). Measured (mock render,
+Sim(3), ×1.3 + 0.05 source tint): scale error clean **0.10%** → tinted/no-comp **3.99%** (the
+tint absorbs into the scale DoF) → tinted/comp **0.47%**, fitted gain ≈ 1/1.3 per channel;
+clean pair with the model ON: 0.01% (harmless). Both directions asserted.
+
+**Coarse-to-fine render ladder** (`refine_kwargs["ladder"]`). Square render rungs, each
+warm-starting the next, intrinsics rescaled per rung, per-rung diagnostics in
+`info["ladder"]`. Measured (mock render, 6° offset, equal per-stage budget): single 96 px
+rung stalls at **5.61°**; 32→64→96 ladder lands **2.55°**.
+
+**Pose information/covariance** (`run_lm` → `info["information"]`/`info["covariance"]`).
+The undamped `JᵀWJ` at the final accepted linearisation (6×6 SE(3) / 7×7 Sim(3), tangent
+order `[t, r, (log_s)]`) and `σ̂²(JᵀWJ)⁻¹` with `σ̂² = ||Wr||²/(R−dof)`; `None` when singular
+(never a faked inverse). `tests/test_pose_covariance.py`: SPD on well-constrained solves both
+transforms; 2× point noise → >2× covariance trace (≈4× in theory) with the information matrix
+unchanged; exact `C·H = σ̂²I` consistency; the all-points-identical degenerate case reports
+`covariance=None` with a genuinely rank-deficient `information`.
+
+**`validate_recovery.py --fast`** — CPU smoke preset (1 seed × the grid corners, 400 anchors,
+30 iters; same protocol + gates). Recorded run (CPU, `OMP_NUM_THREADS=2`,
+`CUDA_VISIBLE_DEVICES=""`): **6/6 cells within gate in 40.7 s wall** — worst rot err 0.158°,
+worst trans 1.41 mm, worst scale err 0.144%, peak RSS 0.85 GiB.
 
 ## 6. Honest limitations (no overstating)
 

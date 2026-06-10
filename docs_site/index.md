@@ -78,8 +78,10 @@ Full record with reproduce commands: [Benchmarks](benchmarks.md).
 
 - [Quickstart](quickstart.md) — install + the core workflows in Python.
 - [CLI guide](cli.md) — `splatreg align / merge / info` from the shell.
-- [Photometric refinement](photometric.md) — *new in v1.1*: the opt-in stage for poses
-  geometry can't see (symmetry / texture-only DoF), with the measured when-and-why table.
+- [Photometric refinement](photometric.md) — the opt-in stage for poses geometry can't see
+  (symmetry / texture-only DoF), with the measured when-and-why table; *v1.2 adds*
+  per-pair **exposure compensation** (default ON) and the **coarse-to-fine render ladder**.
 - [PLY interop](ply-interop.md) — splatfacto / INRIA / SuperSplat round-trip, and what
-  happens to spherical harmonics under a recovered rotation.
+  happens to spherical harmonics under a recovered rotation — *v1.2*: higher-order SH bands
+  are now **Wigner-rotated with the splat** (Ivanic–Ruedenberg, test-locked math).
 - [API reference](api.md) — every public function, autodoc'd.
