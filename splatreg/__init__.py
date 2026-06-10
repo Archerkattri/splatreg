@@ -56,6 +56,9 @@ try:
 except ImportError:  # pragma: no cover
     SpatialIndex = build_index = None  # type: ignore
 
+# v1.2: real-SH Wigner-D rotation (pure torch — rotates f_rest with the splat).
+from .sh import rotate_sh, sh_rotation_matrix  # noqa: F401
+
 __version__ = "1.1.0"
 __all__ = [
     "apply_transform",
@@ -89,4 +92,7 @@ __all__ = [
     # v0.3 scene-scale spatial index
     "SpatialIndex",
     "build_index",
+    # v1.2 SH Wigner rotation
+    "rotate_sh",
+    "sh_rotation_matrix",
 ]

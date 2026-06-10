@@ -66,6 +66,7 @@ splat, each parameter needs its own, different update — this is where naive me
 means'  = s · (R @ means) + t        # the homogeneous point transform
 quats'  = quat(R) ⊗ quats            # compose R onto each anchor's orientation
 scales' = s · scales                 # in log space: log_scales + log s
+SH'     = D(R) @ SH                  # real-SH Wigner-D rotation of the colour bands
 ```
 
 What splatreg gets right (each one a classic naive-merge bug):
@@ -95,28 +96,28 @@ because the coefficients still *look* plausible: the diffuse (DC) term dominates
 error only shows as view-dependent sheen/specular highlights that stay "stuck" in the old
 world orientation while the geometry rotates away under them.
 
-**What splatreg does today:** the DC band is handled exactly (invariant, untouched).
-Higher-order `f_rest` coefficients are preserved **verbatim** — byte-identical through the
-round-trip, but *not* Wigner-rotated, so after a large recovered rotation the view-dependent
-component of a glossy capture is oriented as in the original capture frame. For the
-geometric registration itself this is irrelevant (registration uses geometry, not SH), and
-for small alignment corrections it is invisible; for a large-`R` merge of shiny scenes you
-have two clean options:
+**What splatreg does (v1.2+):** every band is handled exactly. The DC band is invariant
+(untouched); every higher-order `f_rest` band is multiplied by its real-basis Wigner-D block,
+built for any degree by the Ivanic–Ruedenberg recurrence (*J. Phys. Chem. A* 100 (1996) 6342,
+with the 1998 erratum corrections) in `splatreg.sh`. The blocks are produced directly in the
+3DGS/gsplat sign convention (the `(-y, +z, -x)` degree-1 basis), so the rotated coefficients
+drop straight back into a standard PLY. `apply_transform`, `merge`, and the `align` CLI all
+route through this — view-dependent sheen now turns **with** the splat instead of staying
+stuck in the old capture frame.
 
 ```python
-# Option 1 — strip to the diffuse term before saving (always safe, always consistent):
-g.colors = g.colors[:, :1, :]      # keep DC only, drop f_rest
-save_ply(g, "merged_dc.ply")
+from splatreg.sh import rotate_sh, sh_rotation_matrix
 
-# Option 2 — keep full SH and apply a third-party Wigner-D rotation to colors[:, 1:, :]
-# under the same R that splatreg recovered (result.T), then save.
+D = sh_rotation_matrix(R, n_coeffs=16)   # (16, 16) block-diagonal, degree 3
+g.colors = rotate_sh(g.colors, R)        # (N, K, 3) SH stack, rotated; DC untouched
 ```
 
-!!! note "Why not silently drop `f_rest`?"
-    Because preserving data verbatim is the safer default: stripping SH is lossy and
-    irreversible, while un-rotated higher-order SH is still approximately right for small
-    rotations and exactly right for `R = I` (pure translation, the common re-centring case).
-    splatreg never throws away information you might want.
+The math is locked by renderer-free tests against an independent hand-coded 3DGS SH basis
+evaluator ([`tests/test_sh_rotation.py`](https://github.com/Archerkattri/splatreg/blob/main/tests/test_sh_rotation.py)):
+evaluating the rotated coefficients at `d` equals evaluating the originals at `R⁻¹d` to
+< 1e-5 over random rotations; the degree-1 block equals its signed-permutation closed form;
+`D(R1·R2) = D(R1)·D(R2)`; identity maps to identity; and the rotated stack round-trips
+through `save_ply`/`load_ply` exactly.
 
 ## Inspecting a file
 
