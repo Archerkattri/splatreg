@@ -1,9 +1,11 @@
 # Benchmarks
 
 Every number below is measured, reproducible, and recorded with its command in
-[`RESULTS.md`](https://github.com/Archerkattri/splatreg/blob/main/RESULTS.md) — including
+[`RESULTS.md`](https://github.com/Archerkattri/splatreg/blob/main/RESULTS.md), including
 the honest limitations. Validation is held to the bar of the libraries splatreg sits beside
-(gsplat / Theseus / GTSAM / SymForce). Last validated 2026-06-07, single box, CUDA.
+(gsplat / Theseus / GTSAM / SymForce). Core numbers validated 2026-06-07 (single box, CUDA);
+the v1.2 additions (SH rotation, exposure compensation, render ladder, pose covariance) and
+the v1.3 MAC verdict validated 2026-06-10.
 
 ## Headline
 
@@ -12,26 +14,26 @@ the honest limitations. Validation is held to the bar of the libraries splatreg 
 | **Real-splat merge** (real 103k-Gaussian capture) | Chamfer **10.3 → 2.0 mm (5.1×)** · overlap **0.03 → 0.67 (22×)** | naive concat |
 | **vs splat competitors** (real splat, known GT Sim3) | **5.2°** (SE3) · recovers scale (Sim3) | splatalign 15.3° · GaussianSplattingRegistration 36.3° |
 | **Sim(3) scale estimation** | native | none of these do it |
-| **Object pose** (YCB-CAD, 14 models × 4 poses) | ADD-S AUC **0.995**, 100% < 2 cm | — |
-| **Camera localization** (real splat, known perturbation) | median **5°/10 mm → 0.11°/1.35 mm**, 11/12 converged | — |
+| **Object pose** (YCB-CAD, 14 models × 4 poses) | ADD-S AUC **0.995**, 100% < 2 cm | n/a |
+| **Camera localization** (real splat, known perturbation) | median **5°/10 mm → 0.11°/1.35 mm**, 11/12 converged | n/a |
 | **Official 3DMatch recall** (1279 pairs, Choi/Zeng protocol) | **91.5%** mean · 93.5% pooled | GeoTransformer ~92% · Open3D ~77% |
 | **Official 3DLoMatch** (hard, 10–30% overlap) | 72.5% mean · **74.4%** pooled | GeoTransformer ~74% · Open3D ~20% |
 | **Registration speed** | **~17 ms** (fast) · 104 ms (learned) | GeoTransformer ~50 ms · Open3D 142 ms |
 
 ## Synthetic recovery (known-transform)
 
-`examples/validate_recovery.py` — apply a known Sim(3)/SE(3), recover it.
+`examples/validate_recovery.py`: apply a known Sim(3)/SE(3), recover it.
 3 seeds × {5°, 30°, 90°} × {0.8, 1.0, 1.3 scale}:
 
 | Block | Success | median rot | median trans | median scale | median Chamfer |
 |---|---|---|---|---|---|
-| **SE(3)** (rigid) | **9/9 = 100%** | **0.000°** | 0.10 mm | — | 0.076 mm |
+| **SE(3)** (rigid) | **9/9 = 100%** | **0.000°** | 0.10 mm | n/a | 0.076 mm |
 | **Sim(3)** (+scale) | **27/27 = 100%** | **0.259°** | 2.93 mm | 0.344% | 0.575 mm |
 
 ## Jacobian audit
 
 Every analytic Jacobian is checked against a tangent-space numerical one
-(`tests/test_jacobians.py`, float64) — the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS`
+(`tests/test_jacobians.py`, float64), the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS`
 discipline. The audit **found and fixed a real bug**: the Gaussian-SDF gradient had dropped
 the first-order `∂q̃/∂p` term; it is now an exact closed-form field gradient (max
 |analytic − numerical| ≈ 1e-8). ICP point-to-point ~3e-9, point-to-plane ~4e-11; SE(3)/Sim(3)
@@ -45,7 +47,7 @@ the first-order `∂q̃/∂p` term; it is now an exact closed-form field gradien
 | ICP (centroid init) | 9/9 | 9/27 = 33% |
 | ICP (super-Fib init) | 9/9 | 9/27 = 33% |
 
-Plain ICP cannot estimate scale — it fails every non-unit-scale cell. Honest flip side: on
+Plain ICP cannot estimate scale: it fails every non-unit-scale cell. Honest flip side: on
 easy rigid SE(3), ICP is ~1000× faster; the SDF residual's value is scale + implicit-field
 robustness.
 
@@ -56,7 +58,7 @@ robustness.
 | Noise (sensor jitter 0.5–2%) | **9/9**, rot < 0.72° |
 | Outliers (+10–50% clutter) | **9/9**, rot ≈ 0° |
 | Symmetric object (sphere) | **9/9** |
-| Partial overlap (20–60% removed) | 4/9 solved + 5 flagged ambiguous — **0 silent-wrong** |
+| Partial overlap (20–60% removed) | 4/9 solved + 5 flagged ambiguous, **0 silent-wrong** |
 
 ## Official 3DMatch / 3DLoMatch
 
@@ -66,15 +68,15 @@ Canonical Choi/Zeng protocol (1279 non-adjacent `gt.log` pairs, covariance-weigh
 |---|---|---|---|---|
 | **splatreg `learned`** (GeoTransformer seed + guarded refine) | **91.5%** / 93.5% pooled | 1.81° | 0.071 m | 72.5% / **74.4%** pooled |
 | splatreg `learned`, `seed_selector="mac"` (MAC cliques, same forward/refine) | 91.7% / 93.8% | 1.83° | 0.071 m | 72.1% / 74.6% pooled |
-| splatreg `robust` (classical Open3D seed) | ~67.1% | — | — | ~15% |
-| GeoTransformer (published) | ~92% | — | — | ~74% |
-| Open3D FPFH+RANSAC | ~77% | — | — | ~20% |
+| splatreg `robust` (classical Open3D seed) | ~67.1% | n/a | n/a | ~15% |
+| GeoTransformer (published) | ~92% | n/a | n/a | ~74% |
+| Open3D FPFH+RANSAC | ~77% | n/a | n/a | ~20% |
 
 The refine is *guarded* (accepted only when it does not worsen the overlap residual): a
 per-pair audit found **0 pairs** where it demoted a GeoTransformer success.
 
 The `seed_selector="mac"` row is the measured answer to "does the MAC paper's ~71→78 %
-3DLoMatch lift transfer?": **no — a wash** (every delta within ±4 pairs, ~+50 % runtime), because
+3DLoMatch lift transfer?": **no, a wash** (every delta within ±4 pairs, ~+50 % runtime), because
 at native voxel GeoTransformer's correspondences are already consensus-dominated (median
 600–800 MAC inliers) and the guarded refine absorbs seed-level differences. `lgr` stays the
 default; details in `RESULTS.md` §5k.
@@ -101,28 +103,40 @@ PhotoReg positioning: [Photometric refinement](photometric.md); recorded runs:
 | Case | Geometric register | + photometric refine |
 |---|---|---|
 | Rotation-symmetric colored sphere (mock renderer, CPU) | 6.0° → **11.2°** (worse) | **2.2°** |
-| Real gsplat rasterizer (CUDA), from 5°/7 mm | — | **0.36°/0.5 mm** in ~1.1 s |
+| Real gsplat rasterizer (CUDA), from 5°/7 mm | n/a | **0.36°/0.5 mm** in ~1.1 s |
 | Dense-overlap real 103k pair, injected 2°/1.24 mm seam | **0.239°/0.26 mm** in 56 s | +1.7 s, neutral |
 
 Decisive when geometry under-constrains the pose (symmetry / texture-only DoF); neutral when
 dense overlap already pins it; floor set by render resolution (~0.3°). Hence opt-in.
 
+## SH rotation, exposure compensation, ladder, covariance (v1.2)
+
+Each addition ships with its measured evidence (full detail: `RESULTS.md` §5j):
+
+| Addition | Evidence |
+|---|---|
+| SH (`f_rest`) Wigner rotation | rotated coefficients evaluated at `d` equal the originals at `R⁻¹d`, measured **~2.4e-15** in float64 (gate < 1e-5); `D(R₁R₂) = D(R₁)D(R₂)` exact; PLY round-trip exact ([`tests/test_sh_rotation.py`](https://github.com/Archerkattri/splatreg/blob/main/tests/test_sh_rotation.py)) |
+| Exposure compensation (default ON) | a ×1.3 + 0.05 source tint absorbs into the Sim(3) scale without it (0.10% → **3.99%** scale error); with it: **0.47%**, fitted gain ≈ 1/1.3; clean pair 0.01% (harmless) |
+| Coarse-to-fine render ladder | from a 6° offset a cold 96 px rung stalls at **5.61°**; the 32→64→96 ladder lands **2.55°** at equal per-stage budget |
+| Pose information / covariance | SPD on well-constrained solves, 2× noise → looser covariance, singular → `None` ([`tests/test_pose_covariance.py`](https://github.com/Archerkattri/splatreg/blob/main/tests/test_pose_covariance.py)) |
+| `validate_recovery.py --fast` | CPU smoke preset: **6/6 cells within gate in ~41 s** (worst rot err 0.16°, worst scale err 0.14%) |
+
 ## Speed
 
 | Path | splatreg | reference |
 |---|---|---|
-| `register(init="fast")` | **~17 ms** | — |
+| `register(init="fast")` | **~17 ms** | n/a |
 | `register(init="learned")` | ~104 ms | GeoTransformer ~50 ms · Open3D 142 ms |
-| `Tracker.track()` warm start | **~17 ms/frame** | — |
-| Full Sim(3) cold registration | 2.4 s/cell | — |
+| `Tracker.track()` warm start | **~17 ms/frame** | n/a |
+| Full Sim(3) cold registration | 2.4 s/cell | n/a |
 
 ## Honest limitations
 
-- **Overlap ≤ 40% is genuinely ambiguous** — flagged (`info["ambiguous"]`), never silently
+- **Overlap ≤ 40% is genuinely ambiguous**: flagged (`info["ambiguous"]`), never silently
   wrong. `merge` is designed for high-overlap captures.
-- **Scale under thin overlap (~20%)** — the Sim(3) scale valley is flat; no algorithm can
+- **Scale under thin overlap (~20%)**: the Sim(3) scale valley is flat; no algorithm can
   recover what the geometry doesn't carry.
-- **Rigid SE(3) cost** — plain ICP reaches the same easy-case success far faster; use
+- **Rigid SE(3) cost**: plain ICP reaches the same easy-case success far faster; use
   `Tracker` for real time.
 
 Full detail, including the failure analyses: [`RESULTS.md`](https://github.com/Archerkattri/splatreg/blob/main/RESULTS.md).

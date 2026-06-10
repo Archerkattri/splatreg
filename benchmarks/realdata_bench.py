@@ -43,7 +43,6 @@ speed/memory), ``--objects sim_pear,real_peach`` (subset), ``--noise-mult``, ``-
 from __future__ import annotations
 
 import argparse
-import math
 import os
 import sys
 import time

@@ -1,4 +1,4 @@
-"""Warm-start pose tracking — the real-time entry point.
+"""Warm-start pose tracking, the real-time entry point.
 
 :func:`register` pays for a blind global init (a 256-seed super-Fibonacci SO(3) sweep + trimmed
 ICP) that dominates its ~0.8 s (SE3) / ~1.3 s (Sim3) wall time. A *tracker* never does that: it
@@ -8,7 +8,7 @@ that fast path.
 
 :func:`track` SKIPS the global init entirely, seeds the LM at ``prior_T`` (the last estimate), and
 runs a few iterations of the same builtin Levenberg-Marquardt core (:mod:`splatreg.solvers.lm`) the
-full registrar uses — so it inherits the EXACT closed-form SDF gradient (``residuals/sdf.py`` +
+full registrar uses, so it inherits the EXACT closed-form SDF gradient (``residuals/sdf.py`` +
 ``geometry/gaussian_sdf.gaussian_sdf_grad``), including the SE(3) and the analytic Sim(3) log-scale
 column. The defaults are tuned for tracking, not cold registration:
 
@@ -20,7 +20,7 @@ column. The defaults are tuned for tracking, not cold registration:
 
 This is a stateless function (the caller threads ``prior_T`` -> new ``T`` itself); for a stateful
 sweep wrap it or use :class:`splatreg.api.Tracker`. It does not touch :func:`register` / the global
-aligners and adds no new public types — it returns the same :class:`RegisterResult`.
+aligners and adds no new public types, it returns the same :class:`RegisterResult`.
 """
 
 from __future__ import annotations
@@ -133,7 +133,7 @@ def track(
 ) -> RegisterResult:
     """Warm-started pose tracking: refine ``prior_T`` to align ``source`` onto ``target``.
 
-    Unlike :func:`splatreg.register`, this performs **no** global init — it seeds the LM directly at
+    Unlike :func:`splatreg.register`, this performs **no** global init, it seeds the LM directly at
     ``prior_T`` (the previous frame's estimate) and runs ``iters`` closed-form-Jacobian LM steps.
     This is the only regime where sub-frame (<40 ms) tracking is reachable: the blind super-Fibonacci
     SO(3) sweep that dominates ``register`` is skipped entirely.
@@ -142,17 +142,17 @@ def track(
     ----------
     target : the fixed reference splat (:class:`~splatreg.core.types.Gaussians`).
     source : the moved splat to localise (a ``Gaussians``; a ``Frame`` works if the residuals accept
-        one — the default SDF stack requires ``Gaussians``).
+        one, the default SDF stack requires ``Gaussians``).
     prior_T : ``(4, 4)`` warm-start pose (e.g. last frame's estimate, or a constant-velocity guess).
         For ``transform="sim3"`` it may carry a scale; it is used as-is.
-    transform : ``"se3"`` (6 DoF, the default — frame-to-frame rigid-object tracking) or ``"sim3"``
-        (7 DoF; the analytic log-scale column is used — no autodiff, since the SDF residual ships a
+    transform : ``"se3"`` (6 DoF, the default, frame-to-frame rigid-object tracking) or ``"sim3"``
+        (7 DoF; the analytic log-scale column is used, no autodiff, since the SDF residual ships a
         7-column Jacobian). NOTE: ``"sim3"`` is ill-conditioned in the sparse/tight-truncation
-        tracking regime — the scale DoF needs far more anchor support to be observable, so the
+        tracking regime, the scale DoF needs far more anchor support to be observable, so the
         ``300``-point / ``knn=16`` defaults do NOT converge it. Use ``"se3"`` for tracking (a tracked
         rigid body does not change scale frame-to-frame); only reach for ``"sim3"`` with many more
         ``n_points`` and looser ``trunc_sigmas`` (and expect it to be slower and less accurate).
-    iters : LM iterations (default 3 — a warm start converges in a couple of steps).
+    iters : LM iterations (default 3, a warm start converges in a couple of steps).
     residuals : explicit residual stack; ``None`` builds a FRESH default truncated SDF-only tracker
         (``SDF(sigma=auto, n_points, trunc_sigmas, knn)``) on every call. For a real per-frame loop
         build the stack ONCE with :func:`make_track_residuals` and pass it here: the target never
@@ -167,7 +167,7 @@ def track(
 
     Returns
     -------
-    :class:`~splatreg.core.types.RegisterResult` — same contract as :func:`register`. The estimated
+    :class:`~splatreg.core.types.RegisterResult`, same contract as :func:`register`. The estimated
     ``T`` is the refined pose; the caller threads it back in as the next ``prior_T``.
     """
     if transform not in _DOF:

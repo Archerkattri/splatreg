@@ -2,8 +2,8 @@
 
 Solves the SAME SE(3)/Sim(3) registration problem as the builtin core, but hands each nonlinear
 least-squares step to `PyPose <https://pypose.org>`_'s ``pp.optim.LM`` (trust-region LM with its own
-damping strategy and linear solver). splatreg supplies only the residual — PyPose autodiffs the
-Jacobian — so a user can swap in PyPose's solver without writing a single Jacobian.
+damping strategy and linear solver). splatreg supplies only the residual, PyPose autodiffs the
+Jacobian, so a user can swap in PyPose's solver without writing a single Jacobian.
 
 Design
 ------
@@ -11,7 +11,7 @@ The optimisation variable is the tangent ``delta`` (6-vector SE(3) / 7-vector Si
 right-perturbation ``T0 @ exp(delta)`` so the convention is bit-for-bit identical to the builtin LM
 and every shipped analytic Jacobian. Each iteration takes ONE PyPose LM step on the local tangent,
 then re-bases ``T0 <- T0 @ exp(delta*)`` and resets ``delta`` to zero. Taking a single inner step per
-re-basing — rather than running PyPose's inner LM to convergence on frozen correspondences — is what
+re-basing, rather than running PyPose's inner LM to convergence on frozen correspondences, is what
 makes a correspondence residual (ICP) converge to machine precision instead of stalling: it matches
 the builtin's "re-linearise (and re-match) every step" loop, just with PyPose computing the step.
 This vector parameterisation also handles Sim(3) (7th DoF = log-scale) uniformly even though the

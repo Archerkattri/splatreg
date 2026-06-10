@@ -1,12 +1,12 @@
-"""Photometric residuals — terms that compare *renders*, not geometry.
+"""Photometric residuals, terms that compare *renders*, not geometry.
 
 Two residuals live here:
 
-* :class:`Photometric` — render ``target`` via gsplat and compare to an **observed RGB frame**
+* :class:`Photometric`, render ``target`` via gsplat and compare to an **observed RGB frame**
   (object tracking). Inverse-compositional analytic Jacobian.
-* :class:`SplatPhotometric` — render the **source splat under T** and compare to renders of the
+* :class:`SplatPhotometric`, render the **source splat under T** and compare to renders of the
   **target splat** from the same synthetic camera ring: pure splat-to-splat photometric
-  alignment, no real images required. This is the PhotoReg trick (arXiv 2410.05044 — geometric
+  alignment, no real images required. This is the PhotoReg trick (arXiv 2410.05044, geometric
   alignment leaves visible seams; a final photometric stage through the rasterizer fixes them)
   adapted to splat-vs-splat, used by ``register(..., refine="photometric")`` via
   :func:`refine_photometric`.
@@ -113,7 +113,7 @@ class Photometric(Residual):
 
     Args:
         T_WC: 4×4 camera→world extrinsic (fixed for this camera/frame). The optimized ``T`` is
-            the object pose; the Gaussians are not moved — the residual lives in image space.
+            the object pose; the Gaussians are not moved, the residual lives in image space.
         rgb_gt: optional (H, W, 3) observed RGB in [0, 1]. If ``None`` it is read from the
             ``source`` Frame at call time.
         K: optional (3, 3) intrinsics. If ``None`` it is read from ``source.K``.
@@ -412,7 +412,7 @@ def camera_ring(
     """A small ring of synthetic look-at cameras around ``target``, for splat-vs-splat photometrics.
 
     ``n_views`` poses sit on a sphere around the target centroid at ``radius`` (default
-    ``radius_mult x`` the target's bounding radius — a sensible framing distance), azimuths evenly
+    ``radius_mult x`` the target's bounding radius, a sensible framing distance), azimuths evenly
     spaced, elevations cycling through ``elevations_deg`` so the views are not coplanar. Returns
     ``(T_WC, K)``: a ``(V, 4, 4)`` stack of camera->world poses and the shared ``(3, 3)`` pinhole
     intrinsics derived from ``fov_deg`` at ``width x height``.
@@ -450,7 +450,7 @@ def _quat_from_matrix_wxyz(R: torch.Tensor) -> torch.Tensor:
     """Rotation 3x3 -> unit quaternion (w, x, y, z). Branch-free (Shepperd-style), differentiable.
 
     (Sub)gradients flow through the sqrt/clamp and the magnitude argument of ``copysign``; the
-    sign argument contributes none — fine for the small refinement perturbations this serves.
+    sign argument contributes none, fine for the small refinement perturbations this serves.
     """
     m00, m11, m22 = R[0, 0], R[1, 1], R[2, 2]
     t = m00 + m11 + m22
@@ -568,8 +568,8 @@ class SplatPhotometric(Residual):
     The PhotoReg insight (arXiv 2410.05044) adapted to need **no real images**: geometric
     registration leaves a visible seam (sub-voxel pose error + per-capture appearance), so a final
     photometric stage *through the rasterizer* aligns what actually gets rendered. Here both sides
-    of the comparison are renders — the target splat from a small synthetic camera ring, and the
-    source splat transformed by the optimization variable ``T`` from the same ring — so the
+    of the comparison are renders, the target splat from a small synthetic camera ring, and the
+    source splat transformed by the optimization variable ``T`` from the same ring, so the
     residual is exactly "how different do the two splats LOOK", per pixel::
 
         r = vec( I(source | T, cam_v) - I(target | cam_v) )      v = 1..V   (Huber-scaled)
@@ -582,17 +582,17 @@ class SplatPhotometric(Residual):
     so FD and autodiff Jacobians agree) and ``huber_k`` becomes a Huber sqrt-weight ``robust``
     kernel the solver applies per-row. Folding the Huber into the residual itself (as the
     frame-based :class:`Photometric` does with its analytic Jacobian) would make saturated rows
-    piecewise-constant — zero gradient under autodiff/FD — which is exactly wrong for this
+    piecewise-constant, zero gradient under autodiff/FD, which is exactly wrong for this
     derivative-free residual.
 
     Jacobian (``jac_mode``):
 
-    * ``"fd"`` (default) — central finite differences on the <=7-dim tangent (2 x dof render
+    * ``"fd"`` (default), central finite differences on the <=7-dim tangent (2 x dof render
       passes per LM iteration). Exact enough at image scale, renderer-agnostic, and the only mode
       that works with gsplat's rasterizer (a custom autograd.Function that ``torch.func`` cannot
       transform). The residual uses ALL pixels (no data-dependent selection) so the FD dimension
       is stable across perturbed evaluations.
-    * ``"autodiff"`` — return ``None`` so the solver's ``jacrev`` fallback (row-chunked via
+    * ``"autodiff"``, return ``None`` so the solver's ``jacrev`` fallback (row-chunked via
       ``jac_row_chunk``) differentiates through the render. Requires a pure-torch,
       ``torch.func``-compatible ``render_fn`` (e.g. a test mock); gsplat's CUDA rasterizer is not.
 
@@ -600,7 +600,7 @@ class SplatPhotometric(Residual):
     ----------
     cameras : (V, 4, 4) camera->world poses (build with :func:`camera_ring`).
     K : (3, 3) shared pinhole intrinsics.
-    width, height : render resolution (keep small — 64-128 px; this is a refinement signal).
+    width, height : render resolution (keep small, 64-128 px; this is a refinement signal).
     render_fn : optional render callable ``(splat, T_CW (V,4,4), K (3,3), width, height,
         sh_degree) -> (V, H, W, 3)``; ``None`` uses the gsplat rasterizer (raising a clear
         ImportError here, at call time, when gsplat is absent).
@@ -616,7 +616,7 @@ class SplatPhotometric(Residual):
         :meth:`fit_exposure` (per-channel ``gain`` in ``[gain_bounds]``, ``|bias| <= bias_bound``).
         The bounds stop the appearance model from absorbing real misalignment: a pose error
         changes WHERE colour lands, which a global gain/bias cannot (and now may not) explain
-        away. The model is inert (identity) until :meth:`fit_exposure` is called —
+        away. The model is inert (identity) until :meth:`fit_exposure` is called,
         :func:`refine_photometric` alternates the fit with the pose LM when ``exposure=True``.
     weight, robust : forwarded to :class:`Residual`.
     """
@@ -715,7 +715,7 @@ class SplatPhotometric(Residual):
         non-background pixels of the current renders (one extra source render at ``T``), with
         ``gain`` clamped to ``self.gain_bounds`` and ``|bias| <= self.bias_bound``. The fit is
         STORED on the residual and held fixed by subsequent :meth:`residual` /:meth:`jacobian`
-        calls — :func:`refine_photometric` alternates fit <-> pose-LM (stable: the pose Jacobian
+        calls, :func:`refine_photometric` alternates fit <-> pose-LM (stable: the pose Jacobian
         never differentiates through the appearance fit, and the bounds keep the model from
         explaining structured misalignment away as colour).
 
@@ -844,8 +844,8 @@ def refine_photometric(
 
     Exposure compensation (``exposure=True``, DEFAULT): independently-captured splat pairs
     disagree on exposure / white balance, and that global colour offset otherwise leaks into the
-    pose (the LM trades real alignment against tint). A per-pair appearance model — per-channel
-    ``gain``/``bias`` on the rendered source — is ALTERNATED with the pose: fitted closed-form at
+    pose (the LM trades real alignment against tint). A per-pair appearance model, per-channel
+    ``gain``/``bias`` on the rendered source, is ALTERNATED with the pose: fitted closed-form at
     the start of every LM stage (:meth:`SplatPhotometric.fit_exposure`), held fixed within it,
     then refitted once more after the final stage with a short polish LM. Bounds
     (``gain_bounds`` / ``bias_bound``) stop the model from absorbing real misalignment. The
@@ -853,12 +853,12 @@ def refine_photometric(
 
     Coarse-to-fine ladder (``ladder=(96, 160, 256)`` style): a single render size trades basin
     width against the accuracy floor (~0.3 deg at 96 px). When ``ladder`` is given the stage runs
-    once per rung — square renders at each listed size, each rung warm-starting the next, camera
-    intrinsics rescaled per rung — so the coarse rung supplies the basin and the fine rung the
+    once per rung, square renders at each listed size, each rung warm-starting the next, camera
+    intrinsics rescaled per rung, so the coarse rung supplies the basin and the fine rung the
     floor. ``width``/``height`` are ignored for rendering when a ladder is given; per-rung
     diagnostics land in ``info["ladder"]``.
 
-    gsplat is required unless a custom ``render_fn`` is supplied — checked at residual
+    gsplat is required unless a custom ``render_fn`` is supplied, checked at residual
     construction (i.e. here, at call time) with a clear install hint, never at import.
 
     Returns a :class:`~splatreg.core.types.RegisterResult`; ``info`` carries the LM diagnostics

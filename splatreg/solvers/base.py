@@ -2,7 +2,7 @@
 
 Two pluggability axes (kept separate):
   * a ``Solver`` swaps the *numerical step* inside splatreg's builtin LM loop (LM/GN, damping,
-    Cholesky/QR) — see ``splatreg.solvers.lm``;
+    Cholesky/QR), see ``splatreg.solvers.lm``;
   * a ``backend=`` string on ``register`` hands the whole assembled problem to an external engine
     (pypose / theseus / gtsam). Every backend consumes one ``LinearizedProblem`` and returns an
     ``SE3Update`` (a tangent step), so a new backend never touches the residual plugins.

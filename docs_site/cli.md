@@ -21,7 +21,7 @@ All heavy subcommands accept `--quality` (`full` default, `balanced`, `low`, `au
 
 ---
 
-## `splatreg align` — register two splats
+## `splatreg align`: register two splats
 
 ```bash
 splatreg align target.ply source.ply -o aligned.ply \
@@ -30,7 +30,7 @@ splatreg align target.ply source.ply -o aligned.ply \
 ```
 
 Registers **source onto target**, prints the recovered transform, and writes the source splat
-with the transform baked in — open `target.ply` + `aligned.ply` together in SuperSplat and
+with the transform baked in: open `target.ply` + `aligned.ply` together in SuperSplat and
 they line up.
 
 ```text
@@ -54,7 +54,7 @@ wrote aligned.ply (1500 Gaussians, source aligned into the target frame)
 (That run took the source from **154 mm** Chamfer off the target to **0.05 mm**.)
 
 - `--transform sim3` additionally recovers a **scale** factor (captures taken at different
-  scales — splatreg is the only splat registrar that does this).
+  scales; splatreg is the only splat registrar that does this).
 - `--init` picks the coarse initializer; the default `fast` suits objects / full-overlap.
   Real metre-scale scans: `robust` or `learned`. Unknown large rotation: `global`.
   Partial overlap: `features`. See [Init modes](init-modes.md).
@@ -62,7 +62,7 @@ wrote aligned.ply (1500 Gaussians, source aligned into the target frame)
   **`WARNING: pose flagged AMBIGUOUS`** to stderr rather than handing you a silently wrong
   transform.
 
-## `splatreg merge` — N splats → one fused splat
+## `splatreg merge`: N splats → one fused splat
 
 ```bash
 splatreg merge a.ply b.ply [c.ply ...] -o fused.ply \
@@ -91,7 +91,7 @@ wrote fused.ply
     magnitude quicker. On a CUDA machine the default device is the GPU and everything is much
     faster.
 
-## `splatreg info` — inspect a 3DGS PLY
+## `splatreg info`: inspect a 3DGS PLY
 
 ```bash
 $ splatreg info fused.ply
@@ -107,13 +107,13 @@ scales    : log-stored, linear median 0.00400  max 0.00400
 
 Useful sanity checks before a merge: do the two files have comparable extents (a 10× extent
 mismatch means you want `--transform sim3`), what SH degree they carry, and whether opacities
-look like raw logits (they should — see [PLY interop](ply-interop.md)).
+look like raw logits (they should; see [PLY interop](ply-interop.md)).
 
 ---
 
 ## Recipe: merge two SuperSplat scenes
 
-SuperSplat has no automatic merge — align with splatreg, finish in SuperSplat:
+SuperSplat has no automatic merge: align with splatreg, finish in SuperSplat:
 
 ```bash
 pip install splatreg

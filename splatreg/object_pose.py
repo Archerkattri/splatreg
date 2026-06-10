@@ -8,8 +8,8 @@ model into the scene/camera frame::
 
     p_scene  =  T_SO @ p_model            (T_SO is the object's 6-DoF pose in the scene frame)
 
-It reuses the existing :func:`splatreg.register` machinery wholesale — the global init basin-finder,
-the ICP + Gaussian-SDF residual stack, and the closed-form-Jacobian LM core — and adds only the two
+It reuses the existing :func:`splatreg.register` machinery wholesale, the global init basin-finder,
+the ICP + Gaussian-SDF residual stack, and the closed-form-Jacobian LM core, and adds only the two
 things the *object-pose* task needs on top of plain registration:
 
 1. a thin API (:func:`estimate_object_pose` / :class:`ObjectPoseEstimator`) that names the inputs
@@ -22,7 +22,7 @@ things the *object-pose* task needs on top of plain registration:
 The pose is SE(3) by default (a rigid object does not change size); ``transform="sim3"`` is exposed
 for the case where the observation is at an unknown metric scale (e.g. a monocular reconstruction).
 
-This module adds **no** new solver or residual — it is a task-level wrapper. The honest limit is the
+This module adds **no** new solver or residual, it is a task-level wrapper. The honest limit is the
 same as :func:`register`: under heavy occlusion / partial views the geometry-only basin can be
 ambiguous, which the underlying feature init flags via ``info['ambiguous']``.
 """
@@ -85,13 +85,13 @@ def estimate_object_pose(
     Parameters
     ----------
     model : the canonical object splat (the "CAD model" of the splat world), in its own object frame.
-    observation : the observed instance — a :class:`~splatreg.core.types.Gaussians` (an observed
-        splat / crop) or a :class:`~splatreg.core.types.Frame` carrying a ``point_cloud`` — in the
+    observation : the observed instance, a :class:`~splatreg.core.types.Gaussians` (an observed
+        splat / crop) or a :class:`~splatreg.core.types.Frame` carrying a ``point_cloud``, in the
         scene / camera frame.
     init : coarse-init mode, per :func:`splatreg.register`. Default ``"fast"`` (FPFH + GPU-batched
         RANSAC) finds the rotation basin for an arbitrarily-rotated object; pass a 4x4 to warm-start
         from a prior pose, or ``"global"`` for the blind super-Fibonacci sweep.
-    transform : ``"se3"`` (default, rigid 6-DoF — a real object does not change size) or ``"sim3"``
+    transform : ``"se3"`` (default, rigid 6-DoF, a real object does not change size) or ``"sim3"``
         when the observation is at an unknown metric scale.
     residuals, backend, max_iters, quality : forwarded to :func:`splatreg.register`.
 
@@ -101,7 +101,7 @@ def estimate_object_pose(
 
     Notes
     -----
-    Internally this is ``register(target=observation, source=model)`` — the *observation* is the
+    Internally this is ``register(target=observation, source=model)``, the *observation* is the
     target so the recovered transform moves the *model* onto the observation, i.e. exactly the object
     pose ``T_SO`` the caller wants. The honest occlusion / partial-view limit of ``register`` carries
     over: a heavily cropped observation can leave the pose ambiguous, surfaced as ``info['ambiguous']``.
@@ -236,7 +236,7 @@ def adds_metric(
 ) -> float:
     """**ADD-S**: symmetric (closest-point) variant of ADD for symmetric objects.
 
-    ``ADD-S = mean_i min_j || T_pred · x_i − T_gt · x_j ||`` — each transformed-by-prediction point is
+    ``ADD-S = mean_i min_j || T_pred · x_i − T_gt · x_j ||``, each transformed-by-prediction point is
     matched to its *nearest* GT-transformed model point, so a rotation about a symmetry axis (which
     maps the model onto itself) is not penalised. This is the metric YCB-Video / FoundationPose use
     for symmetric objects. Both sides are deterministically strided to ``max_pts`` to bound the

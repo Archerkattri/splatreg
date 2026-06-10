@@ -1,9 +1,9 @@
-"""Gaussian-derived signed-distance field — splatreg's differentiating primitive.
+"""Gaussian-derived signed-distance field, splatreg's differentiating primitive.
 
 A 3D Gaussian Splat is a cloud of anchors (the Gaussian means) that already trace the
 surface of a scanned object. This module turns that cloud into a smooth, queryable
 *signed-distance proxy* and its spatial gradient at arbitrary 3D points, with no meshing,
-no marching cubes, and no CUDA extension — plain ``torch``.
+no marching cubes, and no CUDA extension, plain ``torch``.
 
 It is a standalone, sellable primitive: hand it a :class:`~splatreg.core.types.Gaussians`
 and a ``(N, 3)`` batch of query points and it returns ``(sdf, grad)``. It is the SDF that
@@ -21,12 +21,12 @@ bandwidth ``sigma``, define for a query point ``p``::
     d(p)   = (p - q~(p)) . n~(p)                          (signed distance to local surface)
 
 ``d(p)`` is positive outside the surface (along ``+n~``), negative inside, and crosses zero
-on the soft surface. The second return ``n~(p)`` is the unit surface **normal** at the query
-— a useful direction, but **NOT** the exact spatial gradient of ``d``: the kernel-weighted
+on the soft surface. The second return ``n~(p)`` is the unit surface **normal** at the
+query, a useful direction, but **NOT** the exact spatial gradient of ``d``: the kernel-weighted
 centroid ``q~(p)`` and normal ``n~(p)`` themselves depend on ``p``, and ``∂q~/∂p`` is a
 *first-order* term (it does not vanish as ``p`` approaches the surface). A numerical Jacobian
 audit (``splatreg/tests/test_jacobians.py``) confirmed that treating ``n~`` as the gradient
-gives a materially wrong Jacobian, so the SDF residual uses the EXACT gradient ``∇d`` — in
+gives a materially wrong Jacobian, so the SDF residual uses the EXACT gradient ``∇d``, in
 CLOSED FORM via :func:`gaussian_sdf_grad` (the field is also fully differentiable w.r.t.
 ``points``, so autodiff through ``d(p)`` agrees). Use ``n~`` as the surface normal; use
 ``gaussian_sdf_grad`` (or autodiff ``∇d``) as the gradient.
@@ -129,7 +129,7 @@ def gaussian_sdf(
             ``means`` (and ``opacities`` when ``use_opacity``) are read.
         points: ``(N, 3)`` query positions, in the splat's own frame.
         sigma: Gaussian kernel bandwidth (influence radius), same units as ``means``.
-            **Required** — there is no universal default. Must be > 0.
+            **Required**, there is no universal default. Must be > 0.
         normals: optional ``(M, 3)`` per-anchor normals. If ``None`` they are estimated
             once via :func:`estimate_anchor_normals` (k-NN PCA, outward-oriented).
         trunc_sigmas: if set, only the anchors within ``trunc_sigmas * sigma`` of each query
@@ -142,7 +142,7 @@ def gaussian_sdf(
         index: optional prebuilt :class:`splatreg.spatial_index.SpatialIndex` over the target
             anchors. When supplied **with** ``trunc_sigmas`` the per-query ``k``-nearest gather is
             served by the voxel-hash grid (near-O(N) candidate lookup) instead of the full
-            ``(chunk, M)`` distance matrix — the EXACT same truncated proxy, only the neighbour
+            ``(chunk, M)`` distance matrix, the EXACT same truncated proxy, only the neighbour
             search is pruned, so a scene-scale target field stays cheap. Ignored when
             ``trunc_sigmas`` is ``None`` (the full-field path reads every anchor by definition).
 
@@ -257,28 +257,28 @@ def gaussian_sdf_grad(
     """Signed distance AND its EXACT spatial gradient ``∇_p d``, computed in closed form.
 
     Same proxy as :func:`gaussian_sdf`, but the second return is the TRUE field gradient ``∇_p d``
-    analytically — so the SE(3) SDF-residual path needs neither an autograd graph nor a second
+    analytically, so the SE(3) SDF-residual path needs neither an autograd graph nor a second
     forward (this is the fast path; :func:`gaussian_sdf` + autodiff is the truncated fallback).
     Derivation (``u = p - q~``, ``a_i = p - q_i``, ``c_i = q_i - q~``)::
 
         ∂q~/∂p = (1/σ²) Cov_w,   Cov_w = (1/W) Σ_i w_i c_i c_iᵀ   (weighted anchor covariance)
         ∇_p d  = n~ - (1/σ²) Cov_w n~ - (1/(σ²‖S_n‖)) Σ_i w_i (n_i·x) a_i,   x = u - d n~
 
-    EXACT (~1e-8 vs central-difference numerical) wherever the field has anchor support — the
+    EXACT (~1e-8 vs central-difference numerical) wherever the field has anchor support, the
     entire regime where the SDF is meaningful and where the registration residual operates
     (residual audit ``tests/test_jacobians.py`` 8/8). At degenerate far queries (the weight-sum
     clamp activates, the field itself is undefined) it falls back to the bounded surface normal
     ``n~`` rather than the blown-up un-clamped expression. Returns ``(sdf (N,), grad (N, 3))``
-    where ``grad`` is ``∇_p d`` — NOT the surface normal ``n~``.
+    where ``grad`` is ``∇_p d``, NOT the surface normal ``n~``.
 
     Truncation (the tracking fast path)
     -----------------------------------
     ``trunc_sigmas`` (default ``None`` = every anchor) restricts each query to its ``k`` nearest
-    anchors via a per-query top-k gather, then zeros the weight of any beyond ``trunc_sigmas*sigma``
-    — exactly the support :func:`gaussian_sdf` uses. Because all the closed-form sums above
+    anchors via a per-query top-k gather, then zeros the weight of any beyond
+    ``trunc_sigmas*sigma``, exactly the support :func:`gaussian_sdf` uses. Because all the closed-form sums above
     (``q~``, ``S_n``, ``Cov_w n~``, the normal-derivative term) are computed over the SAME truncated
     anchor set, the gradient stays the EXACT analytic field gradient of the *truncated* proxy with
-    NO autodiff — so warm-start tracking with a tight sigma costs ``N*k`` not ``N*M``. ``k`` is
+    NO autodiff, so warm-start tracking with a tight sigma costs ``N*k`` not ``N*M``. ``k`` is
     sized from ``knn`` (clamped to the cloud), the same convention as :func:`gaussian_sdf`.
     """
     means = gaussians.means

@@ -1,12 +1,12 @@
-"""Global coarse-init aligner — the basin finder that runs BEFORE the fine LM refine.
+"""Global coarse-init aligner, the basin finder that runs BEFORE the fine LM refine.
 
 ``register`` solves splat-to-splat alignment as *coarse global init → fine multi-residual
 LM*. This module is the coarse half: given two Gaussian splats it returns a 4x4 transform
 (Sim(3) by default, SE(3) optional) that lands ``source`` inside the convergence basin of
-``target`` — close enough (typically within ~10-15deg / a few % scale) that the LM finishes
+``target``, close enough (typically within ~10-15deg / a few % scale) that the LM finishes
 the job. It is deliberately approximate: the goal is a *good init*, not a precise pose.
 
-Algorithm (ported from the A/B-bench metric-side pred->GT global aligner —
+Algorithm (ported from the A/B-bench metric-side pred->GT global aligner,
 ``project_ab_bench_fscore_alignment``: super-Fibonacci SO(3) candidate sweep + GPU-batched
 trimmed ICP, tuned defaults 256 rotations / 40 ICP iters / 12288 points):
 
@@ -23,12 +23,12 @@ trimmed ICP, tuned defaults 256 rotations / 40 ICP iters / 12288 points):
 5. Keep the lowest-Chamfer seed and recover the exact closed-form similarity that maps the
    subsampled source onto that winner; return it as a 4x4 matrix.
 
-**Fully on-device (GPU-native).** Everything — the super-Fibonacci/PCA seeds, the batched ICP
-sweep, and the final closed-form Umeyama recovery — runs in torch on ``source``'s device; there
+**Fully on-device (GPU-native).** Everything, the super-Fibonacci/PCA seeds, the batched ICP
+sweep, and the final closed-form Umeyama recovery, runs in torch on ``source``'s device; there
 is no ``.cpu()`` / numpy round-trip in the compute path (the final recovery is done in float64
 on-device for SVD precision). Self-contained: torch only, no gsplat / pytorch3d / scipy / numpy
-/ SLAM imports. Deterministic — no RNG (closed-form seeds, strided subsample, first-index
-tie-break) — so it is reproducible.
+/ SLAM imports. Deterministic, no RNG (closed-form seeds, strided subsample, first-index
+tie-break), so it is reproducible.
 """
 
 from __future__ import annotations
@@ -121,16 +121,6 @@ def _pca_axes(pts_centered: torch.Tensor) -> torch.Tensor:
     return Vh.transpose(-2, -1)
 
 
-def _pca_eigenvalue_spread(pts_centered: torch.Tensor) -> float:
-    """Ratio of largest to smallest singular value of the centred cloud (isotropy probe).
-
-    Values near 1.0 indicate a near-isotropic (sphere-like) cloud where PCA axes are
-    arbitrary. The asymmetric test object scores ~2.5; a sphere ~1.05.
-    """
-    _, sv, _ = torch.linalg.svd(pts_centered, full_matrices=False)
-    return float((sv[0] / sv[-1].clamp_min(1e-10)).item())
-
-
 def _pca_seed_rotations(src: torch.Tensor, tgt: torch.Tensor) -> torch.Tensor:
     """Identity + PCA principal-axis-match sign flips, ``(<=5, 3, 3)`` on-device.
 
@@ -141,7 +131,7 @@ def _pca_seed_rotations(src: torch.Tensor, tgt: torch.Tensor) -> torch.Tensor:
     are arbitrary (eigenvalue spread < _PCA_ISOTROPY_THRESH).  We keep the PCA seeds
     anyway because on the test sphere (N=800) individual rotations still differ in
     Chamfer score by ~9mm, so the batched trimmed ICP still selects among them
-    meaningfully — and at default 256 Fibonacci seeds the grid is too coarse to guarantee
+    meaningfully, and at default 256 Fibonacci seeds the grid is too coarse to guarantee
     a near-centroid seed without the PCA candidates providing additional coverage.
     Removing PCA seeds for isotropic clouds was tested and reliably made the symmetric
     result WORSE (8/9→3/9) due to the Fibonacci grid missing the correct basin.
@@ -311,7 +301,7 @@ def global_align(
 
     Sweeps ``n_rotations`` super-Fibonacci SO(3) candidates (plus PCA sign-flips), scores each
     by a batched trimmed symmetric Chamfer after a batched trimmed ICP, and returns the
-    closed-form similarity for the best seed — a *basin-correct init* for the fine LM, not a
+    closed-form similarity for the best seed, a *basin-correct init* for the fine LM, not a
     precise pose. Runs fully on ``source``'s device (CPU or CUDA); no host round-trip.
 
     Args:

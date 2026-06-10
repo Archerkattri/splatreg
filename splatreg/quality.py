@@ -1,23 +1,23 @@
-"""Quality / machine-adaptivity policy for splatreg — *full by default, dial down to fit*.
+"""Quality / machine-adaptivity policy for splatreg, *full by default, dial down to fit*.
 
 Registration here is memory-bounded by the **Sim(3) autodiff Jacobian** in
 :mod:`splatreg.solvers.lm`: its vmap'd reverse pass holds, per Jacobian row-chunk, one SDF forward
 *block*'s graph, so peak ``~ jac_row_chunk x min(n_points, sdf_chunk) x M_target`` (measured). All
-three of ``jac_row_chunk``, ``sdf_chunk`` and ``n_points`` therefore divide the peak — but only
+three of ``jac_row_chunk``, ``sdf_chunk`` and ``n_points`` therefore divide the peak, but only
 ``n_points`` changes the *result*; the two chunk knobs are numerically lossless.
 
 This module turns ``n_points`` (how many source anchors the residuals sample), the chunk knobs,
 the normal-estimation ``knn`` and the LM ``max_iters`` into a single **quality policy** so the same
 code runs full-quality on a big GPU and (at reduced fidelity) without OOM on a small GPU or a
-CPU-only box — by trading ``n_points`` for footprint only when asked, and *always* auto-fitting the
+CPU-only box, by trading ``n_points`` for footprint only when asked, and *always* auto-fitting the
 lossless chunk knobs to the available memory.
 
 Policy
 ------
 * **Default is FULL.** Out of the box nothing is capped: ``n_points`` is the residual's own full
   default and the Jacobian is row-chunked purely to bound *peak* memory with **zero** quality
-  loss (same Jacobian, numerically identical — chunking only changes the live-graph size).
-* A user may pick a named **quality** — ``"full"`` / ``"balanced"`` / ``"low"`` — or a **0..1
+  loss (same Jacobian, numerically identical, chunking only changes the live-graph size).
+* A user may pick a named **quality**, ``"full"`` / ``"balanced"`` / ``"low"``, or a **0..1
   scale** (1.0 == full, smaller == fewer points / iterations), to trade accuracy for footprint
   explicitly.
 * ``quality="auto"`` **detects the hardware at runtime** (``torch.cuda.mem_get_info`` on CUDA,
@@ -199,8 +199,8 @@ def _fit_chunks(
     """Lower ``cfg``'s quality-neutral chunk knobs until the Sim(3) autodiff peak fits memory.
 
     The chunked autodiff peaks at ``~_PEAK_BYTES_PER_TRIPLE * jac_row_chunk * min(n_points,
-    sdf_chunk) * M`` (measured). Both chunks divide that peak losslessly, so we shrink them — NOT
-    the accuracy knobs — to fit a fraction of the free memory. This is what makes even ``"full"``
+    sdf_chunk) * M`` (measured). Both chunks divide that peak losslessly, so we shrink them, NOT
+    the accuracy knobs, to fit a fraction of the free memory. This is what makes even ``"full"``
     (all ``n_points``) run on a small GPU without OOM and bit-for-bit identically to a big one.
 
     Strategy: keep ``jac_row_chunk`` at its ceiling and pull ``sdf_chunk`` down first (it is the
@@ -254,7 +254,7 @@ def _fit_chunks(
 
 def _auto_config(device: torch.device, target_anchors: Optional[int]) -> QualityConfig:
     """ACCURACY policy for ``quality='auto'``: keep ``n_points`` full when the (n_points x M) ICP
-    cdist comfortably fits, else cap it to what fits — the chunk knobs are fitted separately.
+    cdist comfortably fits, else cap it to what fits, the chunk knobs are fitted separately.
 
     The Sim(3) autodiff peak is handled losslessly by :func:`_fit_chunks` (chunking never costs
     accuracy), so the only reason ``auto`` ever *lowers* the accuracy dial is the ONE working set
@@ -297,7 +297,7 @@ def resolve_quality(
     Two stages: (1) pick the ACCURACY knobs (``n_points`` / ``knn`` / ``max_iters``) from the
     requested policy, then (2) ALWAYS fit the quality-neutral CHUNK knobs (``jac_row_chunk`` /
     ``sdf_chunk_size``) to the available memory via :func:`_fit_chunks` so the Sim(3) autodiff peak
-    can never OOM — for *every* mode, full included. Chunking is numerically lossless, so stage 2
+    can never OOM, for *every* mode, full included. Chunking is numerically lossless, so stage 2
     changes footprint, not the result.
 
     Parameters
@@ -308,14 +308,14 @@ def resolve_quality(
         * ``"balanced"`` / ``"low"`` -> named accuracy presets (bounded ``n_points``).
         * a float in ``[0, 1]`` -> scaled accuracy (``1.0`` == full, smaller == fewer points).
         * ``"auto"`` -> detect free GPU/CPU memory and pick the largest ``n_points`` that fits
-          (full on a roomy machine; capped on a small one) — chunks fitted on top.
+          (full on a roomy machine; capped on a small one), chunks fitted on top.
         * a :class:`~splatreg.quality.QualityConfig` -> returned UNCHANGED (advanced manual override;
           no fitting, so you own the memory budget).
     device : the device the run will execute on (read for memory in ``"auto"`` and in the chunk
         fit). Defaults to CUDA-current when available else CPU.
-    target_anchors : the target splat's Gaussian count, if known — sharpens both the ``"auto"``
+    target_anchors : the target splat's Gaussian count, if known, sharpens both the ``"auto"``
         ``n_points`` budget and the chunk fit (peak ``~ jac_row_chunk x min(n_points,sdf) x M``).
-    source_anchors : the source splat's Gaussian count, if known — sharpens the chunk fit for
+    source_anchors : the source splat's Gaussian count, if known, sharpens the chunk fit for
         ``full`` (``n_points=None`` samples ALL source anchors, so the true sample is the source size).
 
     Returns

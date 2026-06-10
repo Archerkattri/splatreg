@@ -1,4 +1,4 @@
-"""Pose prior residual — a soft anchor on the pose under optimization.
+"""Pose prior residual, a soft anchor on the pose under optimization.
 
 Ports the "between" prior idea from GaussianFeels (``TemporalBetweenResidual`` /
 ``ICPBetweenResidual``): penalise how far the current pose ``T`` has moved from a reference
@@ -10,9 +10,9 @@ residual is the information-weighted se(3) tangent of the relative pose
 with ``log`` in the splatreg convention ``ξ = [tx,ty,tz, rx,ry,rz]`` (translation first).
 ``dim() == 6``.
 
-Both the inverse and the matrix log are computed inline (self-contained — no GaussianFeels
+Both the inverse and the matrix log are computed inline (self-contained, no GaussianFeels
 imports). The analytic Jacobian uses ``∂r/∂ξ ≈ W`` (the right-Jacobian of SE(3)-log evaluated
-at the relative pose, approximated by ``I`` near the anchor — the same first-order form the
+at the relative pose, approximated by ``I`` near the anchor, the same first-order form the
 production ``_BetweenResidual`` ships). This is exact at ``T = T_prior`` and accurate while the
 relative rotation stays small, which is the regime a soft prior operates in.
 """

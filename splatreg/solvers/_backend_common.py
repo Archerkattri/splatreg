@@ -6,14 +6,14 @@ external backend instead runs its *own* nonlinear least-squares loop over splatr
 all it needs from splatreg is:
 
 * a callable ``T(delta) -> residual_vector`` that evaluates every residual at the right-perturbed
-  pose ``T0 @ exp(delta)`` and stacks them with each residual's sqrt-weight folded in — IDENTICAL
+  pose ``T0 @ exp(delta)`` and stacks them with each residual's sqrt-weight folded in, IDENTICAL
   rows to what :func:`splatreg.solvers.lm._assemble` would build, minus the Jacobian (the backend
   autodiffs / finite-differences its own);
 * the matching tangent->matrix exp (:func:`se3_exp` / :func:`sim3_exp`) so the backend optimises in
   the same right-perturbation coordinates splatreg uses everywhere.
 
-Parameterising by the tangent ``delta`` (re-based on a fixed ``T0`` per outer round) — rather than a
-full pose manifold variable — keeps the convention bit-for-bit with the builtin core and works
+Parameterising by the tangent ``delta`` (re-based on a fixed ``T0`` per outer round), rather than a
+full pose manifold variable, keeps the convention bit-for-bit with the builtin core and works
 uniformly for SE(3) (6 DoF) and Sim(3) (7 DoF, the 7th = log-scale) even though some engines lack a
 native Sim(3) group. The outer re-basing (``T0 <- T0 @ exp(delta*)``) lets the local tangent
 coordinate track large motion across rounds.

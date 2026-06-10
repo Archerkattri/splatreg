@@ -1,4 +1,4 @@
-"""Geometry primitives — the Gaussian-derived SDF query (splatreg's differentiator)."""
+"""Geometry primitives, the Gaussian-derived SDF query (splatreg's differentiator)."""
 
 __all__ = []
 

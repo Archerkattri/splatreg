@@ -1,4 +1,4 @@
-"""Feature-based global aligner — partial-overlap robust coarse init + ambiguity detection.
+"""Feature-based global aligner, partial-overlap robust coarse init + ambiguity detection.
 
 ``feature_align`` is an alternative to :func:`splatreg.align.global_align` designed for
 partial-overlap scenarios (two splat captures of the same object that see different parts of it).
@@ -40,7 +40,7 @@ geodesic rotation distance, and computes an **ambiguity score** = the spread of 
 rotations.  A large spread (or too few inliers / matches) means the true pose is *genuinely
 unrecoverable from this overlap by any method*; we flag it (``ambiguous=True``) and report a low
 ``confidence`` instead of silently returning a wrong pose.  Correctly flagging an inherently
-ambiguous crop is the intended, honest behaviour — not a failure to hide.
+ambiguous crop is the intended, honest behaviour, not a failure to hide.
 
 Symmetric-object improvement in ``align.py``
 ---------------------------------------------
@@ -199,7 +199,7 @@ def _spfh(pts: torch.Tensor, normals: torch.Tensor, idx: torch.Tensor, bins: int
         bins: histogram bins per feature.
 
     Returns:
-        ``(N, 3*bins)`` float32 SPFH (each point's row L1-sums to 3 — one per feature block).
+        ``(N, 3*bins)`` float32 SPFH (each point's row L1-sums to 3, one per feature block).
     """
     N, k = idx.shape
     dev = pts.device
@@ -333,7 +333,7 @@ def _clique_prefilter(
 
     A rigid/similarity transform preserves *pairwise distances up to a global scale*.  Two
     correspondences (i, j) are consistent if ``| ||cs_i - cs_j|| - ||ct_i - ct_j|| || <= tol``
-    (rigid) — gross mismatches violate this with most other correspondences.  We build the
+    (rigid), gross mismatches violate this with most other correspondences.  We build the
     consistency graph and greedily grow a clique from the highest-degree vertex: that vertex's
     consistent neighbourhood is a near-clique of inliers, which we return as the surviving indices.
 
@@ -518,12 +518,12 @@ def _robust_register_batched(
     with_scale: bool,
     rng_seed: int = 42,
 ) -> dict:
-    """GPU-batched 3-point RANSAC — the vectorised equivalent of :func:`_robust_register`.
+    """GPU-batched 3-point RANSAC, the vectorised equivalent of :func:`_robust_register`.
 
     Same contract (returns ``T`` / ``n_inliers`` / ``n_matches`` / ``ambiguity`` / ``hypotheses``)
     but evaluates **all** ``n_iters`` minimal hypotheses in one shot: a single batched closed-form
     Umeyama (:func:`_batched_umeyama`) over ``(n_iters, 3, 3)`` triplets, then one batched inlier
-    score against the whole clique-filtered correspondence set — no Python per-iteration loop, no
+    score against the whole clique-filtered correspondence set, no Python per-iteration loop, no
     per-iter CPU ``randperm`` / GPU sync.  This is the fast path the per-pair init uses; it removes
     the ~1.4 s Python RANSAC loop that dominated ``feature_align``.  Deterministic given ``rng_seed``.
     """
@@ -607,51 +607,6 @@ def _robust_register_batched(
 # ── overlap-aware ICP polish (partial-overlap safe) ─────────────────────────────
 
 
-def _robust_radius_scale(
-    src_matched: torch.Tensor, tgt_matched: torch.Tensor, max_pairs: int = 4096
-) -> float:
-    """Robust Sim(3) scale from the MEDIAN ratio of matched pairwise distances.
-
-    Umeyama's variance-ratio scale (``Σσ / var_src``) is least-squares and so is dragged by the
-    occlusion-boundary mismatches that survive trimming under partial overlap — there it routinely
-    overshoots (e.g. ``s_hat`` 1.18 for a true 0.93).  A scale is, by definition, the ratio of any
-    inter-point distance in the target to the corresponding distance in the source, and that ratio is
-    invariant to the (unknown) rotation/translation.  Taking the **median** over many matched pairs
-    is a high-breakdown estimator: occlusion-boundary outliers move at most ~half the pairs, so the
-    median ratio stays on the true scale.  We sample a fixed set of pair offsets (deterministic,
-    strided) rather than the full O(n²) set.
-
-    Args:
-        src_matched / tgt_matched: corresponding points ``(M, 3)`` (target ≈ s·R·src + t).
-        max_pairs: cap on the number of (i, j) pairs scored.
-
-    Returns:
-        Robust scalar scale, or ``1.0`` if too few pairs.
-    """
-    m = src_matched.shape[0]
-    if m < 4:
-        return 1.0
-    # Deterministic pair set: pair row i with row i+off for a few coprime-ish offsets, so the
-    # pairs span the whole matched extent (not just neighbours) without an O(m^2) blowup.
-    offs = [o for o in (1, 2, 3, 5, 8, 13, 21, 34) if o < m]
-    si, ti = [], []
-    for off in offs:
-        a = torch.arange(m - off, device=src_matched.device)
-        si.append(a)
-        ti.append(a + off)
-        if sum(int(x.numel()) for x in si) >= max_pairs:
-            break
-    i = torch.cat(si)[:max_pairs]
-    j = torch.cat(ti)[:max_pairs]
-    ds = (src_matched[i] - src_matched[j]).norm(dim=1)
-    dt = (tgt_matched[i] - tgt_matched[j]).norm(dim=1)
-    valid = ds > 1e-9
-    if int(valid.sum().item()) < 4:
-        return 1.0
-    ratios = (dt[valid] / ds[valid]).clamp(1e-6, 1e6)
-    return float(ratios.median().item())
-
-
 def _overlap_icp_polish(
     src_full: torch.Tensor,
     tgt_full: torch.Tensor,
@@ -664,7 +619,7 @@ def _overlap_icp_polish(
     n_tgt: int = 1024,
     conv_tol: float = 1e-5,
 ) -> torch.Tensor:
-    """Refine ``T`` (source→target) by matching TARGET→SOURCE — robust to a partial target.
+    """Refine ``T`` (source→target) by matching TARGET→SOURCE, robust to a partial target.
 
     The FPFH+RANSAC step gives a coarse rotation; this polishes it without the partial-overlap
     failure mode of a naive source→target ICP.  Because the (possibly cropped) target is a SUBSET
@@ -672,7 +627,7 @@ def _overlap_icp_polish(
     transformed full source**.  So we match each target point to its nearest transformed-source
     point (not the reverse), trim the worst ``1-trim`` fraction (occlusion-boundary mismatches), and
     re-fit ``T`` via Umeyama on those matches.  The parts of the source outside the overlap simply
-    never get selected — they cannot drag the fit off-pose the way a source→target match does.
+    never get selected, they cannot drag the fit off-pose the way a source→target match does.
 
     Args:
         src_full: full source cloud ``(Ns, 3)`` (float32).
@@ -749,11 +704,11 @@ def _point_to_plane_overlap_icp(
       is the load-bearing fix.  A one-sided crop's centroid does not correspond to the full-source
       centroid, so a rotation parametrised about the source/world origin couples rotation into a
       large translation error and the trimmed objective's minimum drifts ~5-13° off the true pose.
-      Mapped instead about the centroid of the matched (overlapping) region — ``q.mean(0)`` — the
+      Mapped instead about the centroid of the matched (overlapping) region, ``q.mean(0)``, the
       trimmed target→source cost becomes a SHARP basin whose minimum sits exactly at the true pose
       (residual ~0), so a seed within the basin descends straight to it.  (Measured: with the source
       pivot the cost is minimised 3-13° from ground truth; with the overlap pivot the cost rises
-      monotonically from 0 at the true pose to ~70× at 10° off — a clean, attracting basin.)
+      monotonically from 0 at the true pose to ~70× at 10° off, a clean, attracting basin.)
     * **Levenberg-style diagonal damping** (``lam`` × diag(JᵀJ)).  At a perfect subset-overlap
       optimum the matched residuals are ~0 and the one-sided crop leaves some rotational DoF weakly
       constrained, so an undamped Gauss-Newton step jitters in that near-null space and walks OFF the
@@ -762,7 +717,7 @@ def _point_to_plane_overlap_icp(
 
     Why point-to-plane (not point-to-point): point-to-plane lets each observed target point slide
     ALONG the source surface to its correct tangential position, so the true basin sharpens to
-    residual ~0 while wrong basins stay high — a separable score that both recovers the pose AND lets
+    residual ~0 while wrong basins stay high, a separable score that both recovers the pose AND lets
     the honest ambiguity gate fire only on the truly-unrecoverable crops.
 
     Each iteration: match every (trimmed) target point to its nearest transformed-source point, then
@@ -782,7 +737,7 @@ def _point_to_plane_overlap_icp(
         lam: Levenberg diagonal-damping factor (× the mean of diag(JᵀJ)).
 
     Returns:
-        ``(R, t, residual)`` — refined rotation/translation and the final trimmed target→source
+        ``(R, t, residual)``, refined rotation/translation and the final trimmed target→source
         overlap residual (lower = better fit).
     """
     R = R0.clone()
@@ -846,12 +801,12 @@ def _batched_t2s_prefilter(
 ) -> torch.Tensor:
     """Rank ALL ``seeds`` by a cheap fully-batched target→source point-to-point trimmed ICP.
 
-    This is a *coarse, fast* basin pre-selector — it runs every super-Fibonacci seed at once
+    This is a *coarse, fast* basin pre-selector, it runs every super-Fibonacci seed at once
     (vectorised closed-form Umeyama steps via :func:`splatreg.align._batched_umeyama`, chunked over
     seeds) so we never pay the per-seed Python-loop / 6×6-solve cost of the point-to-plane refiner on
     thousands of candidates.  Point-to-point can't reach the exact subset pose on a one-sided crop
     (that's what the pivoted point-to-plane refine is for), but its trimmed target→source overlap
-    residual reliably *ranks* seeds so the true basin is among the top few — the expensive refine then
+    residual reliably *ranks* seeds so the true basin is among the top few, the expensive refine then
     only runs on those.  Returns the converged rotations ``(B, 3, 3)`` ordered best-overlap first.
     """
     Ns, Nt = src.shape[0], tgt.shape[0]
@@ -902,7 +857,7 @@ def _overlap_basin_sweep(
     n_src: int = 1400,
     n_tgt: int = 800,
 ) -> torch.Tensor:
-    """Overlap-aware **point-to-plane** super-Fibonacci basin sweep — the partial-overlap recoverer.
+    """Overlap-aware **point-to-plane** super-Fibonacci basin sweep, the partial-overlap recoverer.
 
     The FPFH path lands a wrong rotation on smooth splat surfaces (the descriptors are near-flat off
     the disambiguating lobe), so the coarse init falls into a wrong basin and the ambiguity detector
@@ -920,10 +875,10 @@ def _overlap_basin_sweep(
        prefilter (the cropped one-directional residual barely separates it from the 170-ish mirror),
        so a shallow ``topk`` drops it before the precise refine ever sees it; the true basin also needs
        enough refine iterations to fully descend.  ``topk=200`` + ``refine_iters=150`` keeps the true
-       seed in the pool and lets it converge — this is what lifts keep60 from 1/3 to 3/3 solved —
+       seed in the pool and lets it converge, this is what lifts keep60 from 1/3 to 3/3 solved,
        while staying GPU-affordable (the prefilter is fully batched; only ``topk`` seeds are refined).
     3. Return the lowest-residual transform.  When the crop genuinely deletes the rotation-
-       disambiguating geometry (heavy crops), no seed reaches a low residual — the caller's ambiguity
+       disambiguating geometry (heavy crops), no seed reaches a low residual, the caller's ambiguity
        gate then honestly flags it instead of returning a confident wrong pose.
 
     Deterministic (closed-form seeds + strided subsample, no RNG).  ``with_scale`` is accepted for
@@ -1009,7 +964,7 @@ def _overlap_residual_norm(
     """Normalised target→source overlap residual at the converged pose (0 = the shapes fit).
 
     Because the (possibly cropped) target should be a SUBSET of the transformed full source under
-    the true pose, every observed target point must land on the source surface — so a CORRECT pose
+    the true pose, every observed target point must land on the source surface, so a CORRECT pose
     drives this trimmed nearest-neighbour residual to ~0.  A wrong / unrecoverable pose leaves the
     target floating off the surface → a large residual.  This is the decisive failure signal: it
     directly measures "did we actually align the observed geometry", independent of any rotation
@@ -1038,7 +993,7 @@ def _symmetric_overlap_residual(
     The one-directional target→source residual (:func:`_overlap_residual_norm`) is blind to scale:
     shrinking the source toward the target region keeps every target point near *some* source point,
     so it never penalises a too-small scale.  The scale DoF is only pinned by *also* requiring the
-    overlapping source points to land on the target — i.e. a symmetric Chamfer over the shared band.
+    overlapping source points to land on the target, i.e. a symmetric Chamfer over the shared band.
     This returns ``mean(trimmed tgt→src) + mean(trimmed src_overlap→tgt)``; the second term is the one
     that makes the residual a true function of scale, so a 1-D line-search over ``s`` has a real
     minimum at the correct scale instead of a flat valley.
@@ -1070,7 +1025,7 @@ def _scale_line_search(
     Under partial overlap the joint Umeyama scale is loosely pinned (the surviving matches span a
     small one-sided extent), so the recovered ``s`` can drift ~25 %.  Holding the (well-recovered)
     rotation fixed, we search ``s`` over ``[s0/(1+span), s0*(1+span)]`` against
-    :func:`_symmetric_overlap_residual` — whose source→target term gives scale a real gradient — and
+    :func:`_symmetric_overlap_residual`, whose source→target term gives scale a real gradient, and
     recompute ``t`` for each candidate so the fit stays consistent.  Returns the corrected 4×4 (or the
     input unchanged if the search does not improve on it).
     """
@@ -1167,7 +1122,7 @@ def _rotation_constrained_probe(
     (around the overlap centroid) raises that residual; if the region is rotationally ambiguous (a
     symmetric / featureless crop), some perturbation leaves the residual essentially unchanged.
 
-    We return the SMALLEST residual increase over a set of probe axes — a *sensitivity* score:
+    We return the SMALLEST residual increase over a set of probe axes, a *sensitivity* score:
 
         sensitivity = min_axis ( resid(R rotated by probe_deg) - resid(R rotated by 1deg) ) / scale
 
@@ -1242,14 +1197,14 @@ def _cloud_voxel(pts: torch.Tensor, mult: float = 1.5) -> float:
     """Scale-adaptive FPFH voxel from the cloud's POINT SPACING (median nearest-neighbour distance).
 
     The object-scale FPFH defaults (``inlier_tol`` ~2 cm, descriptor radii tuned for a 14 cm test
-    object) are wrong by 1-2 orders of magnitude on metre-scale indoor scans — that is why the
+    object) are wrong by 1-2 orders of magnitude on metre-scale indoor scans, that is why the
     object-tuned ``feature_align`` seed lands 90-170 deg off on 3DMatch.  The robust seed instead
     follows Open3D's recipe (voxel → normals 2·voxel → FPFH 5·voxel), so the only scale knob is the
     voxel.  A bbox/N**(1/3) estimate badly over-coarsens here (two not-yet-registered fragments span
     a ~5 m union box but each is a sparse ~5 k-point scan, giving a useless ~0.28 m voxel).  The
     correct, density-following scale is the cloud's own point spacing: take the median nearest-
     neighbour distance and scale it (``mult``) so a few points fall per voxel.  This recovers ≈0.05 m
-    on the (already 5 cm-decimated) 3DMatch fragments — Open3D's proven setting — and still adapts
+    on the (already 5 cm-decimated) 3DMatch fragments, Open3D's proven setting, and still adapts
     down to a dense 14 cm object.  Returns a positive metre voxel.
     """
     n = pts.shape[0]
@@ -1276,7 +1231,7 @@ def _open3d_fpfh_ransac_seed(
     2015 / the Open3D global-registration tutorial): voxel downsample, normals at radius ``2*voxel``,
     FPFH at radius ``5*voxel``, mutual-filter RANSAC over 4-point samples with edge-length + distance
     correspondence checkers and 100k/0.999 convergence.  This is scale-correct (radii follow the
-    auto ``voxel``) and is the robustness Open3D itself reports (~77 % RR on 3DMatch) — splatreg then
+    auto ``voxel``) and is the robustness Open3D itself reports (~77 % RR on 3DMatch), splatreg then
     refines it for accuracy and (optionally) scale.  Returns ``(T, n_corr)``; ``n_corr`` is the size
     of the RANSAC correspondence set (a coarse seed-quality signal).
     """
@@ -1383,7 +1338,7 @@ def robust_feature_align(
     ~13 % RR on 3DMatch while Open3D's scale-correct FPFH+RANSAC hits ~77 %.  This path takes the best
     of both: it borrows Open3D's *robust correspondence/seed* (auto-scaled voxel + radii) and then
     runs splatreg's own overlap-aware trimmed ICP (:func:`_overlap_icp_polish`, target→source so a
-    partial overlap can't drag the fit) on top — adding refine accuracy and, for ``transform="sim3"``,
+    partial overlap can't drag the fit) on top, adding refine accuracy and, for ``transform="sim3"``,
     a recovered scale Open3D's rigid RANSAC never estimates.
 
     When Open3D is absent it falls back to the pure-splatreg :func:`feature_align` (with the same
@@ -1396,7 +1351,7 @@ def robust_feature_align(
         refine_iters: splatreg overlap-ICP polish iterations on top of the seed.
 
     Returns:
-        ``(T_4x4, info)`` — estimated 4×4 (source→target, source device/dtype) and an ``info`` dict
+        ``(T_4x4, info)``, estimated 4×4 (source→target, source device/dtype) and an ``info`` dict
         (``voxel``, ``n_corr``, ``seed_rre`` placeholder, ``used_open3d``, ``confidence``).
     """
     if transform not in ("se3", "sim3"):
@@ -1497,7 +1452,7 @@ def _load_geotransformer(device: torch.device):
     Adds the GeoTransformer repo and its 3DMatch experiment dir to ``sys.path`` (so ``config`` /
     ``model`` resolve), builds the model, loads the released ``geotransformer-3dmatch.pth.tar``
     weights, and moves it to ``device`` in eval mode.  Returns ``(model, cfg, collate_fn, to_cuda,
-    release_cuda)`` or ``None`` if anything (import / weights / CUDA-ext) is unavailable — in which
+    release_cuda)`` or ``None`` if anything (import / weights / CUDA-ext) is unavailable, in which
     case the caller falls back to the classical ``robust`` seed.  Result is cached module-wide.
     """
     key = str(device)
@@ -1543,7 +1498,7 @@ def _geotransformer_seed(src: torch.Tensor, tgt: torch.Tensor, device: torch.dev
     Runs the GeoTransformer 3DMatch model on the (source, target) point clouds and returns its
     ``estimated_transform`` (a full SE(3) pose recovered from its learned dense correspondences +
     LGR estimator).  GeoTransformer is the learned 3DMatch SOTA (~92 % RR); used here ONLY as the
-    coarse seed — splatreg's overlap-aware ICP (+ optional Sim(3) scale) then refines it.  Returns
+    coarse seed, splatreg's overlap-aware ICP (+ optional Sim(3) scale) then refines it.  Returns
     ``None`` on any failure (model unavailable, forward error) so the caller can fall back.
     """
     bundle = _load_geotransformer(device)
@@ -1586,8 +1541,8 @@ def _geotransformer_correspondences(
     """GeoTransformer's learned correspondences ``(src_corr, tgt_corr, T_lgr)``, or ``None``.
 
     Same forward as :func:`_geotransformer_seed` but returns the model's matched point pairs
-    (``src_corr_points`` / ``ref_corr_points``) — the input the MAC maximal-clique hypothesis
-    stage needs (``seed_selector="mac"``) — PLUS the model's own LGR ``estimated_transform``
+    (``src_corr_points`` / ``ref_corr_points``), the input the MAC maximal-clique hypothesis
+    stage needs (``seed_selector="mac"``), PLUS the model's own LGR ``estimated_transform``
     from the SAME forward (``T_lgr``, 4×4 float64 or ``None``), so a caller whose MAC consensus
     fails can fall back to LGR without paying a second model forward.  Returns ``None`` on any
     failure so the caller can fall back.
@@ -1647,7 +1602,7 @@ def learned_feature_align(
     """LEARNED registrar: pretrained GeoTransformer seed + splatreg overlap-aware refine (+ Sim(3)).
 
     Mirrors :func:`robust_feature_align` but swaps the classical Open3D FPFH+RANSAC seed for the
-    *learned* GeoTransformer 3DMatch correspondence model (CVPR 2022, ~92 % RR — past the ~77 %
+    *learned* GeoTransformer 3DMatch correspondence model (CVPR 2022, ~92 % RR, past the ~77 %
     classical FPFH ceiling).  GeoTransformer supplies the coarse SE(3) seed from its learned dense
     matches; splatreg then runs the SAME overlap-aware refine the ``robust`` path uses (Open3D
     point-to-plane ICP for SE(3), or its own Sim(3) overlap ICP to additionally recover scale),
@@ -1662,15 +1617,15 @@ def learned_feature_align(
     correspondences: ``"lgr"`` (default) uses the model's own local-to-global registration
     estimate (``estimated_transform``); ``"mac"`` re-estimates the seed pose from the model's
     matched point pairs with the MAC maximal-clique stage (:func:`splatreg.mac.mac_pose`,
-    Zhang et al. CVPR 2023 — the published 3DLoMatch tie-breaker; ~71→78 % recall over
+    Zhang et al. CVPR 2023, the published 3DLoMatch tie-breaker; ~71→78 % recall over
     GeoTransformer in their paper.  That number is **pending** verification on this
-    implementation — it needs the 3DLoMatch data + GeoTransformer features on a GPU box; see
+    implementation, it needs the 3DLoMatch data + GeoTransformer features on a GPU box; see
     ``docs_site/init-modes.md``).  ``"mac"`` falls back to ``"lgr"`` when the correspondence
     extraction or MAC consensus fails, so the contract is unchanged.
 
     Args / Returns: identical contract to :func:`robust_feature_align`; ``info`` additionally carries
     ``used_learned`` (bool), ``seed`` (``"geotransformer"`` / ``"geotransformer+mac"`` /
-    ``"robust-fallback"``) and — when ``seed_selector="mac"`` ran the clique stage — ``mac``
+    ``"robust-fallback"``) and, when ``seed_selector="mac"`` ran the clique stage, ``mac``
     (its stats: ``success`` / ``n_matches`` / ``n_inliers`` / ``n_cliques`` / ``n_hypotheses`` /
     ``truncated``).
     """
@@ -1811,7 +1766,7 @@ def feature_align(
         verbose: print match / inlier / ambiguity diagnostics.
 
     Returns:
-        ``(T_4x4, info)`` — the estimated 4×4 transform (``source``'s device/dtype) and an ``info``
+        ``(T_4x4, info)``, the estimated 4×4 transform (``source``'s device/dtype) and an ``info``
         dict with keys ``n_matches``, ``n_inliers``, ``ambiguous`` (bool), ``confidence`` (0..1),
         and ``ambiguity_deg`` (rotation spread among near-best hypotheses).  A flagged-ambiguous
         result means the overlap genuinely does not constrain the pose; trust ``confidence``.

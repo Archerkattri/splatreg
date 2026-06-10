@@ -1,4 +1,4 @@
-"""splatreg — composable geometry-first SE(3)/Sim(3) registration for 3D Gaussian Splatting.
+"""splatreg, composable geometry-first SE(3)/Sim(3) registration for 3D Gaussian Splatting.
 
 *gsplat renders your Gaussians; splatreg registers against them.*
 
@@ -66,7 +66,7 @@ try:
 except ImportError:  # pragma: no cover
     mac_pose = mac_feature_align = None  # type: ignore
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 __all__ = [
     "apply_transform",
     "register",

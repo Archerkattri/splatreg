@@ -13,7 +13,6 @@ wiring into ``apply_transform`` / ``merge`` / PLY round-trip.
 
 from __future__ import annotations
 
-import math
 
 import pytest
 import torch

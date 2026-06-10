@@ -1,6 +1,6 @@
 site_name: splatreg
 site_description: >-
-  Register Gaussian splats — align & merge two 3DGS scans into one SE(3)/Sim(3) frame.
+  Register Gaussian splats: align and merge two 3DGS scans into one SE(3)/Sim(3) frame.
 site_url: https://archerkattri.github.io/splatreg/
 repo_url: https://github.com/Archerkattri/splatreg
 repo_name: Archerkattri/splatreg

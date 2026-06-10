@@ -1,17 +1,17 @@
-"""Overlap dedupe for merged Gaussian splats — the geometry behind ``merge``'s "not naive cat".
+"""Overlap dedupe for merged Gaussian splats, the geometry behind ``merge``'s "not naive cat".
 
 When two registered splats are concatenated their overlap region holds *double* the Gaussian
 density (every surface patch is covered by anchors from both captures). A naive ``torch.cat``
 keeps that doubling, so the merged splat renders over-bright / over-dense in the seam. This
 module collapses the overlap back to single density with a **voxel-grid dedupe**: snap every
-Gaussian centre to a regular voxel grid and keep exactly one Gaussian — the highest-opacity
-representative — per occupied voxel.
+Gaussian centre to a regular voxel grid and keep exactly one Gaussian, the highest-opacity
+representative, per occupied voxel.
 
 Keeping the *highest-opacity* survivor (rather than averaging or first-wins) is the safe choice
 for a registration merge: opacity is the splat's own confidence in an anchor, so the densest,
 most-certain Gaussian wins the voxel and faint duplicates are dropped. Non-overlapping regions
 have at most one Gaussian per voxel already, so they pass through untouched (the dedupe only
-ever removes near-coincident duplicates, never thins genuine geometry — pick ``voxel`` no larger
+ever removes near-coincident duplicates, never thins genuine geometry, pick ``voxel`` no larger
 than the splat's own anchor spacing and it is loss-free outside the overlap).
 
 Voxel size
@@ -21,7 +21,7 @@ splat geometry as a small multiple of the median Gaussian scale (the typical anc
 so a voxel holds roughly one anchor's worth of surface and only genuine duplicates collide. The
 chosen value is returned alongside the deduped splat by :func:`voxel_dedupe_report` for logging.
 
-Self-contained: torch + numpy only. Deterministic — the per-voxel winner is chosen by a stable
+Self-contained: torch + numpy only. Deterministic, the per-voxel winner is chosen by a stable
 (voxel-key, descending-opacity) ordering, so the survivor set is reproducible across runs.
 """
 
@@ -128,8 +128,8 @@ def auto_knn_radius(g: Gaussians) -> float:
 
     Same spacing basis (and the same "call on the clean reference, not the merged splat" caveat) as
     :func:`auto_voxel_size`; only the multiplier differs. A radius of half the anchor spacing
-    suppresses a duplicate that landed *anywhere* within half a lattice step of a kept anchor —
-    including the sub-voxel-boundary pairs a grid snap leaves behind — while never reaching a genuine
+    suppresses a duplicate that landed *anywhere* within half a lattice step of a kept anchor,
+    including the sub-voxel-boundary pairs a grid snap leaves behind, while never reaching a genuine
     one-spacing-away neighbour. Falls back to the median scale, then a bbox fraction, when degenerate.
     """
     if len(g) <= 1:
@@ -236,7 +236,7 @@ def _knn_keep_mask(means: torch.Tensor, opacities: torch.Tensor, radius: float) 
     """Boolean keep-mask: drop a point iff a higher-priority point lies within ``radius``.
 
     Priority is ``(opacity desc, index asc)``. A point ``i`` is suppressed when there exists ``j != i``
-    with ``dist(i, j) <= radius`` and ``j`` higher-priority than ``i`` — i.e. ``opa[j] > opa[i]`` or
+    with ``dist(i, j) <= radius`` and ``j`` higher-priority than ``i``, i.e. ``opa[j] > opa[i]`` or
     (``opa[j] == opa[i]`` and ``j < i``). With a strict priority every duplicate cluster keeps exactly
     its highest-opacity / lowest-index member (mutual suppression is impossible), so the result is a
     well-defined single-density survivor set. Chunked over the query rows to bound peak memory.
@@ -262,12 +262,12 @@ def _knn_keep_mask(means: torch.Tensor, opacities: torch.Tensor, radius: float) 
 
 
 def _knn_keep_mask_indexed(means: torch.Tensor, opacities: torch.Tensor, radius: float) -> torch.Tensor:
-    """Index-accelerated equivalent of :func:`_knn_keep_mask` — same survivor set, near-O(N).
+    """Index-accelerated equivalent of :func:`_knn_keep_mask`, same survivor set, near-O(N).
 
     Builds a :class:`splatreg.spatial_index.SpatialIndex` over the means and asks it for every
     in-radius neighbour of each point (the grid touches only the local cells, not all N anchors),
     then applies the identical ``(opacity desc, index asc)`` priority suppression. The result is the
-    SAME boolean keep-mask as the brute-force pass — only the neighbour search is pruned — so a
+    SAME boolean keep-mask as the brute-force pass, only the neighbour search is pruned, so a
     scene-scale splat dedupes without the O(N^2) ``cdist``. Falls back to the brute-force mask if the
     spatial index module is unavailable.
     """
@@ -303,7 +303,7 @@ def _knn_keep_mask_indexed(means: torch.Tensor, opacities: torch.Tensor, radius:
 def knn_dedupe(g: Gaussians, radius: Optional[float] = None, *, use_index: bool = False) -> Gaussians:
     """Cross-splat radius dedupe: keep the highest-opacity survivor within every ``radius`` ball.
 
-    The translation-invariant complement to :func:`voxel_dedupe` — it removes the residual overlap a
+    The translation-invariant complement to :func:`voxel_dedupe`, it removes the residual overlap a
     voxel grid leaves at cell boundaries (see this section's note). Use it (e.g. via
     ``merge(..., dedupe_method="knn")``) when the voxel pass under-dedupes a registered seam.
 
@@ -313,7 +313,7 @@ def knn_dedupe(g: Gaussians, radius: Optional[float] = None, *, use_index: bool 
             :func:`auto_knn_radius` (half the median anchor spacing).
         use_index: when ``True`` route the neighbour search through the voxel-hash
             :class:`splatreg.spatial_index.SpatialIndex` (near-O(N) on scene-scale splats) instead of
-            the default O(N^2) chunked ``cdist`` scan. The survivor set is IDENTICAL either way — only
+            the default O(N^2) chunked ``cdist`` scan. The survivor set is IDENTICAL either way, only
             the neighbour search is pruned. Default ``False`` (the original brute-force path).
 
     Returns:

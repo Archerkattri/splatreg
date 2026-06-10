@@ -41,7 +41,6 @@ Notes:
 from __future__ import annotations
 
 import argparse
-import math
 import os
 import sys
 import time
@@ -568,15 +567,15 @@ def main():
     if device.startswith("cuda"):
         torch.cuda.reset_peak_memory_stats()
 
-    print(f"\nsplatreg vs ICP baseline + residual ablation")
+    print("\nsplatreg vs ICP baseline + residual ablation")
     print(
         f"Config: seeds={seeds}, N_POINTS={N_POINTS}, MAX_ITERS={MAX_ITERS}, "
         f"device={device.upper()}, dtype={dtype}"
     )
     print(f"Grid: rot={ROT_DEGS}°, scales(sim3)={SCALES}, transform: SE(3) + Sim(3)")
     print(f"Success gate: rot < {SUCC_ROT_DEG}°, |scale%| < {SUCC_SCALE_PCT}% (Sim3 only)")
-    print(f"ICP init: centroid (Method B standard) OR splatreg global init (Method C)")
-    print(f"ICP does NOT estimate scale: scale_est=1.0 always for ICP methods.\n")
+    print("ICP init: centroid (Method B standard) OR splatreg global init (Method C)")
+    print("ICP does NOT estimate scale: scale_est=1.0 always for ICP methods.\n")
 
     t_start = time.perf_counter()
 

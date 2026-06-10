@@ -2,7 +2,7 @@
 
 Registration is two stages: a **coarse initializer** finds the right basin, then the
 Levenberg–Marquardt core polishes the pose within it. `register(..., init=...)` (and
-`splatreg align --init ...`) selects the initializer — the single most important knob in the
+`splatreg align --init ...`) selects the initializer: the single most important knob in the
 library. The trade is speed ↔ robustness:
 
 | `init=` | what | when | cost |
@@ -15,7 +15,7 @@ library. The trade is speed ↔ robustness:
 | `"features"` | complete partial-overlap registrar (FPFH → clique-filtered RANSAC → overlap-aware point-to-plane refine + basin-sweep fallback) | the two captures see *different parts* of the object | seconds (deep sweep) |
 
 You can also pass an explicit 4×4 tensor as `init` (e.g. a pose prior from odometry), or
-`None` — which resolves to `"fast"`.
+`None`, which resolves to `"fast"`.
 
 ## Picking one
 
@@ -29,7 +29,7 @@ You can also pass an explicit 4×4 tensor as `init` (e.g. a pose prior from odom
 - **Outlier-heavy or multi-consensus correspondences** (repetitive structure, symmetric
   decoys, a contaminated learned matcher) → `"mac"` (below).
 
-## `init="mac"` — maximal-clique hypothesis generation
+## `init="mac"`: maximal-clique hypothesis generation
 
 `"mac"` reimplements **MAC** (*3D Registration with Maximal Cliques*, Zhang, Sun, Wang & Guo,
 CVPR 2023) in pure torch + networkx, replacing RANSAC minimal samples as the hypothesis
@@ -37,10 +37,10 @@ generator:
 
 1. a **rigidity compatibility graph** over the correspondences (edge iff
    `| ‖p_i−p_j‖ − ‖q_i−q_j‖ | < γ`), edge weights re-scored by the **second-order SC²
-   measure** (`w₂ = s ⊙ (S·S)` — an edge is only as strong as the compatible neighbourhood the
+   measure** (`w₂ = s ⊙ (S·S)`, an edge is only as strong as the compatible neighbourhood the
    two correspondences *share*, which zeroes chance-compatible outlier pairs);
 2. **all maximal cliques** of that graph (Bron–Kerbosch with pivoting), each one a consensus
-   hypothesis — including secondary consensus sets a greedy prefilter or a lucky-draw RANSAC
+   hypothesis, including secondary consensus sets a greedy prefilter or a lucky-draw RANSAC
    never isolates. Worst-case blowup is capped: ≤ 1000 correspondences, per-node degree cap
    (top-48 edges by SC² weight), clique-count cap + wall-clock budget on the lazy enumeration,
    and node-guided selection down to ≤ 64 hypotheses;
@@ -54,22 +54,22 @@ residual scale refit on the consensus inliers.
 
 Measured on synthetic contaminated correspondence sets (CPU, `tests/test_mac.py`): at 30/60/90 %
 random outliers MAC matches the fast-init RANSAC engine (rot err ≤ 0.2°); on a 90 %-contaminated
-set with a *structured* decoy cluster (reflection-consistent — it out-degrees the true inliers)
+set with a *structured* decoy cluster (reflection-consistent, it out-degrees the true inliers)
 the greedy-prefilter+RANSAC engine fails at ~78° while MAC stays **< 0.2°**; an all-outlier set
 returns an honest `info["success"]=False` identity. 500 correspondences run in ~0.1 s on a
 2-thread CPU (budget-tested < 5 s).
 
 Inside `init="learned"`, `seed_selector="mac"`
 (`learned_feature_align(..., seed_selector="mac")`) runs MAC over **GeoTransformer's learned
-correspondences** instead of the model's own LGR estimator — the exact combination the MAC
+correspondences** instead of the model's own LGR estimator: the exact combination the MAC
 paper reports lifting GeoTransformer's 3DLoMatch registration recall **~71 % → ~78 %**.
 
-!!! note "3DLoMatch verdict: measured, a wash — `lgr` stays the default"
+!!! note "3DLoMatch verdict: measured, a wash; `lgr` stays the default"
     Measured on the **full official splits** (GPU, single shared forward, native 0.025 voxel,
-    same residual-gated refine — only the hypothesis stage differs): 3DLoMatch
+    same residual-gated refine, only the hypothesis stage differs): 3DLoMatch
     **72.1 % mean / 74.6 % pooled** (MAC) vs **72.5 % / 74.4 %** (LGR); 3DMatch **91.7 % /
-    93.8 %** vs **91.5 % / 93.5 %**. Every delta is within ±4 pairs — *not* the paper's
-    +6–7 pp — at ~+50 % runtime. MAC genuinely engaged on 100 % of pairs (median ~600–800
+    93.8 %** vs **91.5 % / 93.5 %**. Every delta is within ±4 pairs, *not* the paper's
+    +6–7 pp, at ~+50 % runtime. MAC genuinely engaged on 100 % of pairs (median ~600–800
     consensus inliers): at native voxel the learned correspondences are already
     consensus-dominated, so the multi-consensus regime MAC wins (the synthetic decoy above)
     does not occur, and the guarded refine absorbs seed-level differences. Details in
@@ -78,8 +78,8 @@ paper reports lifting GeoTransformer's 3DLoMatch registration recall **~71 % →
 ## Partial overlap: the honest contract
 
 `init="features"`, `"robust"`, `"learned"`, and `"mac"` are *complete registrars*, not just seeds.
-The default residual set assumes **full overlap** — its ICP would drag a good partial-overlap
-pose off-target — so with the default residuals these modes return their own
+The default residual set assumes **full overlap** (its ICP would drag a good partial-overlap
+pose off-target), so with the default residuals these modes return their own
 registration **directly** and skip the LM. Pass an explicit overlap-safe `residuals=[...]`
 if you want the LM to run on top of the feature init.
 
@@ -94,7 +94,7 @@ result.info["feature"]      # the full per-stage diagnostic dict
 
 !!! warning "Ambiguity is flagged, not hidden"
     When a crop removes the rotation-disambiguating geometry, the pose is *genuinely
-    unrecoverable* — even the true pose doesn't seat cleanly. splatreg returns its best
+    unrecoverable*, even the true pose doesn't seat cleanly. splatreg returns its best
     feasible guess **flagged** `ambiguous=True` rather than a silently wrong pose
     (verified: 0 silent-wrong across the robustness sweep). At overlap ≤ 40% expect flags;
     `merge` and `Tracker` are designed for high-overlap captures.
@@ -112,10 +112,10 @@ file is missing.
 
 Orthogonal to `init`, `quality=` bounds the work the refinement does:
 
-- `"full"` *(default)* — nothing capped, every source anchor.
-- `"balanced"` / `"low"` — bounded sample counts + tighter autodiff chunks.
-- a float `0..1` — interpolates the caps.
-- `"auto"` — detect free GPU/CPU memory and pick the largest sizes that *fit*.
+- `"full"` *(default)*, nothing capped, every source anchor.
+- `"balanced"` / `"low"`, bounded sample counts + tighter autodiff chunks.
+- a float `0..1`, interpolates the caps.
+- `"auto"`, detect free GPU/CPU memory and pick the largest sizes that *fit*.
 
 The Sim(3) autodiff Jacobian is always row-chunked, so peak memory stays bounded with no
 quality loss. See [`resolve_quality`][splatreg.quality.resolve_quality].

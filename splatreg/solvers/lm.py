@@ -65,16 +65,16 @@ def _autodiff_jacobian(
 
     Differentiates ``delta -> residual(T @ exp_fn(delta), ...)`` so the autodiffed Jacobian uses
     the exact same right-perturbation convention (and exp) as the matching update step. ``exp_fn`` is
-    :func:`se3_exp` for the SE(3) path and :func:`sim3_exp` for Sim(3) — the latter carries the
+    :func:`se3_exp` for the SE(3) path and :func:`sim3_exp` for Sim(3), the latter carries the
     scale column ``d r / d rho`` analytically-correctly through ``s = exp(rho)``.
 
     Memory: ``jacrev`` builds the *whole* (rows x dof) autograd graph in one shot, so for the
-    Gaussian-SDF residual — where every residual row owns a (1 x target-anchors) soft-weight subgraph
-    — a long residual blows peak memory up. To bound it we pass ``chunk_size=jac_row_chunk``, which
+    Gaussian-SDF residual, where every residual row owns a (1 x target-anchors) soft-weight
+    subgraph, a long residual blows peak memory up. To bound it we pass ``chunk_size=jac_row_chunk``, which
     chunks ``jacrev``'s internal vmap over the residual rows so only ``jac_row_chunk`` rows' reverse
     graph is live at a time (peak ~``jac_row_chunk x anchors``, independent of residual length) while
     keeping a single forward pass. The result is numerically IDENTICAL to the unchunked Jacobian
-    (same function, same ``delta=0`` point) — chunking trades nothing but peak memory. ``run_lm``
+    (same function, same ``delta=0`` point), chunking trades nothing but peak memory. ``run_lm``
     threads ``jac_row_chunk`` from the quality policy. Returns ``(..., dim, dof)``, matching the
     analytic-Jacobian shape; ``run_lm`` flattens it afterwards.
     """
@@ -149,7 +149,7 @@ class LevenbergMarquardt(Solver):
     def _damping_mults(self, dof: int, device, dtype) -> torch.Tensor:
         """Per-channel ``(1 + lambda*mult)`` Marquardt multiplier vector (trans 0:3, rot 3:6).
 
-        Cached per ``(dof, device, dtype)`` — it is a constant of the solver config, so rebuilding it
+        Cached per ``(dof, device, dtype)``, it is a constant of the solver config, so rebuilding it
         with a host->device `torch.tensor` copy every iteration was a measurable per-iter sync stall.
         """
         key = (dof, device, dtype)
@@ -183,7 +183,7 @@ def _assemble(
     ``res.robust`` IRLS kernel mapping ``|r| -> sqrt-weight``). Residuals returning an empty tensor
     are skipped. Returns ``None`` if nothing contributed this iteration.
 
-    Under a 7-DoF Sim(3) solve a 6-DoF SE(3) analytic Jacobian must NOT be trusted — it silently
+    Under a 7-DoF Sim(3) solve a 6-DoF SE(3) analytic Jacobian must NOT be trusted, it silently
     drops the scale column ``d r / d rho``. But a residual MAY ship a genuine 7-column analytic
     Jacobian (the SDF residual extends the
     field-gradient chain to the log-scale column in closed form): we detect that by calling
@@ -265,12 +265,12 @@ def run_lm(
     target, source : passed straight through to each residual's ``residual`` / ``jacobian``.
     transform : ``"se3"`` (dof 6, analytic-Jacobian-first) or ``"sim3"`` (dof 7; every residual's
         Jacobian is autodiffed through ``T @ sim3_exp(delta)`` so the scale column ``d r / d rho`` is
-        exact — the shipped analytic Jacobians are SE(3)-only and would drop it).
+        exact, the shipped analytic Jacobians are SE(3)-only and would drop it).
     solver : optional :class:`Solver` for the linear step; built from ``damping`` if omitted.
     n_iters, damping, max_trans_step, max_rot_step, convergence_tol : LM hyper-parameters.
     jac_row_chunk : row-chunk for the Sim(3) autodiff Jacobian (``jacrev`` reverse pass). Bounds
         peak autodiff memory to ``~jac_row_chunk x target-anchors`` with a result numerically
-        identical to the unchunked Jacobian — quality is unaffected. Threaded from the quality
+        identical to the unchunked Jacobian, quality is unaffected. Threaded from the quality
         policy (see :func:`splatreg.quality.resolve_quality`); defaults to ``_DEFAULT_JAC_ROW_CHUNK``.
 
     Returns
@@ -279,12 +279,12 @@ def run_lm(
     holding ``cost`` (final 0.5||Wr||^2), ``cost_history``, ``n_iters``, ``rmse``, ``dof``, plus
     the pose-uncertainty pair for pose-graph / loop-closure use:
 
-    * ``info["information"]`` — the UNDAMPED Gauss-Newton information matrix ``JᵀWJ`` at the
+    * ``info["information"]``, the UNDAMPED Gauss-Newton information matrix ``JᵀWJ`` at the
       final accepted linearisation (``(6, 6)`` for SE(3); ``(7, 7)`` for Sim(3), log-scale
-      channel last — the tangent ordering ``[tx, ty, tz, rx, ry, rz, (log_s)]``).
-    * ``info["covariance"]`` — its inverse scaled by the unbiased residual variance
+      channel last, the tangent ordering ``[tx, ty, tz, rx, ry, rz, (log_s)]``).
+    * ``info["covariance"]``, its inverse scaled by the unbiased residual variance
       ``σ̂² = ||Wr||² / (R − dof)`` (the classic NLLS pose covariance: 2x the residual noise
-      means ~4x the covariance). ``None`` when ``JᵀWJ`` is singular (under-constrained pose —
+      means ~4x the covariance). ``None`` when ``JᵀWJ`` is singular (under-constrained pose,
       inspect ``information``'s null space instead).
 
     Both are torch tensors on the solve device. For ``transform="sim3"`` the returned ``T`` is
