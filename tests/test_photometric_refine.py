@@ -331,10 +331,21 @@ def test_register_refine_iters_defaults_from_quality():
     T0 = se3_exp(torch.tensor([0.004, 0.0, 0.0, 0.0, 0.0, math.radians(4.0)]))
     out = register(
         target, source, init=T0, transform="se3", quality="low", max_iters=5,
+        refine="photometric",
+        refine_kwargs=dict(render_fn=mock_render, n_views=4, width=20, height=20, exposure=False),
+    )
+    # LOW quality => refine_iters=5 (exposure off: a single LM stage); convergence may stop
+    # earlier but never exceed it.
+    assert 1 <= out.info["refine"]["n_iters"] <= 5
+
+    out_exp = register(
+        target, source, init=T0, transform="se3", quality="low", max_iters=5,
         refine="photometric", refine_kwargs=dict(render_fn=mock_render, n_views=4, width=20, height=20),
     )
-    # LOW quality => refine_iters=5; convergence may stop earlier but never exceed it.
-    assert 1 <= out.info["refine"]["n_iters"] <= 5
+    # Default exposure=True adds the alternation polish round (max(2, refine_iters//3) iters),
+    # so the total is bounded by refine_iters + that round — still policy-sized.
+    assert 1 <= out_exp.info["refine"]["n_iters"] <= 5 + max(2, 5 // 3)
+    assert "exposure" in out_exp.info["refine"]
 
 
 def test_merge_refine_passthrough():
@@ -348,6 +359,125 @@ def test_merge_refine_passthrough():
     assert isinstance(fused, Gaussians)
     assert 0 < len(fused) <= len(a) + len(b)
     assert fused.colors is not None
+
+
+# ---------------------------------------------------------------------------- exposure compensation
+
+
+def tint(g: Gaussians, gain: float = 1.3, bias: float = 0.05) -> Gaussians:
+    """A globally mis-exposed copy of ``g`` (different capture session, same content)."""
+    return Gaussians(
+        means=g.means, quats=g.quats, scales=g.scales, opacities=g.opacities,
+        colors=g.colors * gain + bias,
+    )
+
+
+def test_exposure_compensation_recovers_tinted_pair():
+    """Item-2 headline: a x1.3 + 0.05 source tint absorbs into the Sim(3) pose without
+    compensation (a brighter render is 'explained' by a bigger object — the scale DoF), and the
+    bounded per-pair gain/bias model recovers the untinted accuracy. Both directions asserted.
+
+    Measured (this exact config): clean 0.10% scale err · tinted/no-comp 3.99% · tinted/comp
+    0.47% — and the fitted gain lands at ~1/1.3 per channel.
+    """
+    target = make_color_sphere(500, seed=1)
+    source = make_color_sphere(500, seed=2)
+    tinted = tint(source)
+    T0 = sim3_exp(torch.tensor([0.005, 0.0, 0.0, 0.0, 0.0, math.radians(4.0), math.log(1.06)]))
+    kw = dict(render_fn=mock_render, n_views=6, width=32, height=32, transform="sim3", max_iters=14)
+
+    clean = refine_photometric(target, source, T0, exposure=False, **kw)
+    off = refine_photometric(target, tinted, T0, exposure=False, **kw)
+    on = refine_photometric(target, tinted, T0, exposure=True, **kw)
+
+    e_clean = abs(scale_of(clean.T) - 1.0)
+    e_off = abs(scale_of(off.T) - 1.0)
+    e_on = abs(scale_of(on.T) - 1.0)
+    # direction 1: without compensation the tint degrades the pose vs the untinted run
+    assert e_off > 5.0 * max(e_clean, 1e-4) and e_off > 0.02
+    # direction 2: with compensation the tinted pair matches the untinted accuracy
+    assert e_on < 0.01 and e_on < 0.25 * e_off
+    # the fitted appearance model is the tint's inverse (gain ~ 1/1.3), within the bounds
+    g = on.info["exposure"]["gain"]
+    assert all(abs(gi - 1.0 / 1.3) < 0.08 for gi in g)
+
+
+def test_exposure_on_clean_pair_is_harmless():
+    """Default-ON must not degrade an already-consistent pair (bounds + alternation keep the
+    model near identity). Measured: 0.10% (off) vs 0.01% (on) scale err on the clean pair."""
+    target = make_color_sphere(500, seed=1)
+    source = make_color_sphere(500, seed=2)
+    T0 = sim3_exp(torch.tensor([0.005, 0.0, 0.0, 0.0, 0.0, math.radians(4.0), math.log(1.06)]))
+    kw = dict(render_fn=mock_render, n_views=6, width=32, height=32, transform="sim3", max_iters=14)
+    on = refine_photometric(target, source, T0, exposure=True, **kw)
+    assert abs(scale_of(on.T) - 1.0) < 0.005
+    assert rot_err_deg(on.T) < 2.5
+    g, b = on.info["exposure"]["gain"], on.info["exposure"]["bias"]
+    assert all(abs(gi - 1.0) < 0.1 for gi in g) and all(abs(bi) < 0.05 for bi in b)
+
+
+def test_fit_exposure_clamps_to_bounds():
+    """An extreme tint must hit the gain/bias clamps, not run away with the pose."""
+    target = make_color_sphere(200, seed=1)
+    extreme = tint(make_color_sphere(200, seed=2), gain=5.0, bias=1.0)
+    cams, K = camera_ring(target, 4, width=24, height=24)
+    res = SplatPhotometric(cams, K, width=24, height=24, render_fn=mock_render)
+    gain, bias = res.fit_exposure(torch.eye(4), target, extreme)
+    assert float(gain.min()) >= 0.5 - 1e-6 and float(gain.max()) <= 2.0 + 1e-6
+    assert float(bias.abs().max()) <= 0.2 + 1e-6
+
+
+def test_exposure_model_inert_until_fitted():
+    """SplatPhotometric applies the identity appearance model until fit_exposure() is called."""
+    target = make_color_sphere(200, seed=1)
+    source = make_color_sphere(200, seed=2)
+    cams, K = camera_ring(target, 4, width=16, height=16)
+    res = SplatPhotometric(cams, K, width=16, height=16, render_fn=mock_render)
+    r_before = res.residual(torch.eye(4), target, source).clone()
+    res.fit_exposure(torch.eye(4), target, source)
+    r_after = res.residual(torch.eye(4), target, source)
+    assert res._gain is not None
+    assert not torch.allclose(r_before, r_after)  # the fit measurably changes the rows
+
+
+# ---------------------------------------------------------------------------- coarse-to-fine ladder
+
+
+def test_ladder_beats_single_rung_96px():
+    """Item-3 headline: the 32->64->96 ladder lands a strictly smaller rotation error than a
+    single 96 px rung with the same per-stage budget (the fine rung's basin is too narrow to
+    pull in a 6 deg offset cold; the coarse rung supplies the basin, the fine rung the floor).
+
+    Measured (this exact config): single-96 5.61 deg vs ladder 2.55 deg from a 6 deg offset.
+    """
+    target = make_color_sphere(300, seed=1)
+    source = make_color_sphere(300, seed=2)
+    T0 = se3_exp(torch.tensor([0.008, -0.004, 0.0, 0.0, 0.0, math.radians(6.0)]))
+    kw = dict(render_fn=mock_render, n_views=4, transform="se3", exposure=False, max_iters=8)
+
+    single = refine_photometric(target, source, T0, width=96, height=96, **kw)
+    ladder = refine_photometric(target, source, T0, ladder=(32, 64, 96), **kw)
+
+    assert rot_err_deg(ladder.T) < rot_err_deg(single.T)  # the spec'd strict win
+    assert rot_err_deg(single.T) > 4.0  # the cold fine rung genuinely stalls...
+    assert rot_err_deg(ladder.T) < 3.5  # ...and the ladder genuinely converges
+    # per-rung diagnostics recorded, coarse -> fine
+    sizes = [r["size"] for r in ladder.info["ladder"]]
+    assert sizes == [(32, 32), (64, 64), (96, 96)]
+
+
+def test_ladder_validations_and_kwargs_passthrough():
+    target = make_color_sphere(100, seed=1)
+    source = make_color_sphere(100, seed=2)
+    with pytest.raises(ValueError, match="ladder"):
+        refine_photometric(target, source, torch.eye(4), render_fn=mock_render, ladder=())
+    # refine_kwargs route: register(..., refine_kwargs={"ladder": ...}) reaches the stage
+    out = register(
+        target, source, init=torch.eye(4), transform="se3", quality="low", max_iters=3,
+        refine="photometric",
+        refine_kwargs=dict(render_fn=mock_render, n_views=3, ladder=(12, 16), max_iters=2, exposure=False),
+    )
+    assert [r["size"] for r in out.info["refine"]["ladder"]] == [(12, 12), (16, 16)]
 
 
 # ---------------------------------------------------------------------------- quality policy
