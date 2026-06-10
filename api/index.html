@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Register Gaussian splats — align & merge two 3DGS scans into one SE(3)/Sim(3) frame.">
+        <meta name="description" content="Register Gaussian splats: align and merge two 3DGS scans into one SE(3)/Sim(3) frame.">
       
       
       
@@ -544,6 +544,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#splatreg.api.apply_transform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        apply_transform
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#splatreg.api.Tracker" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -590,6 +601,39 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mac-maximal-clique-seed-initmac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MAC maximal-clique seed (init="mac")
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.mac.mac_feature_align" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mac_feature_align
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.mac.mac_pose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mac_pose
+      
+    </span>
+  </a>
   
 </li>
       
@@ -857,6 +901,39 @@
     <span class="md-ellipsis">
       
         to_gsplat
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spherical-harmonic-rotation-wigner-d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spherical-harmonic rotation (Wigner-D)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.sh.rotate_sh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rotate_sh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.sh.sh_rotation_matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sh_rotation_matrix
       
     </span>
   </a>
@@ -1290,6 +1367,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#splatreg.api.apply_transform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        apply_transform
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#splatreg.api.Tracker" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1336,6 +1424,39 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mac-maximal-clique-seed-initmac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MAC maximal-clique seed (init="mac")
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.mac.mac_feature_align" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mac_feature_align
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.mac.mac_pose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mac_pose
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1603,6 +1724,39 @@
     <span class="md-ellipsis">
       
         to_gsplat
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spherical-harmonic-rotation-wigner-d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spherical-harmonic rotation (Wigner-D)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.sh.rotate_sh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rotate_sh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#splatreg.sh.sh_rotation_matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sh_rotation_matrix
       
     </span>
   </a>
@@ -2055,7 +2209,7 @@ degrade to <code>None</code> at import time rather than breaking the package.</p
                 <code>source</code>
             </td>
             <td>
-                  <code>what is aligned to ``target`` — a ``Gaussians`` (splat-to-splat) or a ``Frame``</code>
+                  <code>what is aligned to ``target``, a ``Gaussians`` (splat-to-splat) or a ``Frame``</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2076,7 +2230,7 @@ degrade to <code>None</code> at import time rather than breaking the package.</p
             <td>
               <div class="doc-md-description">
                 <p>build an ICP-dominant default set <code>[ICP(point_to_plane=False, weight=1.0),
-SDF(sigma=auto, weight=0.3, n_points=&lt;quality&gt;)]</code> — the SDF <code>sigma</code> auto-derived from the
+SDF(sigma=auto, weight=0.3, n_points=&lt;quality&gt;)]</code>, the SDF <code>sigma</code> auto-derived from the
 target geometry (<code>~2x</code> its median Gaussian scale; see :func:<code>_auto_sdf_sigma</code>) and the
 sample size / chunking from <code>quality</code>. An explicit list is honoured unchanged (<code>quality</code>
 then only sets the autodiff row-chunk). <code>None</code> requires <code>target</code> to be a non-empty
@@ -2097,14 +2251,14 @@ then only sets the autodiff row-chunk). <code>None</code> requires <code>target<
             <td>
               <div class="doc-md-description">
                 <ul>
-<li><code>"fast"</code> — the recommended fast coarse-init: FPFH descriptors + GPU-batched 3-point
+<li><code>"fast"</code>, the recommended fast coarse-init: FPFH descriptors + GPU-batched 3-point
   RANSAC (:func:<code>splatreg.align_features.feature_align</code>), returning ONLY the seed for the LM
   to polish. ~20-35 ms vs the ~0.8-1.4 s blind sweep, with the feature path's full-rotation
   robustness. Falls back to <code>"global"</code> then identity if the feature module is unavailable.</li>
-<li><code>"global"</code> — coarse-init from :func:<code>splatreg.align.global_align</code> (super-Fibonacci
+<li><code>"global"</code>, coarse-init from :func:<code>splatreg.align.global_align</code> (super-Fibonacci
   SO(3) sweep + batched trimmed ICP; robust to noise/outliers and near-symmetric clouds;
   assumes full overlap).</li>
-<li><code>"features"</code> — a complete partial-overlap registrar from
+<li><code>"features"</code>, a complete partial-overlap registrar from
   :func:<code>splatreg.align_features.feature_align</code> (FPFH descriptors + ratio-test mutual-NN +
   clique-prefiltered RANSAC + an overlap-aware target-&gt;source ICP refine, with an
   overlap-aware <em>point-to-plane</em> super-Fibonacci basin-sweep fallback that recovers the pose
@@ -2117,17 +2271,27 @@ then only sets the autodiff row-chunk). <code>None</code> requires <code>target<
   (its ICP would pull a good partial-overlap init off-pose), <code>init="features"</code> with the
   default residuals returns the feature registration DIRECTLY and skips that LM; pass an
   explicit overlap-safe <code>residuals=[...]</code> to run the LM seeded from the feature init.</li>
-<li><code>"robust"</code> — scale-robust registrar (:func:<code>splatreg.align_features.robust_feature_align</code>):
-  an Open3D FPFH+RANSAC seed (scale-correct, auto-voxelled — the ~77 % RR Open3D reports on
+<li><code>"robust"</code>, scale-robust registrar (:func:<code>splatreg.align_features.robust_feature_align</code>):
+  an Open3D FPFH+RANSAC seed (scale-correct, auto-voxelled, the ~77 % RR Open3D reports on
   real indoor scans like 3DMatch) refined by splatreg's overlap-aware ICP (+ Sim(3) scale).
   Like <code>"features"</code> it returns the registration DIRECTLY under the default residuals.</li>
-<li><code>"learned"</code> — LEARNED registrar (:func:<code>splatreg.align_features.learned_feature_align</code>):
-  the pretrained GeoTransformer 3DMatch correspondence model (CVPR 2022, ~92 % RR — past the
+<li><code>"learned"</code>, LEARNED registrar (:func:<code>splatreg.align_features.learned_feature_align</code>):
+  the pretrained GeoTransformer 3DMatch correspondence model (CVPR 2022, ~92 % RR, past the
   classical FPFH ~77 % ceiling) supplies the coarse seed, then the SAME overlap-aware ICP
   (+ Sim(3) scale) refine as <code>"robust"</code>.  Falls back to <code>"robust"</code> (then identity) when
   GeoTransformer's module / built CUDA-ext / pretrained weights are unavailable.</li>
+<li><code>"mac"</code>, MAC maximal-clique registrar (:func:<code>splatreg.mac.mac_feature_align</code>;
+  Zhang et al., CVPR 2023): instead of RANSAC minimal samples, hypotheses come from the
+  <strong>maximal cliques</strong> of an SC²-weighted rigidity-compatibility graph over the FPFH
+  correspondences, each clique gets a weighted-SVD pose, the inlier-count winner is
+  refit on its consensus set, then the same overlap-aware ICP polish as <code>"robust"</code>.
+  Robust to heavily outlier-contaminated correspondence sets (including multi-consensus
+  decoys that defeat a greedy prefilter + RANSAC); on an all-outlier set it returns an
+  honest <code>info['success']=False</code> / <code>ambiguous=True</code> identity instead of a silent
+  wrong pose.  Like the other registrars it returns the registration DIRECTLY under the
+  default residuals.  Needs networkx (<code>pip install "splatreg[mac]"</code>).</li>
 </ul>
-<p>All string forms are guarded — fall back to identity with a logged note if the module
+<p>All string forms are guarded, fall back to identity with a logged note if the module
 is unavailable. For <code>init="global"</code> the chosen transform seeds the LM.</p>
               </div>
             </td>
@@ -2161,7 +2325,7 @@ is unavailable. For <code>init="global"</code> the chosen transform seeds the LM
             <td>
               <div class="doc-md-description">
                 <p>Levenberg-Marquardt core. <code>"pypose"</code> / <code>"theseus"</code> hand the whole nonlinear least-squares
-problem to that external engine instead — they optimise the same right-perturbation tangent
+problem to that external engine instead, they optimise the same right-perturbation tangent
 through splatreg's own <code>exp</code> (so the recovered SE(3)/Sim(3) pose matches the builtin
 convention) and autodiff the Jacobian, so a user can bring their own solver without writing
 one. Both need the matching optional dependency (<code>pip install splatreg[pypose|theseus]</code>) and
@@ -2198,9 +2362,9 @@ raise a clear <code>ImportError</code> otherwise. <code>"gtsam"</code> is recogn
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>"full"</code> (DEFAULT — nothing capped, all source anchors, full fidelity), <code>"balanced"</code> /
+                <p><code>"full"</code> (DEFAULT, nothing capped, all source anchors, full fidelity), <code>"balanced"</code> /
 <code>"low"</code> (bounded sample + tighter chunks), a <code>0..1</code> float (scaled), or <code>"auto"</code> (detect
-free GPU/CPU memory and pick the largest sizes that <em>fit</em> — full on a big machine, scaled
+free GPU/CPU memory and pick the largest sizes that <em>fit</em>, full on a big machine, scaled
 down on a small GPU / CPU so it runs without OOM). A :class:<code>~splatreg.quality.QualityConfig</code>
 may be passed for full manual control. The Sim(3) autodiff Jacobian is always row-chunked
 (per <code>quality</code>) so peak memory is bounded with <strong>no</strong> quality loss.</p>
@@ -2219,7 +2383,7 @@ may be passed for full manual control. The Sim(3) autodiff Jacobian is always ro
             </td>
             <td>
               <div class="doc-md-description">
-                <p>today is <code>"photometric"</code> — a short extra LM whose residual renders the SOURCE splat under
+                <p>today is <code>"photometric"</code>, a short extra LM whose residual renders the SOURCE splat under
 the current <code>T</code> from a small synthetic camera ring around the target and compares it
 against renders of the TARGET splat from the same cameras
 (:func:<code>splatreg.residuals.photometric.refine_photometric</code>; PhotoReg-style, arXiv
@@ -2227,7 +2391,7 @@ against renders of the TARGET splat from the same cameras
 leaves a visibly coloured seam that pure geometry cannot see; this stage fixes the part of
 it that is pose error. Requires BOTH splats to carry <code>colors</code> and gsplat to be installed
 (<code>pip install "splatreg[render]"</code>) unless <code>refine_kwargs['render_fn']</code> supplies a
-custom renderer — checked at call time with a clear <code>ImportError</code>, never at import.
+custom renderer, checked at call time with a clear <code>ImportError</code>, never at import.
 Works for both <code>transform="se3"</code> and <code>"sim3"</code>; iteration count defaults to the quality
 policy's <code>refine_iters</code>.</p>
               </div>
@@ -2344,7 +2508,7 @@ policy's <code>refine_iters</code>.</p>
     <div class="doc doc-contents first">
 
         <p>Register every splat onto <code>gaussians_list[ref]</code>, fuse, and return one <code>Gaussians</code>.</p>
-<p>This is the v0.1 headline — a merge that is <strong>not a naive cat</strong>. For each non-reference splat
+<p>This is the v0.1 headline, a merge that is <strong>not a naive cat</strong>. For each non-reference splat
 it :func:<code>register</code>\ s onto the reference (<code>init="global"</code> so large offsets recover; default
 ICP-dominant <code>residuals</code>; <code>transform="sim3"</code> so scale differences are absorbed), bakes the
 recovered Sim(3)/SE(3) into that splat's means / quats / scales, concatenates everything, then
@@ -2533,7 +2697,7 @@ nearest-neighbour scan. Ignored when <code>dedupe=False</code>.</p>
                 <code>quality</code>
             </td>
             <td>
-                  <code>quality / machine-adaptivity policy applied to every pairwise registration — ``&#34;full&#34;``</code>
+                  <code>quality / machine-adaptivity policy applied to every pairwise registration, ``&#34;full&#34;``</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2605,6 +2769,39 @@ camera ring and polishes the pose so the seam <em>looks</em> aligned, not just m
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.api.apply_transform" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.api.apply_transform</span>
+
+
+<a href="#splatreg.api.apply_transform" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">apply_transform</span><span class="p">(</span><span class="n">gaussians</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Bake an SE(3)/Sim(3) transform into a splat and return the transformed copy.</p>
+<p>The align-without-merging workflow: :func:<code>register</code> two scans, apply the recovered
+transform to the source, and save each scan as its <strong>own</strong> PLY, aligned into a common
+frame but never fused::</p>
+<div class="highlight"><pre><span></span><code>result = register(target, source, transform=&quot;sim3&quot;)
+save_ply(apply_transform(source, result.T, result.scale), &quot;source_aligned.ply&quot;)
+# target.ply stays untouched; the two files now sit registered in any viewer.
+</code></pre></div>
+<p>Equivalent to the CLI: <code>splatreg align target.ply source.ply -o source_aligned.ply</code>.
+<code>T</code> is the 4x4 from :class:<code>RegisterResult</code> (top-left block <code>scale * R</code>); pass
+<code>result.scale</code> for Sim(3) (<code>1.0</code> for SE(3)). Colour is handled fully: DC is
+rotation-invariant, quats are composed, and higher-order SH bands (<code>f_rest</code>) are
+Wigner-rotated in the real basis (:mod:<code>splatreg.sh</code>) so view-dependent colour turns
+with the splat.</p>
 
 
     </div>
@@ -2847,6 +3044,107 @@ as the warm-start for the next call.</p>
 
     </div>
 
+</div><h2 id="mac-maximal-clique-seed-initmac">MAC maximal-clique seed (<code>init="mac"</code>)<a class="headerlink" href="#mac-maximal-clique-seed-initmac" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.mac.mac_feature_align" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.mac.mac_feature_align</span>
+
+
+<a href="#splatreg.mac.mac_feature_align" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">mac_feature_align</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">target</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">source</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">transform</span><span class="o">=</span><span class="s2">&quot;se3&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">correspondences</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">inlier_tol</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">refine_iters</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="o">**</span><span class="n">mac_kwargs</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>MAC registrar over splats: FPFH correspondences -&gt; :func:<code>mac_pose</code> -&gt; overlap-aware polish.</p>
+<p>Mirrors :func:<code>splatreg.align_features.feature_align</code> but replaces the clique-prefiltered
+RANSAC hypothesis stage with MAC maximal-clique hypothesis generation (module docstring).
+The recovered seed is polished by the same overlap-aware trimmed ICP the feature path uses
+and gated on the overlap residual, so a degenerate polish can never worsen the seed.</p>
+<p>Args:
+    target / source: reference / to-align splats (only <code>.means</code> read).
+    transform: <code>"se3"</code> or <code>"sim3"</code> (median-ratio scale seed + residual refit; see
+        :func:<code>mac_pose</code>).
+    correspondences: optional pre-matched <code>(src_pts (M, 3), tgt_pts (M, 3))</code> pairs, the
+        injection seam for learned correspondences (e.g. GeoTransformer's) or tests; when
+        <code>None</code> the FPFH ratio-test mutual-NN matcher of the feature path supplies them.
+    inlier_tol: hypothesis-scoring inlier distance; <code>None</code> -&gt; the feature path default.
+    refine_iters: overlap-ICP polish iterations on the MAC seed.
+    **mac_kwargs: forwarded to :func:<code>mac_pose</code> (<code>gamma</code>, the caps, ...).</p>
+<p>Returns:
+    <code>(T_4x4, info)</code>, <code>info</code> carries <code>n_matches</code> / <code>n_inliers</code> / <code>n_cliques</code> /
+    <code>n_hypotheses</code> / <code>truncated</code> / <code>success</code> plus the honest <code>ambiguous</code> /
+    <code>confidence</code> the other registrars report. <code>success=False</code> (all-outlier / no
+    consensus) returns identity with <code>ambiguous=True</code> and <code>confidence=0.0</code>, never a
+    silent wrong pose.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.mac.mac_pose" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.mac.mac_pose</span>
+
+
+<a href="#splatreg.mac.mac_pose" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">mac_pose</span><span class="p">(</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">src_corr</span><span class="p">,</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">tgt_corr</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="o">*</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">with_scale</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">inlier_tol</span><span class="o">=</span><span class="mf">0.02</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">gamma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">max_corr</span><span class="o">=</span><span class="n">_MAC_MAX_CORR</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">degree_cap</span><span class="o">=</span><span class="n">_MAC_DEGREE_CAP</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">max_cliques</span><span class="o">=</span><span class="n">_MAC_MAX_CLIQUES</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">max_hyps</span><span class="o">=</span><span class="n">_MAC_MAX_HYPS</span><span class="p">,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">time_budget_s</span><span class="o">=</span><span class="n">_MAC_TIME_BUDGET_S</span><span class="p">,</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">min_inliers</span><span class="o">=</span><span class="n">_MAC_MIN_INLIERS</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>MAC pose from a putative correspondence set: SC^2 graph -&gt; maximal cliques -&gt; weighted SVD.</p>
+<p>Args:
+    src_corr / tgt_corr: <code>(M, 3)</code> matched point pairs (<code>src_corr[i] &lt;-&gt; tgt_corr[i]</code>).
+    with_scale: Sim(3), median-ratio scale seed first, SE(3) MAC on the de-scaled set,
+        residual scale re-fit on the consensus inliers (see module docstring).
+    inlier_tol: 3-D inlier distance for hypothesis scoring (target units).
+    gamma: rigidity tolerance for the compatibility graph; <code>None</code> -&gt;
+        <code>_MAC_GAMMA_MULT * inlier_tol</code>.
+    max_corr / degree_cap / max_cliques / max_hyps / time_budget_s: worst-case caps
+        (module docstring).
+    min_inliers: consensus floor, a winning hypothesis below this is reported as an
+        honest failure (chance-compatible cliques score 3-5 inliers even on all-outlier
+        sets; the same gate the feature path's <code>_FS_MIN_INLIERS</code> applies).</p>
+<p>Returns:
+    dict with <code>T</code> (4x4, <code>src -&gt; tgt</code>, source dtype/device; for Sim(3) the top-left block
+    is <code>s*R</code>), <code>success</code> (bool, <code>False</code> means the correspondences carried no
+    consistent consensus: T is identity, do NOT trust it), <code>n_inliers</code>, <code>n_matches</code>,
+    <code>n_cliques</code> (enumerated), <code>n_hypotheses</code> (evaluated), <code>scale</code> (1.0 for SE(3)),
+    <code>truncated</code> (a cap/time budget cut the clique enumeration).</p>
+
+
+    </div>
+
 </div><h2 id="multi-splat-bundle-registration">Multi-splat bundle registration<a class="headerlink" href="#multi-splat-bundle-registration" title="Permanent link">&para;</a></h2>
 
 
@@ -2883,7 +3181,7 @@ as the warm-start for the next call.</p>
         <p>Jointly register <code>N</code> splats into one loop-consistent frame via a pose-graph solve.</p>
 <p>Builds a relative-pose constraint <code>T_ij</code> for every edge in <code>pairs</code> (each from
 :func:<code>splatreg.register</code>), then optimises all <code>N</code> absolute poses <code>T_i</code> so every edge
-<code>T_i @ T_ij ≈ T_j</code> holds <em>simultaneously</em> — Gauss-Newton in the SE(3)/Sim(3) tangent, with the
+<code>T_i @ T_ij ≈ T_j</code> holds <em>simultaneously</em>, Gauss-Newton in the SE(3)/Sim(3) tangent, with the
 reference pose pinned to identity to fix the gauge. Unlike the sequential merge (which chains the
 edges and accumulates drift around a loop) the joint optimum spreads the closure error over the
 whole graph, so the max pairwise inconsistency drops.</p>
@@ -3045,7 +3343,7 @@ float to pin it.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p><code>info.rejected_edges</code> (it was effectively excluded from the solution). Diagnostic only —
+                <p><code>info.rejected_edges</code> (it was effectively excluded from the solution). Diagnostic only,
 the down-weighting itself is continuous, not a hard cut.</p>
               </div>
             </td>
@@ -3058,7 +3356,7 @@ the down-weighting itself is continuous, not a hard cut.</p>
                 <code>fuse</code>
             </td>
             <td>
-                  <code>also return one merged :class:`~splatreg.core.types.Gaussians` — every splat baked into</code>
+                  <code>also return one merged :class:`~splatreg.core.types.Gaussians`, every splat baked into</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3157,7 +3455,7 @@ the down-weighting itself is continuous, not a hard cut.</p>
     <div class="doc doc-contents first">
 
         <p>Max and mean per-edge tangent inconsistency of an absolute-pose set against the measurements.</p>
-<p><code>rel</code> maps <code>(i, j) -&gt; T_ij</code>. Returns <code>(max||e_ij||, mean||e_ij||)</code> — the metric the joint
+<p><code>rel</code> maps <code>(i, j) -&gt; T_ij</code>. Returns <code>(max||e_ij||, mean||e_ij||)</code>, the metric the joint
 solve drives down and the headline "loop closes" number. The tangent norm mixes rotation
 (radians) and translation (splat units); for the synthetic loop both are small so it is a fair
 single scalar, but callers comparing regimes should look at the components.</p>
@@ -3226,11 +3524,11 @@ single scalar, but callers comparing regimes should look at the components.</p>
                 <code>observation</code>
             </td>
             <td>
-                  <code>the observed instance — a :class:`~splatreg.core.types.Gaussians` (an observed</code>
+                  <code>the observed instance, a :class:`~splatreg.core.types.Gaussians` (an observed</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>splat / crop) or a :class:<code>~splatreg.core.types.Frame</code> carrying a <code>point_cloud</code> — in the
+                <p>splat / crop) or a :class:<code>~splatreg.core.types.Frame</code> carrying a <code>point_cloud</code>, in the
 scene / camera frame.</p>
               </div>
             </td>
@@ -3260,7 +3558,7 @@ from a prior pose, or <code>"global"</code> for the blind super-Fibonacci sweep.
                 <code>transform</code>
             </td>
             <td>
-                  <code>``&#34;se3&#34;`` (default, rigid 6-DoF — a real object does not change size) or ``&#34;sim3&#34;``</code>
+                  <code>``&#34;se3&#34;`` (default, rigid 6-DoF, a real object does not change size) or ``&#34;sim3&#34;``</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3364,7 +3662,7 @@ from a prior pose, or <code>"global"</code> for the blind super-Fibonacci sweep.
 
 <details class="note" open>
   <summary>Notes</summary>
-  <p>Internally this is <code>register(target=observation, source=model)</code> — the <em>observation</em> is the
+  <p>Internally this is <code>register(target=observation, source=model)</code>, the <em>observation</em> is the
 target so the recovered transform moves the <em>model</em> onto the observation, i.e. exactly the object
 pose <code>T_SO</code> the caller wants. The honest occlusion / partial-view limit of <code>register</code> carries
 over: a heavily cropped observation can leave the pose ambiguous, surfaced as <code>info['ambiguous']</code>.</p>
@@ -3627,7 +3925,7 @@ non-symmetric pose-error metric (asymmetric objects). Returned in the model's un
     <div class="doc doc-contents first">
 
         <p><strong>ADD-S</strong>: symmetric (closest-point) variant of ADD for symmetric objects.</p>
-<p><code>ADD-S = mean_i min_j || T_pred · x_i − T_gt · x_j ||</code> — each transformed-by-prediction point is
+<p><code>ADD-S = mean_i min_j || T_pred · x_i − T_gt · x_j ||</code>, each transformed-by-prediction point is
 matched to its <em>nearest</em> GT-transformed model point, so a rotation about a symmetry axis (which
 maps the model onto itself) is not penalised. This is the metric YCB-Video / FoundationPose use
 for symmetric objects. Both sides are deterministically strided to <code>max_pts</code> to bound the
@@ -3727,7 +4025,7 @@ gradient). Returns a :class:<code>~splatreg.core.types.RegisterResult</code> who
                 <code>frame</code>
             </td>
             <td>
-                  <code>the query observation — needs ``rgb`` and ``K`` (optional ``mask``).</code>
+                  <code>the query observation, needs ``rgb`` and ``K`` (optional ``mask``).</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3749,7 +4047,7 @@ gradient). Returns a :class:<code>~splatreg.core.types.RegisterResult</code> who
               <div class="doc-md-description">
                 <p>prior-free :func:<code>coarse_localize_camera</code> viewpoint sweep and refine its seed. Direct image
 alignment has a limited basin (a few degrees / a few percent of depth), so without <code>"coarse"</code>
-a <em>wide-baseline</em> query (no good prior) falls outside it — that is exactly what the coarse
+a <em>wide-baseline</em> query (no good prior) falls outside it, that is exactly what the coarse
 seed bridges. <code>coarse_kwargs</code> is forwarded to the sweep.</p>
               </div>
             </td>
@@ -3939,8 +4237,8 @@ seed bridges. <code>coarse_kwargs</code> is forwarded to the sweep.</p>
 it needs a decent prior. This provides that prior when none exists (a <em>wide-baseline</em> relocalise):
 it scores a sphere of candidate camera poses by how well the splat's <strong>projected occupancy</strong>
 overlaps the query frame's foreground silhouette (from <code>frame.mask</code>, or a luminance threshold of
-<code>frame.rgb</code>), and returns the best-scoring pose. Pure pinhole projection — it runs on CPU and
-needs no rasteriser — so it is a coarse <em>seed</em>, deliberately cheap, not a final pose. Feed its
+<code>frame.rgb</code>), and returns the best-scoring pose. Pure pinhole projection, it runs on CPU and
+needs no rasteriser, so it is a coarse <em>seed</em>, deliberately cheap, not a final pose. Feed its
 result as <code>init_T_WC</code> to :func:<code>localize_camera</code> for the fine refine.</p>
 
 
@@ -4044,7 +4342,7 @@ result as <code>init_T_WC</code> to :func:<code>localize_camera</code> for the f
             </td>
             <td>
               <div class="doc-md-description">
-                <p>occupancy before scoring — closes the holes a <em>sparse</em> point splat leaves so the IoU compares
+                <p>occupancy before scoring, closes the holes a <em>sparse</em> point splat leaves so the IoU compares
 connected silhouettes (higher and far more viewpoint-discriminative). <code>0</code> disables it.</p>
               </div>
             </td>
@@ -4187,7 +4485,7 @@ connected silhouettes (higher and far more viewpoint-discriminative). <code>0</c
 
 
         <p>A single observation (for the camera/object tracking modes).</p>
-<p>For splat-to-splat registration the 'source' is another <code>Gaussians</code>, not a Frame —
+<p>For splat-to-splat registration the 'source' is another <code>Gaussians</code>, not a Frame,
 residuals receive whichever is relevant via the <code>source</code> argument.</p>
 
 
@@ -4241,8 +4539,16 @@ residuals receive whichever is relevant via the <code>source</code> argument.</p
 
         <p>Output of <code>register</code> / <code>Tracker.track</code>.</p>
 <p><code>T</code> is the 4x4 transform aligning <code>source</code> to <code>target</code> (rotation*scale | translation
-for Sim(3); plain SE(3) when <code>transform='se3'</code>). <code>info</code> carries diagnostics
-(per-iter cost, rmse, overlap, n_iters, timings, residual breakdown).</p>
+for Sim(3); plain SE(3) when <code>transform='se3'</code>). <code>scale</code> is the recovered similarity
+scale (already baked into <code>T</code>'s top-left block; <code>1.0</code> for SE(3)). <code>converged</code> is the
+solver's convergence flag (step/cost tolerance reached before the iteration cap). <code>info</code>
+carries diagnostics (per-iter cost, rmse, overlap, n_iters, timings, residual breakdown,
+and for the feature initializers the honest <code>info["ambiguous"]</code> / <code>info["confidence"]</code>
+flags). Builtin-LM solves also fill <code>info["information"]</code> (the undamped <code>JᵀWJ</code> at the
+final accepted linearisation, (6, 6) SE(3) / (7, 7) Sim(3), tangent order <code>[t, r,
+(log_s)]</code>) and <code>info["covariance"]</code> (its inverse scaled by the residual-variance
+estimate; <code>None</code> if singular, never faked) for pose-graph / loop-closure weighting,
+see :func:<code>splatreg.solvers.lm.run_lm</code>.</p>
 
 
 
@@ -4289,7 +4595,7 @@ for Sim(3); plain SE(3) when <code>transform='se3'</code>). <code>info</code> ca
 
         <p>Load a standard 3D Gaussian Splatting <code>.ply</code> into a :class:<code>Gaussians</code>.</p>
 <p>Recognises the canonical INRIA/gsplat layout (<code>x y z</code>, <code>f_dc_0..2</code>, <code>f_rest_*</code>,
-<code>opacity</code>, <code>scale_0..2</code>, <code>rot_0..3</code>). Stored values are raw — the returned
+<code>opacity</code>, <code>scale_0..2</code>, <code>rot_0..3</code>). Stored values are raw, the returned
 <code>Gaussians</code> has <code>log_scales=True</code>, raw (pre-sigmoid) <code>opacities</code>, <code>wxyz</code> <code>quats</code>,
 and <code>colors</code> as SH coefficients shaped <code>(N, K, 3)</code> (or RGB <code>(N, 3)</code> if only DC is present,
 i.e. <code>K == 1</code>, kept 2-D for convenience).</p>
@@ -4363,7 +4669,7 @@ light normalisation (shape/contiguity), leaving values untouched.</p>
     means: <code>(N, 3)</code> centres.
     quats: <code>(N, 4)</code> rotations, <code>wxyz</code> (gsplat's convention).
     scales: <code>(N, 3)</code>. Linear by default; pass <code>log_scales=True</code> if these are log-scales.
-    opacities: <code>(N,)</code> or <code>(N, 1)</code>. Whatever activation state your gsplat call expects —
+    opacities: <code>(N,)</code> or <code>(N, 1)</code>. Whatever activation state your gsplat call expects,
         splatreg treats this as opaque and passes it back unchanged in :func:<code>to_gsplat</code>.
     colors: optional <code>(N, 3)</code> RGB or <code>(N, K, 3)</code> SH coefficients.
     log_scales: set True if <code>scales</code> are already log-transformed.</p>
@@ -4404,6 +4710,65 @@ out = rasterization(viewmats=..., Ks=..., width=W, height=H, **to_gsplat(g))
 
     </div>
 
+</div><h2 id="spherical-harmonic-rotation-wigner-d">Spherical-harmonic rotation (Wigner-D)<a class="headerlink" href="#spherical-harmonic-rotation-wigner-d" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.sh.rotate_sh" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.sh.rotate_sh</span>
+
+
+<a href="#splatreg.sh.rotate_sh" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">rotate_sh</span><span class="p">(</span><span class="n">colors</span><span class="p">,</span> <span class="n">R</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Rotate an <code>(N, K, 3)</code> SH coefficient tensor by <code>R</code> (3DGS convention; see module doc).</p>
+<p><code>colors</code> is coefficient-major / channel-last, exactly what :class:<code>Gaussians</code> carries and
+:mod:<code>splatreg.io</code> round-trips. The DC row passes through unchanged; every higher-degree band
+is multiplied by its Wigner-D block, so the view-dependent lobes turn WITH the splat.</p>
+<p>Args:
+    colors: <code>(N, K, 3)</code> SH coefficients (<code>K</code> a perfect square).
+    R: <code>(3, 3)</code> pure rotation.</p>
+<p>Returns:
+    <code>(N, K, 3)</code> rotated coefficients (new tensor; input untouched).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="splatreg.sh.sh_rotation_matrix" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">splatreg.sh.sh_rotation_matrix</span>
+
+
+<a href="#splatreg.sh.sh_rotation_matrix" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nf">sh_rotation_matrix</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="n">n_coeffs</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents first">
+
+        <p>Block-diagonal real-SH Wigner-D matrix for rotation <code>R</code>, in the 3DGS basis convention.</p>
+<p>Args:
+    R: <code>(3, 3)</code> pure rotation (orthonormal; de-scale a similarity block first).
+    n_coeffs: total SH coefficient count <code>K</code> including DC, must be a perfect square
+        <code>(degree+1)²</code> (1, 4, 9, 16, ..., the only counts standard 3DGS PLYs produce).</p>
+<p>Returns:
+    <code>(K, K)</code> matrix <code>D</code> (device/dtype of <code>R</code>) such that <code>f' = D @ f</code> are the
+    coefficients of the rotated colour function: <code>Σ f'_k Y_k(d) = Σ f_k Y_k(R⁻¹ d)</code>
+    in the 3DGS/gsplat real-SH basis. The DC block is 1 (rotation-invariant).</p>
+<p>Raises:
+    ValueError: if <code>R</code> is not 3×3 or <code>n_coeffs</code> is not a perfect square ≥ 1.</p>
+
+
+    </div>
+
 </div><h2 id="gaussian-sdf-field">Gaussian-SDF field<a class="headerlink" href="#gaussian-sdf-field" title="Permanent link">&para;</a></h2>
 
 
@@ -4438,7 +4803,7 @@ out = rasterization(viewmats=..., Ks=..., width=W, height=H, **to_gsplat(g))
         <code>means</code> (and <code>opacities</code> when <code>use_opacity</code>) are read.
     points: <code>(N, 3)</code> query positions, in the splat's own frame.
     sigma: Gaussian kernel bandwidth (influence radius), same units as <code>means</code>.
-        <strong>Required</strong> — there is no universal default. Must be &gt; 0.
+        <strong>Required</strong>, there is no universal default. Must be &gt; 0.
     normals: optional <code>(M, 3)</code> per-anchor normals. If <code>None</code> they are estimated
         once via :func:<code>estimate_anchor_normals</code> (k-NN PCA, outward-oriented).
     trunc_sigmas: if set, only the anchors within <code>trunc_sigmas * sigma</code> of each query
@@ -4451,7 +4816,7 @@ out = rasterization(viewmats=..., Ks=..., width=W, height=H, **to_gsplat(g))
     index: optional prebuilt :class:<code>splatreg.spatial_index.SpatialIndex</code> over the target
         anchors. When supplied <strong>with</strong> <code>trunc_sigmas</code> the per-query <code>k</code>-nearest gather is
         served by the voxel-hash grid (near-O(N) candidate lookup) instead of the full
-        <code>(chunk, M)</code> distance matrix — the EXACT same truncated proxy, only the neighbour
+        <code>(chunk, M)</code> distance matrix, the EXACT same truncated proxy, only the neighbour
         search is pruned, so a scene-scale target field stays cheap. Ignored when
         <code>trunc_sigmas</code> is <code>None</code> (the full-field path reads every anchor by definition).</p>
 <p>Returns:
@@ -4491,28 +4856,28 @@ out = rasterization(viewmats=..., Ks=..., width=W, height=H, **to_gsplat(g))
 
         <p>Signed distance AND its EXACT spatial gradient <code>∇_p d</code>, computed in closed form.</p>
 <p>Same proxy as :func:<code>gaussian_sdf</code>, but the second return is the TRUE field gradient <code>∇_p d</code>
-analytically — so the SE(3) SDF-residual path needs neither an autograd graph nor a second
+analytically, so the SE(3) SDF-residual path needs neither an autograd graph nor a second
 forward (this is the fast path; :func:<code>gaussian_sdf</code> + autodiff is the truncated fallback).
 Derivation (<code>u = p - q~</code>, <code>a_i = p - q_i</code>, <code>c_i = q_i - q~</code>)::</p>
 <div class="highlight"><pre><span></span><code>∂q~/∂p = (1/σ²) Cov_w,   Cov_w = (1/W) Σ_i w_i c_i c_iᵀ   (weighted anchor covariance)
 ∇_p d  = n~ - (1/σ²) Cov_w n~ - (1/(σ²‖S_n‖)) Σ_i w_i (n_i·x) a_i,   x = u - d n~
 </code></pre></div>
-<p>EXACT (~1e-8 vs central-difference numerical) wherever the field has anchor support — the
+<p>EXACT (~1e-8 vs central-difference numerical) wherever the field has anchor support, the
 entire regime where the SDF is meaningful and where the registration residual operates
 (residual audit <code>tests/test_jacobians.py</code> 8/8). At degenerate far queries (the weight-sum
 clamp activates, the field itself is undefined) it falls back to the bounded surface normal
 <code>n~</code> rather than the blown-up un-clamped expression. Returns <code>(sdf (N,), grad (N, 3))</code>
-where <code>grad</code> is <code>∇_p d</code> — NOT the surface normal <code>n~</code>.</p>
+where <code>grad</code> is <code>∇_p d</code>, NOT the surface normal <code>n~</code>.</p>
 
 
 <details class="truncation-(the-tracking-fast-path)" open>
   <summary>Truncation (the tracking fast path)</summary>
   <p><code>trunc_sigmas</code> (default <code>None</code> = every anchor) restricts each query to its <code>k</code> nearest
-anchors via a per-query top-k gather, then zeros the weight of any beyond <code>trunc_sigmas*sigma</code>
-— exactly the support :func:<code>gaussian_sdf</code> uses. Because all the closed-form sums above
+anchors via a per-query top-k gather, then zeros the weight of any beyond
+<code>trunc_sigmas*sigma</code>, exactly the support :func:<code>gaussian_sdf</code> uses. Because all the closed-form sums above
 (<code>q~</code>, <code>S_n</code>, <code>Cov_w n~</code>, the normal-derivative term) are computed over the SAME truncated
 anchor set, the gradient stays the EXACT analytic field gradient of the <em>truncated</em> proxy with
-NO autodiff — so warm-start tracking with a tight sigma costs <code>N*k</code> not <code>N*M</code>. <code>k</code> is
+NO autodiff, so warm-start tracking with a tight sigma costs <code>N*k</code> not <code>N*M</code>. <code>k</code> is
 sized from <code>knn</code> (clamped to the cloud), the same convention as :func:<code>gaussian_sdf</code>.</p>
 </details>
 
@@ -4563,7 +4928,7 @@ sized from <code>knn</code> (clamped to the cloud), the same convention as :func
     <div class="doc doc-contents first">
 
         <p>Cross-splat radius dedupe: keep the highest-opacity survivor within every <code>radius</code> ball.</p>
-<p>The translation-invariant complement to :func:<code>voxel_dedupe</code> — it removes the residual overlap a
+<p>The translation-invariant complement to :func:<code>voxel_dedupe</code>, it removes the residual overlap a
 voxel grid leaves at cell boundaries (see this section's note). Use it (e.g. via
 <code>merge(..., dedupe_method="knn")</code>) when the voxel pass under-dedupes a registered seam.</p>
 <p>Args:
@@ -4572,7 +4937,7 @@ voxel grid leaves at cell boundaries (see this section's note). Use it (e.g. via
         :func:<code>auto_knn_radius</code> (half the median anchor spacing).
     use_index: when <code>True</code> route the neighbour search through the voxel-hash
         :class:<code>splatreg.spatial_index.SpatialIndex</code> (near-O(N) on scene-scale splats) instead of
-        the default O(N^2) chunked <code>cdist</code> scan. The survivor set is IDENTICAL either way — only
+        the default O(N^2) chunked <code>cdist</code> scan. The survivor set is IDENTICAL either way, only
         the neighbour search is pruned. Default <code>False</code> (the original brute-force path).</p>
 <p>Returns:
     Gaussians: a subset of <code>g</code> with no two survivors closer than <code>radius</code> to a
@@ -4624,8 +4989,8 @@ under-dedupe. Falls back to the median scale, then a bbox fraction, for degenera
         <p>Derive a cross-splat KNN-dedupe radius from the anchor SPACING -- <code>_KNN_RADIUS_MULT x</code> it.</p>
 <p>Same spacing basis (and the same "call on the clean reference, not the merged splat" caveat) as
 :func:<code>auto_voxel_size</code>; only the multiplier differs. A radius of half the anchor spacing
-suppresses a duplicate that landed <em>anywhere</em> within half a lattice step of a kept anchor —
-including the sub-voxel-boundary pairs a grid snap leaves behind — while never reaching a genuine
+suppresses a duplicate that landed <em>anywhere</em> within half a lattice step of a kept anchor,
+including the sub-voxel-boundary pairs a grid snap leaves behind, while never reaching a genuine
 one-spacing-away neighbour. Falls back to the median scale, then a bbox fraction, when degenerate.</p>
 
 
@@ -4675,7 +5040,7 @@ one-spacing-away neighbour. Falls back to the median scale, then a bbox fraction
         <p>A voxel-hash grid over a point set supporting radius / knn / region queries.</p>
 <p>Build once from a <code>(M, 3)</code> point tensor (or a :class:<code>~splatreg.core.types.Gaussians</code> via
 :func:<code>build_index</code>), then query repeatedly. All queries return results IDENTICAL to a
-brute-force scan — the grid only prunes which anchors are distance-tested, never the answer.</p>
+brute-force scan, the grid only prunes which anchors are distance-tested, never the answer.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4759,11 +5124,11 @@ brute-force scan — the grid only prunes which anchors are distance-tested, nev
     <div class="doc doc-contents ">
 
         <p>All anchors within distance <code>r</code> of each query, in flat (query, anchor) pair form.</p>
-<p>Returns <code>(pair_query_idx, pair_anchor_idx)</code> — two <code>(P,)</code> long tensors so that
+<p>Returns <code>(pair_query_idx, pair_anchor_idx)</code>, two <code>(P,)</code> long tensors so that
 <code>points[pair_anchor_idx[j]]</code> is within <code>r</code> of <code>queries[pair_query_idx[j]]</code>. This flat
 form composes directly with the chunked SDF / dedupe code (no ragged padding). The result is
 EXACT: every in-radius anchor is returned and no out-of-radius anchor is, identical to a
-brute-force <code>cdist &lt;= r</code> — the grid only limits which anchors are distance-tested.</p>
+brute-force <code>cdist &lt;= r</code>, the grid only limits which anchors are distance-tested.</p>
 
 
     </div>
@@ -4783,11 +5148,11 @@ brute-force <code>cdist &lt;= r</code> — the grid only limits which anchors ar
 
     <div class="doc doc-contents ">
 
-        <p>Loop-free batch radius query — identical result to :meth:<code>radius</code>, no Python per-query loop.</p>
+        <p>Loop-free batch radius query, identical result to :meth:<code>radius</code>, no Python per-query loop.</p>
 <p>Enumerates every query's candidate anchors in one vectorised pass (:meth:<code>_candidate_pairs</code>),
 then does a single batched exact distance test over all (query, candidate) pairs at once. The
 returned flat <code>(pair_query_idx, pair_anchor_idx)</code> pair set is identical (as a set) to
-:meth:<code>radius</code> / a brute-force <code>cdist &lt;= r</code> — only the <em>which-anchors-tested</em> pruning is
+:meth:<code>radius</code> / a brute-force <code>cdist &lt;= r</code>, only the <em>which-anchors-tested</em> pruning is
 shared. Wins over the looped path when there are many queries on a small/moderate cloud (the
 Python loop overhead dominates there).</p>
 
@@ -4809,7 +5174,7 @@ Python loop overhead dominates there).</p>
 
     <div class="doc doc-contents ">
 
-        <p>Loop-free batch knn — same <code>(Q, k)</code> (idx, dist) result as :meth:<code>knn</code>, no per-query loop.</p>
+        <p>Loop-free batch knn, same <code>(Q, k)</code> (idx, dist) result as :meth:<code>knn</code>, no per-query loop.</p>
 <p>Picks one ring wide enough to contain the k-th neighbour for <em>every</em> query (grown until each
 query has <code>≥ k</code> candidates and the ring margin clears the k-th distance), enumerates all
 candidates vectorised, then does a single padded scatter + batched top-k. Falls back to
@@ -4836,7 +5201,7 @@ per-query :meth:<code>knn</code> would use, but the result is identical (exact t
 
         <p>The <code>k</code> nearest anchors to each query.</p>
 <p>Returns <code>(idx, dist)</code> of shape <code>(Q, k)</code> (<code>idx</code> into <code>points</code>, <code>dist</code> Euclidean),
-sorted nearest-first per query — EXACTLY the brute-force <code>cdist</code>-topk result. Expands the
+sorted nearest-first per query, EXACTLY the brute-force <code>cdist</code>-topk result. Expands the
 searched cell ring until at least <code>k</code> candidates are found AND the ring radius safely
 exceeds the k-th distance (so no closer anchor in an unsearched outer cell is missed), then
 does the exact top-k over the candidates. <code>k</code> is clamped to the anchor count.</p>
@@ -4861,7 +5226,7 @@ does the exact top-k over the candidates. <code>k</code> is clamped to the ancho
 
         <p>Indices of every anchor inside the axis-aligned box <code>[lo, hi]</code> (inclusive).</p>
 <p><code>lo</code> / <code>hi</code> are length-3 (tensor or sequence). Gathers the box's covered cells, then
-does the exact per-axis bound test on those candidates — the EXACT set a brute-force
+does the exact per-axis bound test on those candidates, the EXACT set a brute-force
 <code>((points &gt;= lo) &amp; (points &lt;= hi)).all(-1)</code> would return.</p>
 
 
@@ -4901,7 +5266,7 @@ does the exact per-axis bound test on those candidates — the EXACT set a brute
 <p>Two stages: (1) pick the ACCURACY knobs (<code>n_points</code> / <code>knn</code> / <code>max_iters</code>) from the
 requested policy, then (2) ALWAYS fit the quality-neutral CHUNK knobs (<code>jac_row_chunk</code> /
 <code>sdf_chunk_size</code>) to the available memory via :func:<code>_fit_chunks</code> so the Sim(3) autodiff peak
-can never OOM — for <em>every</em> mode, full included. Chunking is numerically lossless, so stage 2
+can never OOM, for <em>every</em> mode, full included. Chunking is numerically lossless, so stage 2
 changes footprint, not the result.</p>
 
 
@@ -4936,7 +5301,7 @@ changes footprint, not the result.</p>
 <li><code>"balanced"</code> / <code>"low"</code> -&gt; named accuracy presets (bounded <code>n_points</code>).</li>
 <li>a float in <code>[0, 1]</code> -&gt; scaled accuracy (<code>1.0</code> == full, smaller == fewer points).</li>
 <li><code>"auto"</code> -&gt; detect free GPU/CPU memory and pick the largest <code>n_points</code> that fits
-  (full on a roomy machine; capped on a small one) — chunks fitted on top.</li>
+  (full on a roomy machine; capped on a small one), chunks fitted on top.</li>
 <li>a :class:<code>~splatreg.quality.QualityConfig</code> -&gt; returned UNCHANGED (advanced manual override;
   no fitting, so you own the memory budget).</li>
 </ul>
@@ -4967,7 +5332,7 @@ changes footprint, not the result.</p>
                 <code>target_anchors</code>
             </td>
             <td>
-                  <code>the target splat&#39;s Gaussian count, if known — sharpens both the ``&#34;auto&#34;``</code>
+                  <code>the target splat&#39;s Gaussian count, if known, sharpens both the ``&#34;auto&#34;``</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -4983,7 +5348,7 @@ changes footprint, not the result.</p>
                 <code>source_anchors</code>
             </td>
             <td>
-                  <code>the source splat&#39;s Gaussian count, if known — sharpens the chunk fit for</code>
+                  <code>the source splat&#39;s Gaussian count, if known, sharpens the chunk fit for</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -5235,7 +5600,7 @@ sizes the refine's render budget.</p>
     <div class="doc doc-contents ">
 
         <p>Return <code>r</code> with shape <code>(..., dim)</code>.</p>
-<p><code>target</code> is the reference splat; <code>source</code> is what is being aligned to it — a
+<p><code>target</code> is the reference splat; <code>source</code> is what is being aligned to it, a
 <code>Gaussians</code> (splat-to-splat registration) or a <code>Frame</code> (camera/object tracking),
 depending on the residual. Use <code>self.requires()</code> to declare which.</p>
 

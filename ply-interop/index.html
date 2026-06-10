@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Register Gaussian splats — align & merge two 3DGS scans into one SE(3)/Sim(3) frame.">
+        <meta name="description" content="Register Gaussian splats: align and merge two 3DGS scans into one SE(3)/Sim(3) frame.">
       
       
       
@@ -689,7 +689,7 @@
 
 
 <h1 id="ply-interop">PLY interop<a class="headerlink" href="#ply-interop" title="Permanent link">&para;</a></h1>
-<p>splatreg reads and writes the <strong>standard 3D Gaussian Splatting PLY</strong> — the layout INRIA's
+<p>splatreg reads and writes the <strong>standard 3D Gaussian Splatting PLY</strong>, the layout INRIA's
 reference implementation (<code>graphdeco</code>) defined and the whole ecosystem adopted:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>x y z   f_dc_0..2   f_rest_0..M   opacity   scale_0..2   rot_0..3
 </code></pre></div>
@@ -707,27 +707,27 @@ anywhere.</p>
 <tr>
 <td>INRIA <code>gaussian-splatting</code> (<code>point_cloud.ply</code>)</td>
 <td>standard PLY, SH degree 3</td>
-<td>yes — bit-for-bit round-trip</td>
+<td>yes, bit-for-bit round-trip</td>
 </tr>
 <tr>
 <td>gsplat / Nerfstudio <strong>splatfacto</strong> (<code>ns-export gaussian-splat</code>)</td>
 <td>standard PLY</td>
-<td>yes — bit-for-bit round-trip</td>
+<td>yes, bit-for-bit round-trip</td>
 </tr>
 <tr>
 <td>SuperSplat (import &amp; export)</td>
 <td>standard PLY (+ a <em>compressed</em> <code>.ply</code> variant)</td>
-<td>yes — export <strong>uncompressed</strong> PLY from SuperSplat</td>
+<td>yes, export <strong>uncompressed</strong> PLY from SuperSplat</td>
 </tr>
 <tr>
 <td>PlayCanvas SplatTransform</td>
 <td>standard PLY in/out</td>
-<td>yes — pipe either way</td>
+<td>yes, pipe either way</td>
 </tr>
 <tr>
 <td>antimatter15 <code>.splat</code>, <code>.ksplat</code>, <code>.spz</code></td>
 <td>packed binary variants</td>
-<td>no — convert to PLY first (SuperSplat or SplatTransform do this)</td>
+<td>no, convert to PLY first (SuperSplat or SplatTransform do this)</td>
 </tr>
 </tbody>
 </table>
@@ -735,7 +735,7 @@ anywhere.</p>
 write binary, so this rarely comes up).</p>
 <h2 id="raw-parameters-whats-actually-inside-the-file">Raw parameters: what's actually inside the file<a class="headerlink" href="#raw-parameters-whats-actually-inside-the-file" title="Permanent link">&para;</a></h2>
 <p>The standard PLY stores <strong>raw (pre-activation)</strong> values. <code>load_ply</code> / <code>save_ply</code> keep them
-raw — what comes out is what went in, no silent re-encoding of geometry:</p>
+raw: what comes out is what went in, no silent re-encoding of geometry:</p>
 <table>
 <thead>
 <tr>
@@ -790,7 +790,7 @@ raw — what comes out is what went in, no silent re-encoding of geometry:</p>
 <p>Colour conventions on the <code>Gaussians</code> side: a 3-D <code>colors</code> tensor <code>(N, K, 3)</code> is SH
 (coefficient-major); a 2-D <code>(N, 3)</code> tensor is treated as <strong>linear RGB</strong> by <code>save_ply</code> and
 encoded to a DC-only SH (<code>(rgb - 0.5) / C0</code>). If you build splats from your own tensors,
-hand SH in as <code>(N, K, 3)</code> — including <code>K == 1</code> — to keep coefficients untouched.</p>
+hand SH in as <code>(N, K, 3)</code>, including <code>K == 1</code>, to keep coefficients untouched.</p>
 <div class="admonition note">
 <p class="admonition-title">Fixed in v1.1: DC-only round-trip</p>
 <p><code>load_ply</code> of a DC-only file used to return the <strong>raw SH-DC coefficients in the RGB
@@ -801,10 +801,11 @@ in <a href="https://github.com/Archerkattri/splatreg/blob/main/tests/test_io_rou
 </div>
 <h2 id="what-happens-to-a-splat-under-a-recovered-transform">What happens to a splat under a recovered transform<a class="headerlink" href="#what-happens-to-a-splat-under-a-recovered-transform" title="Permanent link">&para;</a></h2>
 <p>When <code>splatreg align</code> / <code>merge</code> bakes a recovered Sim(3) <code>T = [[s·R, t], [0, 1]]</code> into a
-splat, each parameter needs its own, different update — this is where naive merges go wrong:</p>
+splat, each parameter needs its own, different update; this is where naive merges go wrong:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>means&#39;  = s · (R @ means) + t        # the homogeneous point transform
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>quats&#39;  = quat(R) ⊗ quats            # compose R onto each anchor&#39;s orientation
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>scales&#39; = s · scales                 # in log space: log_scales + log s
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>SH&#39;     = D(R) @ SH                  # real-SH Wigner-D rotation of the colour bands
 </code></pre></div>
 <p>What splatreg gets right (each one a classic naive-merge bug):</p>
 <ul>
@@ -813,46 +814,44 @@ splat, each parameter needs its own, different update — this is where naive me
   surface). splatreg composes <code>quat(R)</code> onto every anchor quaternion (Hamilton product,
   wxyz), with <code>R</code> first de-scaled out of the Sim(3) block so the quaternion stays unit.</li>
 <li><strong>Scale under Sim(3).</strong> The similarity scales each anchor's extent: linear scales are
-  multiplied by <code>s</code>; log-stored scales get <code>+ log s</code> — the <code>log_scales</code> flag is preserved
+  multiplied by <code>s</code>; log-stored scales get <code>+ log s</code>, the <code>log_scales</code> flag is preserved
   either way, so the written PLY stays standard.</li>
-<li><strong>Raw opacity.</strong> Logits pass through untouched — no double-sigmoid.</li>
+<li><strong>Raw opacity.</strong> Logits pass through untouched, no double-sigmoid.</li>
 <li><strong>DC colour.</strong> The degree-0 SH basis function is constant over directions, so the DC
   coefficient is <strong>rotation-invariant</strong>: carrying <code>f_dc</code> through unchanged is exactly
   correct, not an approximation.</li>
 </ul>
 <h3 id="the-spherical-harmonics-rotation-detail">The spherical-harmonics rotation detail<a class="headerlink" href="#the-spherical-harmonics-rotation-detail" title="Permanent link">&para;</a></h3>
 <p>Here is the subtle one. View-dependent colour is stored as SH coefficients <strong>in world
-space</strong>. When you rotate the splat by <code>R</code>, the appearance field should rotate with it — and
+space</strong>. When you rotate the splat by <code>R</code>, the appearance field should rotate with it; and
 for SH that means each degree-ℓ band of coefficients must be mixed by the corresponding
 <strong>Wigner rotation matrix</strong> <code>D^ℓ(R)</code> (a 3×3 rotation of the degree-1 triple, a 5×5 for
 degree 2, 7×7 for degree 3). Degree 0 (DC) is invariant; the higher bands are not.</p>
-<p>Almost every merge pipeline skips this — including manual gizmo workflows in most editors —
+<p>Almost every merge pipeline skips this, including manual gizmo workflows in most editors,
 because the coefficients still <em>look</em> plausible: the diffuse (DC) term dominates, and the
 error only shows as view-dependent sheen/specular highlights that stay "stuck" in the old
 world orientation while the geometry rotates away under them.</p>
-<p><strong>What splatreg does today:</strong> the DC band is handled exactly (invariant, untouched).
-Higher-order <code>f_rest</code> coefficients are preserved <strong>verbatim</strong> — byte-identical through the
-round-trip, but <em>not</em> Wigner-rotated, so after a large recovered rotation the view-dependent
-component of a glossy capture is oriented as in the original capture frame. For the
-geometric registration itself this is irrelevant (registration uses geometry, not SH), and
-for small alignment corrections it is invisible; for a large-<code>R</code> merge of shiny scenes you
-have two clean options:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Option 1 — strip to the diffuse term before saving (always safe, always consistent):</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">g</span><span class="o">.</span><span class="n">colors</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">colors</span><span class="p">[:,</span> <span class="p">:</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>      <span class="c1"># keep DC only, drop f_rest</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">save_ply</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="s2">&quot;merged_dc.ply&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># Option 2 — keep full SH and apply a third-party Wigner-D rotation to colors[:, 1:, :]</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1"># under the same R that splatreg recovered (result.T), then save.</span>
+<p><strong>What splatreg does (v1.2+):</strong> every band is handled exactly. The DC band is invariant
+(untouched); every higher-order <code>f_rest</code> band is multiplied by its real-basis Wigner-D block,
+built for any degree by the Ivanic–Ruedenberg recurrence (<em>J. Phys. Chem. A</em> 100 (1996) 6342,
+with the 1998 erratum corrections) in <code>splatreg.sh</code>. The blocks are produced directly in the
+3DGS/gsplat sign convention (the <code>(-y, +z, -x)</code> degree-1 basis), so the rotated coefficients
+drop straight back into a standard PLY. <code>apply_transform</code>, <code>merge</code>, and the <code>align</code> CLI all
+route through this, view-dependent sheen now turns <strong>with</strong> the splat instead of staying
+stuck in the old capture frame.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.sh</span><span class="w"> </span><span class="kn">import</span> <span class="n">rotate_sh</span><span class="p">,</span> <span class="n">sh_rotation_matrix</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">D</span> <span class="o">=</span> <span class="n">sh_rotation_matrix</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="n">n_coeffs</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>   <span class="c1"># (16, 16) block-diagonal, degree 3</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">g</span><span class="o">.</span><span class="n">colors</span> <span class="o">=</span> <span class="n">rotate_sh</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">colors</span><span class="p">,</span> <span class="n">R</span><span class="p">)</span>        <span class="c1"># (N, K, 3) SH stack, rotated; DC untouched</span>
 </code></pre></div>
-<div class="admonition note">
-<p class="admonition-title">Why not silently drop <code>f_rest</code>?</p>
-<p>Because preserving data verbatim is the safer default: stripping SH is lossy and
-irreversible, while un-rotated higher-order SH is still approximately right for small
-rotations and exactly right for <code>R = I</code> (pure translation, the common re-centring case).
-splatreg never throws away information you might want.</p>
-</div>
+<p>The math is locked by renderer-free tests against an independent hand-coded 3DGS SH basis
+evaluator (<a href="https://github.com/Archerkattri/splatreg/blob/main/tests/test_sh_rotation.py"><code>tests/test_sh_rotation.py</code></a>):
+evaluating the rotated coefficients at <code>d</code> equals evaluating the originals at <code>R⁻¹d</code> to
+&lt; 1e-5 over random rotations; the degree-1 block equals its signed-permutation closed form;
+<code>D(R1·R2) = D(R1)·D(R2)</code>; identity maps to identity; and the rotated stack round-trips
+through <code>save_ply</code>/<code>load_ply</code> exactly.</p>
 <h2 id="inspecting-a-file">Inspecting a file<a class="headerlink" href="#inspecting-a-file" title="Permanent link">&para;</a></h2>
-<p><code>splatreg info</code> prints the layout it found — count, bounds, SH degree, raw-opacity range,
+<p><code>splatreg info</code> prints the layout it found, count, bounds, SH degree, raw-opacity range,
 log/linear scale stats:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>$ splatreg info scan.ply
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>file      : scan.ply
@@ -865,7 +864,7 @@ log/linear scale stats:</p>
 <a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>scales    : log-stored, linear median 0.00521  max 0.19883
 </code></pre></div>
 <h2 id="nerfstudio-recipe">Nerfstudio recipe<a class="headerlink" href="#nerfstudio-recipe" title="Permanent link">&para;</a></h2>
-<p>No plugin needed — splatfacto's export is the standard PLY:</p>
+<p>No plugin needed, splatfacto's export is the standard PLY:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>ns-export<span class="w"> </span>gaussian-splat<span class="w"> </span>--load-config<span class="w"> </span>outputs/.../config.yml<span class="w"> </span>--output-dir<span class="w"> </span>exports/a
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>ns-export<span class="w"> </span>gaussian-splat<span class="w"> </span>--load-config<span class="w"> </span>outputs/.../config.yml<span class="w"> </span>--output-dir<span class="w"> </span>exports/b
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>splatreg<span class="w"> </span>merge<span class="w"> </span>exports/a/splat.ply<span class="w"> </span>exports/b/splat.ply<span class="w"> </span>-o<span class="w"> </span>fused.ply

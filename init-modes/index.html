@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Register Gaussian splats — align & merge two 3DGS scans into one SE(3)/Sim(3) frame.">
+        <meta name="description" content="Register Gaussian splats: align and merge two 3DGS scans into one SE(3)/Sim(3) frame.">
       
       
       
@@ -416,6 +416,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#initmac-maximal-clique-hypothesis-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init="mac": maximal-clique hypothesis generation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#partial-overlap-the-honest-contract" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -602,6 +613,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#initmac-maximal-clique-hypothesis-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init="mac": maximal-clique hypothesis generation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#partial-overlap-the-honest-contract" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -657,7 +679,7 @@
 <h1 id="init-modes">Init modes<a class="headerlink" href="#init-modes" title="Permanent link">&para;</a></h1>
 <p>Registration is two stages: a <strong>coarse initializer</strong> finds the right basin, then the
 Levenberg–Marquardt core polishes the pose within it. <code>register(..., init=...)</code> (and
-<code>splatreg align --init ...</code>) selects the initializer — the single most important knob in the
+<code>splatreg align --init ...</code>) selects the initializer: the single most important knob in the
 library. The trade is speed ↔ robustness:</p>
 <table>
 <thead>
@@ -694,6 +716,12 @@ library. The trade is speed ↔ robustness:</p>
 <td>~0.8–1.4 s</td>
 </tr>
 <tr>
+<td><code>"mac"</code></td>
+<td>MAC maximal-clique consensus over the FPFH correspondences (Zhang et al. CVPR 2023) → weighted SVD per clique → overlap-aware refine</td>
+<td>outlier-heavy / multi-consensus correspondence sets</td>
+<td>~0.03–0.3 s (CPU, scales with clique count)</td>
+</tr>
+<tr>
 <td><code>"features"</code></td>
 <td>complete partial-overlap registrar (FPFH → clique-filtered RANSAC → overlap-aware point-to-plane refine + basin-sweep fallback)</td>
 <td>the two captures see <em>different parts</em> of the object</td>
@@ -702,7 +730,7 @@ library. The trade is speed ↔ robustness:</p>
 </tbody>
 </table>
 <p>You can also pass an explicit 4×4 tensor as <code>init</code> (e.g. a pose prior from odometry), or
-<code>None</code> — which resolves to <code>"fast"</code>.</p>
+<code>None</code>, which resolves to <code>"fast"</code>.</p>
 <h2 id="picking-one">Picking one<a class="headerlink" href="#picking-one" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Merging two captures of an object / small scene</strong> → keep the default <code>"fast"</code>.
@@ -712,11 +740,56 @@ library. The trade is speed ↔ robustness:</p>
 <li><strong>You have no idea how the splats are oriented and they look feature-poor</strong> (smooth,
   near-symmetric geometry where descriptors are non-discriminative) → <code>"global"</code>.</li>
 <li><strong>Partial overlap</strong> (one capture saw the left side, the other the right) → <code>"features"</code>.</li>
+<li><strong>Outlier-heavy or multi-consensus correspondences</strong> (repetitive structure, symmetric
+  decoys, a contaminated learned matcher) → <code>"mac"</code> (below).</li>
 </ul>
+<h2 id="initmac-maximal-clique-hypothesis-generation"><code>init="mac"</code>: maximal-clique hypothesis generation<a class="headerlink" href="#initmac-maximal-clique-hypothesis-generation" title="Permanent link">&para;</a></h2>
+<p><code>"mac"</code> reimplements <strong>MAC</strong> (<em>3D Registration with Maximal Cliques</em>, Zhang, Sun, Wang &amp; Guo,
+CVPR 2023) in pure torch + networkx, replacing RANSAC minimal samples as the hypothesis
+generator:</p>
+<ol>
+<li>a <strong>rigidity compatibility graph</strong> over the correspondences (edge iff
+   <code>| ‖p_i−p_j‖ − ‖q_i−q_j‖ | &lt; γ</code>), edge weights re-scored by the <strong>second-order SC²
+   measure</strong> (<code>w₂ = s ⊙ (S·S)</code>, an edge is only as strong as the compatible neighbourhood the
+   two correspondences <em>share</em>, which zeroes chance-compatible outlier pairs);</li>
+<li><strong>all maximal cliques</strong> of that graph (Bron–Kerbosch with pivoting), each one a consensus
+   hypothesis, including secondary consensus sets a greedy prefilter or a lucky-draw RANSAC
+   never isolates. Worst-case blowup is capped: ≤ 1000 correspondences, per-node degree cap
+   (top-48 edges by SC² weight), clique-count cap + wall-clock budget on the lazy enumeration,
+   and node-guided selection down to ≤ 64 hypotheses;</li>
+<li>a <strong>weighted SVD</strong> (Kabsch, SC² weights) per clique, scored by inlier count over all
+   correspondences; the winner is refit on its full consensus set, then polished by the same
+   overlap-aware ICP the <code>"robust"</code>/<code>"learned"</code> registrars use.</li>
+</ol>
+<p>Sim(3): MAC's rigidity constraint is SE(3)-only, so the scale is estimated <strong>first</strong> (median
+of correspondence pairwise-distance ratios), the source de-scaled, SE(3) MAC run, and a
+residual scale refit on the consensus inliers.</p>
+<p>Measured on synthetic contaminated correspondence sets (CPU, <code>tests/test_mac.py</code>): at 30/60/90 %
+random outliers MAC matches the fast-init RANSAC engine (rot err ≤ 0.2°); on a 90 %-contaminated
+set with a <em>structured</em> decoy cluster (reflection-consistent, it out-degrees the true inliers)
+the greedy-prefilter+RANSAC engine fails at ~78° while MAC stays <strong>&lt; 0.2°</strong>; an all-outlier set
+returns an honest <code>info["success"]=False</code> identity. 500 correspondences run in ~0.1 s on a
+2-thread CPU (budget-tested &lt; 5 s).</p>
+<p>Inside <code>init="learned"</code>, <code>seed_selector="mac"</code>
+(<code>learned_feature_align(..., seed_selector="mac")</code>) runs MAC over <strong>GeoTransformer's learned
+correspondences</strong> instead of the model's own LGR estimator: the exact combination the MAC
+paper reports lifting GeoTransformer's 3DLoMatch registration recall <strong>~71 % → ~78 %</strong>.</p>
+<div class="admonition note">
+<p class="admonition-title">3DLoMatch verdict: measured, a wash; <code>lgr</code> stays the default</p>
+<p>Measured on the <strong>full official splits</strong> (GPU, single shared forward, native 0.025 voxel,
+same residual-gated refine, only the hypothesis stage differs): 3DLoMatch
+<strong>72.1 % mean / 74.6 % pooled</strong> (MAC) vs <strong>72.5 % / 74.4 %</strong> (LGR); 3DMatch <strong>91.7 % /
+93.8 %</strong> vs <strong>91.5 % / 93.5 %</strong>. Every delta is within ±4 pairs, <em>not</em> the paper's
++6–7 pp, at ~+50 % runtime. MAC genuinely engaged on 100 % of pairs (median ~600–800
+consensus inliers): at native voxel the learned correspondences are already
+consensus-dominated, so the multi-consensus regime MAC wins (the synthetic decoy above)
+does not occur, and the guarded refine absorbs seed-level differences. Details in
+<code>RESULTS.md</code> §5k. Needs networkx: <code>pip install "splatreg[mac]"</code>.</p>
+</div>
 <h2 id="partial-overlap-the-honest-contract">Partial overlap: the honest contract<a class="headerlink" href="#partial-overlap-the-honest-contract" title="Permanent link">&para;</a></h2>
-<p><code>init="features"</code>, <code>"robust"</code>, and <code>"learned"</code> are <em>complete registrars</em>, not just seeds.
-The default residual set assumes <strong>full overlap</strong> — its ICP would drag a good partial-overlap
-pose off-target — so with the default residuals these three modes return their own
+<p><code>init="features"</code>, <code>"robust"</code>, <code>"learned"</code>, and <code>"mac"</code> are <em>complete registrars</em>, not just seeds.
+The default residual set assumes <strong>full overlap</strong> (its ICP would drag a good partial-overlap
+pose off-target), so with the default residuals these modes return their own
 registration <strong>directly</strong> and skip the LM. Pass an explicit overlap-safe <code>residuals=[...]</code>
 if you want the LM to run on top of the feature init.</p>
 <p>They also return honest diagnostics:</p>
@@ -728,23 +801,25 @@ if you want the LM to run on top of the feature init.</p>
 <div class="admonition warning">
 <p class="admonition-title">Ambiguity is flagged, not hidden</p>
 <p>When a crop removes the rotation-disambiguating geometry, the pose is <em>genuinely
-unrecoverable</em> — even the true pose doesn't seat cleanly. splatreg returns its best
+unrecoverable</em>, even the true pose doesn't seat cleanly. splatreg returns its best
 feasible guess <strong>flagged</strong> <code>ambiguous=True</code> rather than a silently wrong pose
 (verified: 0 silent-wrong across the robustness sweep). At overlap ≤ 40% expect flags;
 <code>merge</code> and <code>Tracker</code> are designed for high-overlap captures.</p>
 </div>
 <h2 id="fallback-chain">Fallback chain<a class="headerlink" href="#fallback-chain" title="Permanent link">&para;</a></h2>
 <p>All string inits are guarded: <code>"learned"</code> falls back to <code>"robust"</code>, <code>"fast"</code> falls back to
-<code>"global"</code>, and everything falls back to identity (with a logged note) when an optional
-dependency or pretrained weight is unavailable. Your call never hard-fails because a model
+<code>"global"</code>, <code>"mac"</code> raises a clear <code>ImportError</code> with the install hint when networkx is
+missing (an explicit opt-in extra, like the solver backends) and returns an honestly-flagged
+identity when the correspondences carry no consensus, and everything else falls back to
+identity (with a logged note) when an optional dependency or pretrained weight is unavailable. Your call never hard-fails because a model
 file is missing.</p>
 <h2 id="quality-policy">Quality policy<a class="headerlink" href="#quality-policy" title="Permanent link">&para;</a></h2>
 <p>Orthogonal to <code>init</code>, <code>quality=</code> bounds the work the refinement does:</p>
 <ul>
-<li><code>"full"</code> <em>(default)</em> — nothing capped, every source anchor.</li>
-<li><code>"balanced"</code> / <code>"low"</code> — bounded sample counts + tighter autodiff chunks.</li>
-<li>a float <code>0..1</code> — interpolates the caps.</li>
-<li><code>"auto"</code> — detect free GPU/CPU memory and pick the largest sizes that <em>fit</em>.</li>
+<li><code>"full"</code> <em>(default)</em>, nothing capped, every source anchor.</li>
+<li><code>"balanced"</code> / <code>"low"</code>, bounded sample counts + tighter autodiff chunks.</li>
+<li>a float <code>0..1</code>, interpolates the caps.</li>
+<li><code>"auto"</code>, detect free GPU/CPU memory and pick the largest sizes that <em>fit</em>.</li>
 </ul>
 <p>The Sim(3) autodiff Jacobian is always row-chunked, so peak memory stays bounded with no
 quality loss. See <a class="autorefs autorefs-internal" title="splatreg.quality.resolve_quality" href="../api/#splatreg.quality.resolve_quality"><code>resolve_quality</code></a>.</p>

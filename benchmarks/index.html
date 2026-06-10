@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Register Gaussian splats — align & merge two 3DGS scans into one SE(3)/Sim(3) frame.">
+        <meta name="description" content="Register Gaussian splats: align and merge two 3DGS scans into one SE(3)/Sim(3) frame.">
       
       
       
@@ -574,6 +574,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#sh-rotation-exposure-compensation-ladder-covariance-v12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SH rotation, exposure compensation, ladder, covariance (v1.2)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#speed" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -756,6 +767,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#sh-rotation-exposure-compensation-ladder-covariance-v12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SH rotation, exposure compensation, ladder, covariance (v1.2)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#speed" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -810,9 +832,11 @@
 
 <h1 id="benchmarks">Benchmarks<a class="headerlink" href="#benchmarks" title="Permanent link">&para;</a></h1>
 <p>Every number below is measured, reproducible, and recorded with its command in
-<a href="https://github.com/Archerkattri/splatreg/blob/main/RESULTS.md"><code>RESULTS.md</code></a> — including
+<a href="https://github.com/Archerkattri/splatreg/blob/main/RESULTS.md"><code>RESULTS.md</code></a>, including
 the honest limitations. Validation is held to the bar of the libraries splatreg sits beside
-(gsplat / Theseus / GTSAM / SymForce). Last validated 2026-06-07, single box, CUDA.</p>
+(gsplat / Theseus / GTSAM / SymForce). Core numbers validated 2026-06-07 (single box, CUDA);
+the v1.2 additions (SH rotation, exposure compensation, render ladder, pose covariance) and
+the v1.3 MAC verdict validated 2026-06-10.</p>
 <h2 id="headline">Headline<a class="headerlink" href="#headline" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -841,12 +865,12 @@ the honest limitations. Validation is held to the bar of the libraries splatreg 
 <tr>
 <td><strong>Object pose</strong> (YCB-CAD, 14 models × 4 poses)</td>
 <td>ADD-S AUC <strong>0.995</strong>, 100% &lt; 2 cm</td>
-<td>—</td>
+<td>n/a</td>
 </tr>
 <tr>
 <td><strong>Camera localization</strong> (real splat, known perturbation)</td>
 <td>median <strong>5°/10 mm → 0.11°/1.35 mm</strong>, 11/12 converged</td>
-<td>—</td>
+<td>n/a</td>
 </tr>
 <tr>
 <td><strong>Official 3DMatch recall</strong> (1279 pairs, Choi/Zeng protocol)</td>
@@ -866,7 +890,7 @@ the honest limitations. Validation is held to the bar of the libraries splatreg 
 </tbody>
 </table>
 <h2 id="synthetic-recovery-known-transform">Synthetic recovery (known-transform)<a class="headerlink" href="#synthetic-recovery-known-transform" title="Permanent link">&para;</a></h2>
-<p><code>examples/validate_recovery.py</code> — apply a known Sim(3)/SE(3), recover it.
+<p><code>examples/validate_recovery.py</code>: apply a known Sim(3)/SE(3), recover it.
 3 seeds × {5°, 30°, 90°} × {0.8, 1.0, 1.3 scale}:</p>
 <table>
 <thead>
@@ -885,7 +909,7 @@ the honest limitations. Validation is held to the bar of the libraries splatreg 
 <td><strong>9/9 = 100%</strong></td>
 <td><strong>0.000°</strong></td>
 <td>0.10 mm</td>
-<td>—</td>
+<td>n/a</td>
 <td>0.076 mm</td>
 </tr>
 <tr>
@@ -900,7 +924,7 @@ the honest limitations. Validation is held to the bar of the libraries splatreg 
 </table>
 <h2 id="jacobian-audit">Jacobian audit<a class="headerlink" href="#jacobian-audit" title="Permanent link">&para;</a></h2>
 <p>Every analytic Jacobian is checked against a tangent-space numerical one
-(<code>tests/test_jacobians.py</code>, float64) — the GTSAM <code>EXPECT_CORRECT_FACTOR_JACOBIANS</code>
+(<code>tests/test_jacobians.py</code>, float64), the GTSAM <code>EXPECT_CORRECT_FACTOR_JACOBIANS</code>
 discipline. The audit <strong>found and fixed a real bug</strong>: the Gaussian-SDF gradient had dropped
 the first-order <code>∂q̃/∂p</code> term; it is now an exact closed-form field gradient (max
 |analytic − numerical| ≈ 1e-8). ICP point-to-point ~3e-9, point-to-plane ~4e-11; SE(3)/Sim(3)
@@ -932,7 +956,7 @@ the first-order <code>∂q̃/∂p</code> term; it is now an exact closed-form fi
 </tr>
 </tbody>
 </table>
-<p>Plain ICP cannot estimate scale — it fails every non-unit-scale cell. Honest flip side: on
+<p>Plain ICP cannot estimate scale: it fails every non-unit-scale cell. Honest flip side: on
 easy rigid SE(3), ICP is ~1000× faster; the SDF residual's value is scale + implicit-field
 robustness.</p>
 <h2 id="robustness-sweep">Robustness sweep<a class="headerlink" href="#robustness-sweep" title="Permanent link">&para;</a></h2>
@@ -958,7 +982,7 @@ robustness.</p>
 </tr>
 <tr>
 <td>Partial overlap (20–60% removed)</td>
-<td>4/9 solved + 5 flagged ambiguous — <strong>0 silent-wrong</strong></td>
+<td>4/9 solved + 5 flagged ambiguous, <strong>0 silent-wrong</strong></td>
 </tr>
 </tbody>
 </table>
@@ -983,30 +1007,42 @@ robustness.</p>
 <td>72.5% / <strong>74.4%</strong> pooled</td>
 </tr>
 <tr>
+<td>splatreg <code>learned</code>, <code>seed_selector="mac"</code> (MAC cliques, same forward/refine)</td>
+<td>91.7% / 93.8%</td>
+<td>1.83°</td>
+<td>0.071 m</td>
+<td>72.1% / 74.6% pooled</td>
+</tr>
+<tr>
 <td>splatreg <code>robust</code> (classical Open3D seed)</td>
 <td>~67.1%</td>
-<td>—</td>
-<td>—</td>
+<td>n/a</td>
+<td>n/a</td>
 <td>~15%</td>
 </tr>
 <tr>
 <td>GeoTransformer (published)</td>
 <td>~92%</td>
-<td>—</td>
-<td>—</td>
+<td>n/a</td>
+<td>n/a</td>
 <td>~74%</td>
 </tr>
 <tr>
 <td>Open3D FPFH+RANSAC</td>
 <td>~77%</td>
-<td>—</td>
-<td>—</td>
+<td>n/a</td>
+<td>n/a</td>
 <td>~20%</td>
 </tr>
 </tbody>
 </table>
 <p>The refine is <em>guarded</em> (accepted only when it does not worsen the overlap residual): a
 per-pair audit found <strong>0 pairs</strong> where it demoted a GeoTransformer success.</p>
+<p>The <code>seed_selector="mac"</code> row is the measured answer to "does the MAC paper's ~71→78 %
+3DLoMatch lift transfer?": <strong>no, a wash</strong> (every delta within ±4 pairs, ~+50 % runtime), because
+at native voxel GeoTransformer's correspondences are already consensus-dominated (median
+600–800 MAC inliers) and the guarded refine absorbs seed-level differences. <code>lgr</code> stays the
+default; details in <code>RESULTS.md</code> §5k.</p>
 <h2 id="object-pose-add-add-s">Object pose (ADD / ADD-S)<a class="headerlink" href="#object-pose-add-add-s" title="Permanent link">&para;</a></h2>
 <p>YCB <code>google_16k</code> CAD models, 14 objects × 4 poses, BOP symmetry convention:</p>
 <table>
@@ -1056,7 +1092,7 @@ PhotoReg positioning: <a href="../photometric/">Photometric refinement</a>; reco
 </tr>
 <tr>
 <td>Real gsplat rasterizer (CUDA), from 5°/7 mm</td>
-<td>—</td>
+<td>n/a</td>
 <td><strong>0.36°/0.5 mm</strong> in ~1.1 s</td>
 </tr>
 <tr>
@@ -1068,6 +1104,38 @@ PhotoReg positioning: <a href="../photometric/">Photometric refinement</a>; reco
 </table>
 <p>Decisive when geometry under-constrains the pose (symmetry / texture-only DoF); neutral when
 dense overlap already pins it; floor set by render resolution (~0.3°). Hence opt-in.</p>
+<h2 id="sh-rotation-exposure-compensation-ladder-covariance-v12">SH rotation, exposure compensation, ladder, covariance (v1.2)<a class="headerlink" href="#sh-rotation-exposure-compensation-ladder-covariance-v12" title="Permanent link">&para;</a></h2>
+<p>Each addition ships with its measured evidence (full detail: <code>RESULTS.md</code> §5j):</p>
+<table>
+<thead>
+<tr>
+<th>Addition</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SH (<code>f_rest</code>) Wigner rotation</td>
+<td>rotated coefficients evaluated at <code>d</code> equal the originals at <code>R⁻¹d</code>, measured <strong>~2.4e-15</strong> in float64 (gate &lt; 1e-5); <code>D(R₁R₂) = D(R₁)D(R₂)</code> exact; PLY round-trip exact (<a href="https://github.com/Archerkattri/splatreg/blob/main/tests/test_sh_rotation.py"><code>tests/test_sh_rotation.py</code></a>)</td>
+</tr>
+<tr>
+<td>Exposure compensation (default ON)</td>
+<td>a ×1.3 + 0.05 source tint absorbs into the Sim(3) scale without it (0.10% → <strong>3.99%</strong> scale error); with it: <strong>0.47%</strong>, fitted gain ≈ 1/1.3; clean pair 0.01% (harmless)</td>
+</tr>
+<tr>
+<td>Coarse-to-fine render ladder</td>
+<td>from a 6° offset a cold 96 px rung stalls at <strong>5.61°</strong>; the 32→64→96 ladder lands <strong>2.55°</strong> at equal per-stage budget</td>
+</tr>
+<tr>
+<td>Pose information / covariance</td>
+<td>SPD on well-constrained solves, 2× noise → looser covariance, singular → <code>None</code> (<a href="https://github.com/Archerkattri/splatreg/blob/main/tests/test_pose_covariance.py"><code>tests/test_pose_covariance.py</code></a>)</td>
+</tr>
+<tr>
+<td><code>validate_recovery.py --fast</code></td>
+<td>CPU smoke preset: <strong>6/6 cells within gate in ~41 s</strong> (worst rot err 0.16°, worst scale err 0.14%)</td>
+</tr>
+</tbody>
+</table>
 <h2 id="speed">Speed<a class="headerlink" href="#speed" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1081,7 +1149,7 @@ dense overlap already pins it; floor set by render resolution (~0.3°). Hence op
 <tr>
 <td><code>register(init="fast")</code></td>
 <td><strong>~17 ms</strong></td>
-<td>—</td>
+<td>n/a</td>
 </tr>
 <tr>
 <td><code>register(init="learned")</code></td>
@@ -1091,22 +1159,22 @@ dense overlap already pins it; floor set by render resolution (~0.3°). Hence op
 <tr>
 <td><code>Tracker.track()</code> warm start</td>
 <td><strong>~17 ms/frame</strong></td>
-<td>—</td>
+<td>n/a</td>
 </tr>
 <tr>
 <td>Full Sim(3) cold registration</td>
 <td>2.4 s/cell</td>
-<td>—</td>
+<td>n/a</td>
 </tr>
 </tbody>
 </table>
 <h2 id="honest-limitations">Honest limitations<a class="headerlink" href="#honest-limitations" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Overlap ≤ 40% is genuinely ambiguous</strong> — flagged (<code>info["ambiguous"]</code>), never silently
+<li><strong>Overlap ≤ 40% is genuinely ambiguous</strong>: flagged (<code>info["ambiguous"]</code>), never silently
   wrong. <code>merge</code> is designed for high-overlap captures.</li>
-<li><strong>Scale under thin overlap (~20%)</strong> — the Sim(3) scale valley is flat; no algorithm can
+<li><strong>Scale under thin overlap (~20%)</strong>: the Sim(3) scale valley is flat; no algorithm can
   recover what the geometry doesn't carry.</li>
-<li><strong>Rigid SE(3) cost</strong> — plain ICP reaches the same easy-case success far faster; use
+<li><strong>Rigid SE(3) cost</strong>: plain ICP reaches the same easy-case success far faster; use
   <code>Tracker</code> for real time.</li>
 </ul>
 <p>Full detail, including the failure analyses: <a href="https://github.com/Archerkattri/splatreg/blob/main/RESULTS.md"><code>RESULTS.md</code></a>.</p>

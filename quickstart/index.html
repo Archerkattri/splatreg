@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Register Gaussian splats — align & merge two 3DGS scans into one SE(3)/Sim(3) frame.">
+        <meta name="description" content="Register Gaussian splats: align and merge two 3DGS scans into one SE(3)/Sim(3) frame.">
       
       
       
@@ -373,6 +373,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#align-without-merging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Align without merging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#merge-dedupe" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -657,6 +668,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#align-without-merging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Align without merging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#merge-dedupe" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -747,9 +769,10 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>splatreg<span class="w">            </span><span class="c1"># torch + numpy only</span>
 </code></pre></div>
 <p>Optional extras:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;splatreg[render]&quot;</span><span class="w">  </span><span class="c1"># gsplat — camera localization + photometric residual</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;splatreg[pypose]&quot;</span><span class="w">  </span><span class="c1"># PyPose solver backend</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;splatreg[theseus]&quot;</span><span class="w"> </span><span class="c1"># Theseus solver backend</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;splatreg[render]&quot;</span><span class="w">  </span><span class="c1"># gsplat, camera localization + photometric residual</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;splatreg[mac]&quot;</span><span class="w">     </span><span class="c1"># networkx, the init=&quot;mac&quot; maximal-clique seed</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;splatreg[pypose]&quot;</span><span class="w">  </span><span class="c1"># PyPose solver backend</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;splatreg[theseus]&quot;</span><span class="w"> </span><span class="c1"># Theseus solver backend</span>
 </code></pre></div>
 <p>Development install:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Archerkattri/splatreg.git
@@ -761,7 +784,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg</span><span class="w"> </span><span class="kn">import</span> <span class="n">register</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_ply</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">target</span> <span class="o">=</span> <span class="n">load_ply</span><span class="p">(</span><span class="s2">&quot;scan_a.ply&quot;</span><span class="p">)</span>   <span class="c1"># the reference — stays fixed</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">target</span> <span class="o">=</span> <span class="n">load_ply</span><span class="p">(</span><span class="s2">&quot;scan_a.ply&quot;</span><span class="p">)</span>   <span class="c1"># the reference, stays fixed</span>
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">source</span> <span class="o">=</span> <span class="n">load_ply</span><span class="p">(</span><span class="s2">&quot;scan_b.ply&quot;</span><span class="p">)</span>   <span class="c1"># gets aligned onto the target</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">result</span> <span class="o">=</span> <span class="n">register</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="s2">&quot;sim3&quot;</span><span class="p">)</span>   <span class="c1"># or &quot;se3&quot; for rigid</span>
@@ -777,71 +800,89 @@
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">result</span><span class="o">.</span><span class="n">converged</span>  <span class="c1"># solver convergence flag</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span>       <span class="c1"># diagnostics: rmse, n_iters, cost, ambiguous/confidence (feature inits)</span>
 </code></pre></div>
+<p>Builtin-LM solves also expose the pose uncertainty for pose-graph / loop-closure weighting:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;information&quot;</span><span class="p">]</span>   <span class="c1"># undamped JᵀWJ at the optimum: (6,6) se3 / (7,7) sim3</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;covariance&quot;</span><span class="p">]</span>    <span class="c1"># its scaled inverse; None when singular, never faked</span>
+</code></pre></div>
 <p>The default <code>init="fast"</code> (FPFH + GPU-batched RANSAC seed, ~17 ms) suits objects and
 full-overlap captures. For real metre-scale scans use <code>init="robust"</code> or <code>init="learned"</code>;
 see <a href="../init-modes/">Init modes</a>.</p>
 <p>If the shape under-constrains the pose (rotational symmetry, texture-carried detail), add the
-opt-in photometric stage — geometric residuals can't see color, this stage can:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">register</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="s2">&quot;se3&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>                  <span class="n">refine</span><span class="o">=</span><span class="s2">&quot;photometric&quot;</span><span class="p">)</span>    <span class="c1"># needs `pip install &quot;splatreg[render]&quot;`</span>
+opt-in photometric stage (geometric residuals can't see color, this stage can):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">register</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="s2">&quot;se3&quot;</span><span class="p">,</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>                  <span class="n">refine</span><span class="o">=</span><span class="s2">&quot;photometric&quot;</span><span class="p">)</span>    <span class="c1"># needs `pip install &quot;splatreg[render]&quot;`</span>
 </code></pre></div>
 <p>Measured: on a rotation-symmetric colored sphere the geometric solve <em>worsens</em> 6.0°→11.2°
 while the photometric stage lands 2.2° (0.36° with the real gsplat rasterizer); on
 dense-overlap scans it is neutral. <a href="../photometric/">When &amp; why</a>.</p>
+<h2 id="align-without-merging">Align without merging<a class="headerlink" href="#align-without-merging" title="Permanent link">&para;</a></h2>
+<p>To keep the scans as separate files (just registered into one frame), bake the recovered
+transform into the source with <a class="autorefs autorefs-internal" title="splatreg.api.apply_transform" href="../api/#splatreg.api.apply_transform"><code>apply_transform</code></a>. Colour is
+handled fully: DC is rotation-invariant, quats are composed, and the higher-order SH bands
+are Wigner-rotated so view-dependent colour turns with the splat
+(<a href="../ply-interop/">PLY interop</a>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_transform</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">save_ply</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">aligned</span> <span class="o">=</span> <span class="n">apply_transform</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="n">save_ply</span><span class="p">(</span><span class="n">aligned</span><span class="p">,</span> <span class="s2">&quot;source_aligned.ply&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1"># target.ply stays untouched; the two files now sit registered in any viewer.</span>
+</code></pre></div>
+<p>Same thing from the shell: <code>splatreg align target.ply source.ply -o source_aligned.ply</code>.</p>
 <h2 id="merge-dedupe">Merge + dedupe<a class="headerlink" href="#merge-dedupe" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg</span><span class="w"> </span><span class="kn">import</span> <span class="n">merge</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">save_ply</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">fused</span> <span class="o">=</span> <span class="n">merge</span><span class="p">([</span><span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">])</span>     <span class="c1"># registers everything onto splats[ref] (default 0),</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">save_ply</span><span class="p">(</span><span class="n">fused</span><span class="p">,</span> <span class="s2">&quot;fused.ply&quot;</span><span class="p">)</span>        <span class="c1"># fuses, and dedupes the double-density overlap</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg</span><span class="w"> </span><span class="kn">import</span> <span class="n">merge</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">save_ply</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">fused</span> <span class="o">=</span> <span class="n">merge</span><span class="p">([</span><span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">])</span>     <span class="c1"># registers everything onto splats[ref] (default 0),</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">save_ply</span><span class="p">(</span><span class="n">fused</span><span class="p">,</span> <span class="s2">&quot;fused.ply&quot;</span><span class="p">)</span>        <span class="c1"># fuses, and dedupes the double-density overlap</span>
 </code></pre></div>
 <p><code>merge</code> is <strong>not a naive cat</strong>: each non-reference splat is registered (Sim(3) by default, so
 scale differences between captures are absorbed), the transform is baked into its
 means/quats/scales, and the overlap region is deduped (voxel-grid by default, <code>"knn"</code>
 available) so the seam collapses to single density.</p>
 <h2 id="bring-your-own-tensors-no-ply">Bring your own tensors (no PLY)<a class="headerlink" href="#bring-your-own-tensors-no-ply" title="Permanent link">&para;</a></h2>
-<p>Any 3DGS framework works — pass gsplat-style tensors directly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_gsplat</span><span class="p">,</span> <span class="n">to_gsplat</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">g</span> <span class="o">=</span> <span class="n">from_gsplat</span><span class="p">(</span><span class="n">means</span><span class="p">,</span> <span class="n">quats</span><span class="p">,</span> <span class="n">scales</span><span class="p">,</span> <span class="n">opacities</span><span class="p">,</span> <span class="n">colors</span><span class="p">)</span>   <span class="c1"># wraps, no copy</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">out</span> <span class="o">=</span> <span class="n">gsplat</span><span class="o">.</span><span class="n">rasterization</span><span class="p">(</span><span class="n">viewmats</span><span class="o">=...</span><span class="p">,</span> <span class="n">Ks</span><span class="o">=...</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="n">W</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">H</span><span class="p">,</span> <span class="o">**</span><span class="n">to_gsplat</span><span class="p">(</span><span class="n">g</span><span class="p">))</span>
+<p>Any 3DGS framework works, pass gsplat-style tensors directly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_gsplat</span><span class="p">,</span> <span class="n">to_gsplat</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">g</span> <span class="o">=</span> <span class="n">from_gsplat</span><span class="p">(</span><span class="n">means</span><span class="p">,</span> <span class="n">quats</span><span class="p">,</span> <span class="n">scales</span><span class="p">,</span> <span class="n">opacities</span><span class="p">,</span> <span class="n">colors</span><span class="p">)</span>   <span class="c1"># wraps, no copy</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">out</span> <span class="o">=</span> <span class="n">gsplat</span><span class="o">.</span><span class="n">rasterization</span><span class="p">(</span><span class="n">viewmats</span><span class="o">=...</span><span class="p">,</span> <span class="n">Ks</span><span class="o">=...</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="n">W</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">H</span><span class="p">,</span> <span class="o">**</span><span class="n">to_gsplat</span><span class="p">(</span><span class="n">g</span><span class="p">))</span>
 </code></pre></div>
 <h2 id="object-pose-camera-localization">Object pose + camera localization<a class="headerlink" href="#object-pose-camera-localization" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg</span><span class="w"> </span><span class="kn">import</span> <span class="n">estimate_object_pose</span><span class="p">,</span> <span class="n">localize_camera</span><span class="p">,</span> <span class="n">coarse_localize_camera</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># 6-DoF pose of a known object splat in a new observation (ADD / ADD-S / AUC out of the box)</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">result</span> <span class="o">=</span> <span class="n">estimate_object_pose</span><span class="p">(</span><span class="n">model_splat</span><span class="p">,</span> <span class="n">observation_splat</span><span class="p">)</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># Refine a camera pose against a scene splat through gsplat&#39;s differentiable rasteriser</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="n">result</span> <span class="o">=</span> <span class="n">localize_camera</span><span class="p">(</span><span class="n">scene_splat</span><span class="p">,</span> <span class="n">frame</span><span class="p">,</span> <span class="n">init_T_WC</span><span class="o">=</span><span class="n">T_init</span><span class="p">)</span>   <span class="c1"># needs splatreg[render]</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1"># Wide-baseline / prior-free coarse seed (CPU-only, no rasteriser)</span>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="n">T_coarse</span> <span class="o">=</span> <span class="n">coarse_localize_camera</span><span class="p">(</span><span class="n">scene_splat</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg</span><span class="w"> </span><span class="kn">import</span> <span class="n">estimate_object_pose</span><span class="p">,</span> <span class="n">localize_camera</span><span class="p">,</span> <span class="n">coarse_localize_camera</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># 6-DoF pose of a known object splat in a new observation (ADD / ADD-S / AUC out of the box)</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">result</span> <span class="o">=</span> <span class="n">estimate_object_pose</span><span class="p">(</span><span class="n">model_splat</span><span class="p">,</span> <span class="n">observation_splat</span><span class="p">)</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="c1"># Refine a camera pose against a scene splat through gsplat&#39;s differentiable rasteriser</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="n">result</span> <span class="o">=</span> <span class="n">localize_camera</span><span class="p">(</span><span class="n">scene_splat</span><span class="p">,</span> <span class="n">frame</span><span class="p">,</span> <span class="n">init_T_WC</span><span class="o">=</span><span class="n">T_init</span><span class="p">)</span>   <span class="c1"># needs splatreg[render]</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="c1"># Wide-baseline / prior-free coarse seed (CPU-only, no rasteriser)</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="n">T_coarse</span> <span class="o">=</span> <span class="n">coarse_localize_camera</span><span class="p">(</span><span class="n">scene_splat</span><span class="p">,</span> <span class="n">frame</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="real-time-tracking">Real-time tracking<a class="headerlink" href="#real-time-tracking" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tracker</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">tracker</span> <span class="o">=</span> <span class="n">Tracker</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">residuals</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">])</span>   <span class="c1"># fixed target, warm-started across frames</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">stream</span><span class="p">:</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">tracker</span><span class="o">.</span><span class="n">track</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>            <span class="c1"># ~17 ms/frame</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tracker</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">tracker</span> <span class="o">=</span> <span class="n">Tracker</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">residuals</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">])</span>   <span class="c1"># fixed target, warm-started across frames</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">stream</span><span class="p">:</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">tracker</span><span class="o">.</span><span class="n">track</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>            <span class="c1"># ~17 ms/frame</span>
 </code></pre></div>
 <h2 id="the-gaussian-sdf-field-standalone">The Gaussian-SDF field, standalone<a class="headerlink" href="#the-gaussian-sdf-field-standalone" title="Permanent link">&para;</a></h2>
-<p>splatreg's flagship residual is a reusable primitive — a smooth signed-distance field derived
+<p>splatreg's flagship residual is a reusable primitive: a smooth signed-distance field derived
 directly from the target Gaussians (no mesh, no marching cubes):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.geometry.gaussian_sdf</span><span class="w"> </span><span class="kn">import</span> <span class="n">gaussian_sdf</span><span class="p">,</span> <span class="n">gaussian_sdf_grad</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">sdf</span><span class="p">,</span> <span class="n">normal</span> <span class="o">=</span> <span class="n">gaussian_sdf</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">query_points</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mf">0.02</span><span class="p">)</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">sdf</span><span class="p">,</span> <span class="n">grad</span>   <span class="o">=</span> <span class="n">gaussian_sdf_grad</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">query_points</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mf">0.02</span><span class="p">)</span>  <span class="c1"># exact closed-form grad</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.geometry.gaussian_sdf</span><span class="w"> </span><span class="kn">import</span> <span class="n">gaussian_sdf</span><span class="p">,</span> <span class="n">gaussian_sdf_grad</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">sdf</span><span class="p">,</span> <span class="n">normal</span> <span class="o">=</span> <span class="n">gaussian_sdf</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">query_points</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mf">0.02</span><span class="p">)</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">sdf</span><span class="p">,</span> <span class="n">grad</span>   <span class="o">=</span> <span class="n">gaussian_sdf_grad</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">query_points</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mf">0.02</span><span class="p">)</span>  <span class="c1"># exact closed-form grad</span>
 </code></pre></div>
 <h2 id="know-the-edges">Know the edges<a class="headerlink" href="#know-the-edges" title="Permanent link">&para;</a></h2>
 <div class="admonition warning">
 <p class="admonition-title">Honest limitations</p>
 <ul>
-<li><strong>Overlap ≤ 40% is genuinely ambiguous</strong> — the disambiguating geometry is physically
+<li><strong>Overlap ≤ 40% is genuinely ambiguous</strong>, the disambiguating geometry is physically
   absent. splatreg flags these (<code>result.info["ambiguous"]</code> / <code>["confidence"]</code>) instead of
   silently wrong-posing. <code>merge</code> is designed for high-overlap captures.</li>
 <li><strong>Scale is unobservable under thin overlap</strong> (~20% shared geometry): the Sim(3) scale
-  valley is flat — no algorithm can recover what the geometry doesn't carry.</li>
+  valley is flat, no algorithm can recover what the geometry doesn't carry.</li>
 <li><strong>On rigid SE(3), plain ICP is far cheaper</strong> and reaches the same success on easy cases;
   the SDF residual buys scale + implicit-field robustness at a real compute cost. Use
   <code>Tracker</code> for the warm-start real-time path.</li>

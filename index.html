@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Register Gaussian splats — align & merge two 3DGS scans into one SE(3)/Sim(3) frame.">
+        <meta name="description" content="Register Gaussian splats: align and merge two 3DGS scans into one SE(3)/Sim(3) frame.">
       
       
       
@@ -653,17 +653,23 @@
 
 
 <h1 id="splatreg">splatreg<a class="headerlink" href="#splatreg" title="Permanent link">&para;</a></h1>
-<p><strong>Register Gaussian splats — align &amp; merge two 3DGS scans into one SE(3)/Sim(3) frame.</strong></p>
+<p><strong>Register Gaussian splats: align and merge 3DGS scans into one SE(3)/Sim(3) frame.</strong></p>
 <p>gsplat <em>renders</em> your Gaussians; splatreg <em>registers</em> against them. It is the missing
 registration half of the Gaussian-splatting toolchain: the splat-to-splat alignment that
 SuperSplat / INRIA / geospatial users keep asking for, where today's tooling punts to a
 manual gizmo.</p>
 <ul>
-<li><strong>Pure PyTorch</strong> — no meshing, no CUDA extension, no point-cloud detour.</li>
-<li><strong>SE(3) and Sim(3)</strong> — the only splat registrar that recovers <strong>scale</strong>.</li>
-<li><strong>Framework-agnostic</strong> — gsplat, Nerfstudio/splatfacto, INRIA, SuperSplat, custom; anything
+<li><strong>Pure PyTorch</strong>: no meshing, no CUDA extension, no point-cloud detour.</li>
+<li><strong>SE(3) and Sim(3)</strong>: the only splat registrar that recovers <strong>scale</strong>.</li>
+<li><strong>Correct colour under rotation</strong>: higher-order SH bands are Wigner-rotated with the
+  splat (test-locked math, <a href="ply-interop/">PLY interop</a>).</li>
+<li><strong>Align with or without merging</strong>: <code>merge</code> fuses + dedupes into one splat;
+  <code>apply_transform</code> / <code>splatreg align</code> writes the source as its own registered PLY.</li>
+<li><strong>Pose covariance</strong>: builtin-LM solves expose <code>info["information"]</code> /
+  <code>info["covariance"]</code> for pose-graph weighting (<code>None</code> when singular, never faked).</li>
+<li><strong>Framework-agnostic</strong>: gsplat, Nerfstudio/splatfacto, INRIA, SuperSplat, custom; anything
   that speaks the standard 3DGS PLY or hands over means/covariance tensors.</li>
-<li><strong>Honest diagnostics</strong> — ambiguous overlaps are <em>flagged</em> (<code>info["ambiguous"]</code>,
+<li><strong>Honest diagnostics</strong>: ambiguous overlaps are <em>flagged</em> (<code>info["ambiguous"]</code>,
   <code>info["confidence"]</code>), never silently wrong-posed.</li>
 </ul>
 <h2 id="30-seconds-end-to-end">30 seconds, end to end<a class="headerlink" href="#30-seconds-end-to-end" title="Permanent link">&para;</a></h2>
@@ -672,7 +678,7 @@ manual gizmo.</p>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>splatreg<span class="w"> </span>merge<span class="w"> </span>scan_a.ply<span class="w"> </span>scan_b.ply<span class="w"> </span>-o<span class="w"> </span>fused.ply<span class="w">          </span><span class="c1"># register + fuse + dedupe</span>
 </code></pre></div>
 <p>or in Python:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg</span><span class="w"> </span><span class="kn">import</span> <span class="n">register</span><span class="p">,</span> <span class="n">merge</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg</span><span class="w"> </span><span class="kn">import</span> <span class="n">register</span><span class="p">,</span> <span class="n">merge</span><span class="p">,</span> <span class="n">apply_transform</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_ply</span><span class="p">,</span> <span class="n">save_ply</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">a</span> <span class="o">=</span> <span class="n">load_ply</span><span class="p">(</span><span class="s2">&quot;scan_a.ply&quot;</span><span class="p">)</span>          <span class="c1"># target (stays fixed)</span>
@@ -684,26 +690,30 @@ manual gizmo.</p>
 <a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
 <a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="n">fused</span> <span class="o">=</span> <span class="n">merge</span><span class="p">([</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">])</span>               <span class="c1"># register + concat + dedupe the overlap</span>
 <a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="n">save_ply</span><span class="p">(</span><span class="n">fused</span><span class="p">,</span> <span class="s2">&quot;fused.ply&quot;</span><span class="p">)</span>        <span class="c1"># opens in SuperSplat / any 3DGS viewer</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="c1"># or keep the scans separate, just registered into one frame:</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="n">save_ply</span><span class="p">(</span><span class="n">apply_transform</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">scale</span><span class="p">),</span> <span class="s2">&quot;b_aligned.ply&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart LR
     A["splat A&lt;br/&gt;(target)"]:::s --&gt; G
     B["splat B&lt;br/&gt;(source)"]:::s --&gt; G
-    G["&lt;b&gt;Global aligner&lt;/b&gt;&lt;br/&gt;super-Fibonacci SO(3) seeds&lt;br/&gt;+ batched trimmed ICP&lt;br/&gt;&lt;i&gt;(or FPFH / learned)&lt;/i&gt;"]:::g --&gt; L
-    L["&lt;b&gt;Levenberg–Marquardt&lt;/b&gt;&lt;br/&gt;multi-residual:&lt;br/&gt;ICP + Gaussian-SDF&lt;br/&gt;SE(3) / Sim(3)"]:::l --&gt; T["T*  (4×4)&lt;br/&gt;+ merge / dedupe"]:::o
+    G["&lt;b&gt;Global aligner&lt;/b&gt;&lt;br/&gt;super-Fibonacci SO(3) seeds&lt;br/&gt;+ batched trimmed ICP&lt;br/&gt;&lt;i&gt;(or FPFH / learned / MAC)&lt;/i&gt;"]:::g --&gt; L
+    L["&lt;b&gt;Levenberg-Marquardt&lt;/b&gt;&lt;br/&gt;multi-residual:&lt;br/&gt;ICP + Gaussian-SDF&lt;br/&gt;SE(3) / Sim(3)"]:::l --&gt; T["T*  (4×4)&lt;br/&gt;+ merge / dedupe"]:::o
     classDef s fill:#e8f6f8,stroke:#17becf,color:#0b3d44;
     classDef g fill:#fff1ee,stroke:#ff6b5b,color:#5a1a12;
     classDef l fill:#eef7ee,stroke:#2e8b57,color:#143d22;
     classDef o fill:#f3eefc,stroke:#7d52c7,color:#2c1654;</code></pre>
 <ol>
-<li><strong>Global init</strong> — a coarse pose from a dense super-Fibonacci rotation sweep + batched
-   trimmed ICP (no local-minimum trap), with optional FPFH+RANSAC (<code>init="robust"</code>) and
-   learned GeoTransformer (<code>init="learned"</code>) seeds for harder real scans.
-   See <a href="init-modes/">Init modes</a>.</li>
-<li><strong>Refinement</strong> — a from-scratch Levenberg–Marquardt core over ICP (point-to-point /
-   point-to-plane) <em>and</em> splatreg's flagship <strong>Gaussian-SDF</strong> residual — a smooth signed
+<li><strong>Global init</strong>: a coarse pose from a dense super-Fibonacci rotation sweep + batched
+   trimmed ICP (no local-minimum trap), with FPFH+RANSAC (<code>init="robust"</code>), learned
+   GeoTransformer (<code>init="learned"</code>), and MAC maximal-clique (<code>init="mac"</code>) seeds for
+   harder real scans. See <a href="init-modes/">Init modes</a>.</li>
+<li><strong>Refinement</strong>: a from-scratch Levenberg-Marquardt core over ICP (point-to-point /
+   point-to-plane) <em>and</em> splatreg's flagship <strong>Gaussian-SDF</strong> residual (a smooth signed
    distance field derived directly from the target Gaussians, with a closed-form, audited
-   Jacobian — solving the full SE(3) or Sim(3) tangent.</li>
+   Jacobian), solving the full SE(3) or Sim(3) tangent and exposing the pose
+   information/covariance at the optimum.</li>
 </ol>
 <h2 id="headline-numbers">Headline numbers<a class="headerlink" href="#headline-numbers" title="Permanent link">&para;</a></h2>
 <table>
@@ -736,6 +746,11 @@ manual gizmo.</p>
 <td>GeoTransformer ~92%, Open3D ~77%</td>
 </tr>
 <tr>
+<td>Photometric refine (real rasterizer)</td>
+<td>5°/7 mm → <strong>0.36°/0.5 mm</strong></td>
+<td>geometric alone worsens the symmetric case</td>
+</tr>
+<tr>
 <td>Registration speed</td>
 <td><strong>~17 ms</strong> (fast)</td>
 <td>Open3D 142 ms</td>
@@ -745,13 +760,17 @@ manual gizmo.</p>
 <p>Full record with reproduce commands: <a href="benchmarks/">Benchmarks</a>.</p>
 <h2 id="where-next">Where next<a class="headerlink" href="#where-next" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="quickstart/">Quickstart</a> — install + the core workflows in Python.</li>
-<li><a href="cli/">CLI guide</a> — <code>splatreg align / merge / info</code> from the shell.</li>
-<li><a href="photometric/">Photometric refinement</a> — <em>new in v1.1</em>: the opt-in stage for poses
-  geometry can't see (symmetry / texture-only DoF), with the measured when-and-why table.</li>
-<li><a href="ply-interop/">PLY interop</a> — splatfacto / INRIA / SuperSplat round-trip, and what
-  happens to spherical harmonics under a recovered rotation.</li>
-<li><a href="api/">API reference</a> — every public function, autodoc'd.</li>
+<li><a href="quickstart/">Quickstart</a>: install + the core workflows in Python.</li>
+<li><a href="cli/">CLI guide</a>: <code>splatreg align / merge / info</code> from the shell.</li>
+<li><a href="init-modes/">Init modes</a>: speed vs robustness, including <code>init="mac"</code> and the honest
+  measured 3DMatch/3DLoMatch verdict.</li>
+<li><a href="photometric/">Photometric refinement</a>: the opt-in stage for poses geometry can't see
+  (symmetry / texture-only DoF), with the measured when-and-why table, per-pair
+  <strong>exposure compensation</strong> (default ON), and the <strong>coarse-to-fine render ladder</strong>.</li>
+<li><a href="ply-interop/">PLY interop</a>: splatfacto / INRIA / SuperSplat round-trip, and what
+  happens to spherical harmonics under a recovered rotation (higher-order SH bands are
+  <strong>Wigner-rotated with the splat</strong>; Ivanic-Ruedenberg, test-locked math).</li>
+<li><a href="api/">API reference</a>: every public function, autodoc'd.</li>
 </ul>
 
 
