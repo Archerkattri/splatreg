@@ -64,11 +64,16 @@ Inside `init="learned"`, `seed_selector="mac"`
 correspondences** instead of the model's own LGR estimator — the exact combination the MAC
 paper reports lifting GeoTransformer's 3DLoMatch registration recall **~71 % → ~78 %**.
 
-!!! note "3DLoMatch numbers pending"
-    That recall lift is the *paper's* number, cited as the expectation — it has **not** yet
-    been verified on splatreg's implementation (it needs the 3DLoMatch dataset + the
-    GeoTransformer weights on a GPU box). What is verified today is the synthetic evidence
-    above. Needs networkx: `pip install "splatreg[mac]"`.
+!!! note "3DLoMatch verdict: measured, a wash — `lgr` stays the default"
+    Measured on the **full official splits** (GPU, single shared forward, native 0.025 voxel,
+    same residual-gated refine — only the hypothesis stage differs): 3DLoMatch
+    **72.1 % mean / 74.6 % pooled** (MAC) vs **72.5 % / 74.4 %** (LGR); 3DMatch **91.7 % /
+    93.8 %** vs **91.5 % / 93.5 %**. Every delta is within ±4 pairs — *not* the paper's
+    +6–7 pp — at ~+50 % runtime. MAC genuinely engaged on 100 % of pairs (median ~600–800
+    consensus inliers): at native voxel the learned correspondences are already
+    consensus-dominated, so the multi-consensus regime MAC wins (the synthetic decoy above)
+    does not occur, and the guarded refine absorbs seed-level differences. Details in
+    `RESULTS.md` §5k. Needs networkx: `pip install "splatreg[mac]"`.
 
 ## Partial overlap: the honest contract
 

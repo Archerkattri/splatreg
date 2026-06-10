@@ -95,6 +95,7 @@ the official protocol. That 94% is retired from all comparisons.)
 | Method | 3DMatch RR | RRE | RTE | 3DLoMatch RR |
 |---|---|---|---|---|
 | **splatreg `learned`** (GeoTransformer LGR + our refine, **native 0.025 voxel**) | **91.5%** mean-of-scenes / 93.5% pooled | **1.81°** | **0.071 m** | **72.5%** mean / **74.4%** pooled |
+| splatreg `learned`, `seed_selector="mac"` (MAC cliques over the same correspondences — measured §5k) | 91.7% / 93.8% | 1.83° | 0.071 m | 72.1% mean / 74.6% pooled |
 | splatreg `learned` (legacy 0.05 voxel) | 86.3% / 89.1% | 1.87° | 0.071 m | 55.3% |
 | splatreg `robust` (classical Open3D seed) | ~67.1% | — | — | ~15% |
 | GeoTransformer (published, full coarse-to-fine) | ~92% | — | — | ~74% |
@@ -463,7 +464,7 @@ unchanged; exact `C·H = σ̂²I` consistency; the all-points-identical degenera
 `CUDA_VISIBLE_DEVICES=""`): **6/6 cells within gate in 40.7 s wall** — worst rot err 0.158°,
 worst trans 1.41 mm, worst scale err 0.144%, peak RSS 0.85 GiB.
 
-## 5k. MAC maximal-clique seed (`init="mac"`) — synthetic validation (3DLoMatch pending)
+## 5k. MAC maximal-clique seed (`init="mac"`) — synthetic validation + measured 3DMatch/3DLoMatch verdict
 
 MAC (*3D Registration with Maximal Cliques*, Zhang, Sun, Wang & Guo, CVPR 2023) replaces
 RANSAC-style hypothesis generation, reimplemented in pure torch + networkx (`splatreg/mac.py`;
@@ -502,13 +503,36 @@ targets. Degenerate inputs (0/2 correspondences, all-outlier) return an honest
 `success=False` identity with the sub-floor consensus count reported — never a silent wrong
 pose.
 
-**Pending (honesty):** the MAC paper reports lifting GeoTransformer's **3DLoMatch**
-registration recall ~71 % → ~78 % when MAC replaces its hypothesis generation; the hook is
-implemented (`learned_feature_align(..., seed_selector="mac")` runs MAC over GeoTransformer's
-learned correspondences at the paper's 0.10 m inlier threshold) but the benchmark needs the
-3DLoMatch data + GeoTransformer weights on a GPU box and has **not** been run on this
-implementation — we cite the paper for the expectation and claim only the synthetic table
-above.
+**Measured on the full official splits (2026-06-10, RTX 5090,
+`benchmarks/threedmatch_official_bench.py --init learned --seed-selector {lgr,mac}`):**
+`seed_selector="mac"` runs MAC over GeoTransformer's learned correspondences at the paper's
+0.10 m inlier threshold; both arms share the model forward, the native 0.025 voxel and the
+same residual-gated refine, so the ONLY difference is the hypothesis stage (LGR vs MAC).
+The LGR arm **reproduces the published numbers exactly** (91.5/93.5, 72.5/74.4 — harness
+confirmed).
+
+| split (official, non-adjacent pairs) | LGR (default) | MAC | Δ |
+|---|---|---|---|
+| 3DMatch RR (1279 pairs) | 91.5 % mean / 93.5 % pooled (1196) | 91.7 % mean / 93.8 % pooled (1200) | +0.2 / +0.3 pp |
+| 3DLoMatch RR (1726 pairs) | 72.5 % mean / 74.4 % pooled (1285) | 72.1 % mean / 74.6 % pooled (1287) | −0.4 / +0.2 pp |
+| 3DLoMatch RRE / RTE (success subset) | 3.07° / 0.099 m | 3.18° / 0.101 m | ≈ tie |
+| median ms/pair | 284 / 302 | 430 / 450 | ~+50 % |
+
+MAC genuinely engaged on **100 % of pairs** (0 LGR fallbacks, 1 truncated enumeration across
+both splits; 3DLoMatch median 3830 correspondences → 2555 maximal cliques → 64 hypotheses →
+602 consensus inliers; 3DMatch median 5137 → 2565 → 64 → 803).
+
+**Verdict: a wash, not the paper's ~71 → 78 % lift** — every delta is within ±4 pairs of LGR.
+The plausible reasons, stated honestly: (1) at native voxel GeoTransformer's correspondence
+sets are already *consensus-dominated* (median 600–800 MAC inliers out of ≤ 1000 graphed) —
+in that regime any sane hypothesis stage finds the same pose, and the multi-consensus /
+high-outlier regime where MAC provably wins (the synthetic decoy table above) simply does not
+occur; (2) our residual-gated ICP refine sits on top of BOTH arms and absorbs seed-level
+differences, whereas the paper compares raw hypothesis stages; (3) our implementation caps the
+graph at 1000 correspondences (deterministic subsample of the ~4–5 k available) — the paper
+runs richer sets. **`init="learned"` keeps `seed_selector="lgr"` as the default** (equal
+recall, ~35 % faster); `"mac"` stays available as the contaminated-correspondence tool it was
+validated to be, not as a 3DLoMatch booster.
 
 ## 6. Honest limitations (no overstating)
 

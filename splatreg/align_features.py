@@ -1582,13 +1582,15 @@ def _geotransformer_seed(src: torch.Tensor, tgt: torch.Tensor, device: torch.dev
 
 def _geotransformer_correspondences(
     src: torch.Tensor, tgt: torch.Tensor, device: torch.device
-) -> tuple[torch.Tensor, torch.Tensor] | None:
-    """GeoTransformer's learned dense correspondences ``(src_corr, tgt_corr)``, or ``None``.
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None] | None:
+    """GeoTransformer's learned correspondences ``(src_corr, tgt_corr, T_lgr)``, or ``None``.
 
     Same forward as :func:`_geotransformer_seed` but returns the model's matched point pairs
-    (``src_corr_points`` / ``ref_corr_points``) instead of its LGR-estimated transform — the
-    input the MAC maximal-clique hypothesis stage needs (``seed_selector="mac"``).  Returns
-    ``None`` on any failure so the caller can fall back.
+    (``src_corr_points`` / ``ref_corr_points``) — the input the MAC maximal-clique hypothesis
+    stage needs (``seed_selector="mac"``) — PLUS the model's own LGR ``estimated_transform``
+    from the SAME forward (``T_lgr``, 4×4 float64 or ``None``), so a caller whose MAC consensus
+    fails can fall back to LGR without paying a second model forward.  Returns ``None`` on any
+    failure so the caller can fall back.
     """
     bundle = _load_geotransformer(device)
     if bundle is None:
@@ -1622,7 +1624,12 @@ def _geotransformer_correspondences(
         tgt_corr = torch.as_tensor(_np.asarray(out["ref_corr_points"]), dtype=torch.float32)
         if src_corr.shape[0] < 3 or src_corr.shape != tgt_corr.shape:
             return None
-        return src_corr, tgt_corr
+        T_lgr: torch.Tensor | None = None
+        try:
+            T_lgr = torch.as_tensor(_np.asarray(out["estimated_transform"]), dtype=torch.float64)
+        except Exception:
+            T_lgr = None
+        return src_corr, tgt_corr, T_lgr
     except Exception:
         return None
 
@@ -1662,8 +1669,10 @@ def learned_feature_align(
     extraction or MAC consensus fails, so the contract is unchanged.
 
     Args / Returns: identical contract to :func:`robust_feature_align`; ``info`` additionally carries
-    ``used_learned`` (bool) and ``seed`` (``"geotransformer"`` / ``"geotransformer+mac"`` /
-    ``"robust-fallback"``).
+    ``used_learned`` (bool), ``seed`` (``"geotransformer"`` / ``"geotransformer+mac"`` /
+    ``"robust-fallback"``) and — when ``seed_selector="mac"`` ran the clique stage — ``mac``
+    (its stats: ``success`` / ``n_matches`` / ``n_inliers`` / ``n_cliques`` / ``n_hypotheses`` /
+    ``truncated``).
     """
     if transform not in ("se3", "sim3"):
         raise ValueError(f"transform must be 'se3' or 'sim3', got {transform!r}")
@@ -1690,6 +1699,8 @@ def learned_feature_align(
     seed_name = "geotransformer"
     if seed_selector == "mac":
         # MAC hypothesis stage over the learned correspondences (instead of the model's LGR).
+        # ONE model forward supplies both the matched pairs and the LGR estimate, so the
+        # consensus-failure fallback to LGR below never pays a second forward.
         corr = _geotransformer_correspondences(src_full, tgt_full, dev)
         if corr is not None:
             try:
@@ -1698,11 +1709,22 @@ def learned_feature_align(
                 # 0.10 m inlier threshold = the MAC paper's 3DMatch/3DLoMatch evaluation setting
                 # (scene-scale scans; the object-scale _FS_INLIER_TOL would starve the consensus).
                 rr = mac_pose(corr[0].to(dev), corr[1].to(dev), with_scale=with_scale, inlier_tol=0.10)
+                info["mac"] = {
+                    "success": bool(rr["success"]),
+                    "n_matches": int(rr["n_matches"]),
+                    "n_inliers": int(rr["n_inliers"]),
+                    "n_cliques": int(rr["n_cliques"]),
+                    "n_hypotheses": int(rr["n_hypotheses"]),
+                    "truncated": bool(rr["truncated"]),
+                }
                 if rr["success"]:
                     T_seed = rr["T"].to(torch.float64)
                     seed_name = "geotransformer+mac"
             except Exception:
                 T_seed = None  # MAC unavailable/failed -> LGR fallback below
+            if T_seed is None and corr[2] is not None:
+                # MAC found no consensus -> the model's own LGR estimate from the SAME forward.
+                T_seed = corr[2]
     if T_seed is None:
         T_seed = _geotransformer_seed(src_full, tgt_full, dev)
     if T_seed is None:
