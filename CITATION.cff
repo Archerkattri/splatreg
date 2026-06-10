@@ -17,7 +17,7 @@ authors:
   - family-names: "Attri"
     given-names: "Krishi"
     email: "krishiattriwork@gmail.com"
-version: "1.3.0"
+version: "1.3.1"
 date-released: "2026-06-10"
 license: "BSD-3-Clause"
 repository-code: "https://github.com/Archerkattri/splatreg"
