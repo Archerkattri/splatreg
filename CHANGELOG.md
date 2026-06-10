@@ -3,7 +3,7 @@
 All notable changes to splatreg. Every claim below is backed by a recorded run or a test;
 the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
 
-## Unreleased
+## 1.3.1 (2026-06-10)
 
 ### Fixed
 
