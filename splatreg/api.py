@@ -541,10 +541,15 @@ def _apply_transform_to_gaussians(g: Gaussians, T: torch.Tensor, scale: float = 
         means'  = s * (R @ means) + t          (= T applied to the homogeneous point)
         quats'  = quat(R) (x) quats            (compose the pure rotation onto each anchor)
         scales' = s * scales (linear)          (the similarity scales each anchor's extent)
+        SH'     = D(R) @ SH                    (real-SH Wigner-D rotation of the colour lobes)
 
-    Opacities/colors carry through unchanged. For SE(3) (``scale == 1``) this is the rigid update
-    (scales untouched). Log-scales are handled in log space (``log s`` added) so the splat's
-    ``log_scales`` flag is preserved either way.
+    Opacities carry through unchanged; so do plain ``(N, 3)`` RGB colours (view-independent).
+    ``(N, K, 3)`` spherical-harmonic colours are a *function on the view sphere*, so their
+    higher-order bands are rotated with the splat via the block-diagonal real-SH Wigner-D matrix
+    (:func:`splatreg.sh.rotate_sh`, Ivanic–Ruedenberg recurrence; the DC band is rotation-
+    invariant and the Sim(3) scale does not touch colour). For SE(3) (``scale == 1``) the
+    geometric update is rigid (scales untouched). Log-scales are handled in log space (``log s``
+    added) so the splat's ``log_scales`` flag is preserved either way.
     """
     T = T.to(device=g.means.device, dtype=g.means.dtype)
     block = T[:3, :3]
@@ -560,12 +565,22 @@ def _apply_transform_to_gaussians(g: Gaussians, T: torch.Tensor, scale: float = 
         scales = g.scales + torch.log(g.scales.new_tensor(s))
     else:
         scales = g.scales * s
+
+    if g.colors is None:
+        colors = None
+    elif g.colors.dim() == 3 and g.colors.shape[1] > 1:
+        # SH stack with higher-order bands: rotate the view-dependent lobes WITH the splat.
+        from .sh import rotate_sh  # local import keeps api import-light
+
+        colors = rotate_sh(g.colors, R)
+    else:
+        colors = g.colors.clone()  # RGB / DC-only: rotation-invariant
     return Gaussians(
         means=means,
         quats=quats,
         scales=scales,
         opacities=g.opacities.clone(),
-        colors=None if g.colors is None else g.colors.clone(),
+        colors=colors,
         log_scales=g.log_scales,
     )
 
@@ -617,8 +632,10 @@ def apply_transform(gaussians: Gaussians, T: torch.Tensor, scale: float = 1.0) -
 
     Equivalent to the CLI: ``splatreg align target.ply source.ply -o source_aligned.ply``.
     ``T`` is the 4x4 from :class:`RegisterResult` (top-left block ``scale * R``); pass
-    ``result.scale`` for Sim(3) (``1.0`` for SE(3)). Note: DC color is rotation-invariant and
-    quats are composed correctly; higher-order SH lobes are not yet Wigner-rotated.
+    ``result.scale`` for Sim(3) (``1.0`` for SE(3)). Colour is handled fully: DC is
+    rotation-invariant, quats are composed, and higher-order SH bands (``f_rest``) are
+    Wigner-rotated in the real basis (:mod:`splatreg.sh`) so view-dependent colour turns
+    with the splat.
     """
     return _apply_transform_to_gaussians(gaussians, T, scale)
 

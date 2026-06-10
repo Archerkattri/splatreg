@@ -477,6 +477,8 @@ def _transform_gaussians_diff(g: Gaussians, T: torch.Tensor) -> Gaussians:
     NOTE on SH colors: view-dependent SH coefficients are NOT rotated here (the DC term is
     rotation-invariant). For the small refinement deltas this stage takes that approximation is
     second-order; for strongly view-dependent splats prefer RGB colors (``sh_degree=None``).
+    The final bake-in path (``api._apply_transform_to_gaussians``) DOES Wigner-rotate the SH
+    bands (:mod:`splatreg.sh`), so the saved/merged splat's colour is exact regardless.
     """
     T = T.to(device=g.means.device, dtype=g.means.dtype)
     block = T[:3, :3]
