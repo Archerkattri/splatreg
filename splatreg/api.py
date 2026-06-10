@@ -163,6 +163,38 @@ def _learned_init(target, source: Any, transform: str, device, dtype) -> tuple[t
     return T.to(device=device, dtype=dtype), info
 
 
+def _mac_init(target, source: Any, transform: str, device, dtype) -> tuple[torch.Tensor, dict]:
+    """MAC maximal-clique coarse init from :func:`splatreg.mac.mac_feature_align` + info.
+
+    MAC (Zhang et al., CVPR 2023) replaces RANSAC-style hypothesis generation: a rigidity
+    compatibility graph over the FPFH correspondences (SC^2 second-order weighted), maximal
+    cliques as consensus hypotheses, a weighted SVD per clique, and the inlier-count winner —
+    then the same overlap-aware ICP polish the other registrars use.  Falls back to identity
+    (with ``ambiguous=True``) when the feature/mac modules are unavailable or when the
+    correspondences carry no consistent consensus (honest ``success=False``, never silently
+    wrong).  Needs networkx (``pip install "splatreg[mac]"``).
+    """
+    empty_info = {
+        "n_matches": 0,
+        "n_inliers": 0,
+        "n_cliques": 0,
+        "success": False,
+        "ambiguous": True,
+        "confidence": 0.0,
+    }
+    try:
+        from splatreg.mac import mac_feature_align
+    except Exception as exc:  # pragma: no cover
+        _log.info(
+            "init='mac' requested but splatreg.mac is unavailable (%s); "
+            "falling back to identity init.",
+            exc,
+        )
+        return _identity(device, dtype), dict(empty_info)
+    T, info = mac_feature_align(target, source, transform=transform)
+    return T.to(device=device, dtype=dtype), info
+
+
 def _fast_init(target, source: Any, transform: str, device, dtype) -> torch.Tensor:
     """Coarse 4x4 LM seed from the FAST feature path (FPFH + GPU-batched RANSAC), or identity.
 
@@ -342,6 +374,16 @@ def register(
           classical FPFH ~77 % ceiling) supplies the coarse seed, then the SAME overlap-aware ICP
           (+ Sim(3) scale) refine as ``"robust"``.  Falls back to ``"robust"`` (then identity) when
           GeoTransformer's module / built CUDA-ext / pretrained weights are unavailable.
+        * ``"mac"`` — MAC maximal-clique registrar (:func:`splatreg.mac.mac_feature_align`;
+          Zhang et al., CVPR 2023): instead of RANSAC minimal samples, hypotheses come from the
+          **maximal cliques** of an SC²-weighted rigidity-compatibility graph over the FPFH
+          correspondences — each clique gets a weighted-SVD pose, the inlier-count winner is
+          refit on its consensus set, then the same overlap-aware ICP polish as ``"robust"``.
+          Robust to heavily outlier-contaminated correspondence sets (including multi-consensus
+          decoys that defeat a greedy prefilter + RANSAC); on an all-outlier set it returns an
+          honest ``info['success']=False`` / ``ambiguous=True`` identity instead of a silent
+          wrong pose.  Like the other registrars it returns the registration DIRECTLY under the
+          default residuals.  Needs networkx (``pip install "splatreg[mac]"``).
 
         All string forms are guarded — fall back to identity with a logged note if the module
         is unavailable. For ``init="global"`` the chosen transform seeds the LM.
@@ -440,9 +482,12 @@ def register(
             T0, feature_info = _robust_init(target, source, transform, device, dtype)
         elif init == "learned":
             T0, feature_info = _learned_init(target, source, transform, device, dtype)
+        elif init == "mac":
+            T0, feature_info = _mac_init(target, source, transform, device, dtype)
         else:
             raise ValueError(
-                "init string must be 'fast', 'robust', 'learned', 'global', or 'features', " f"got {init!r}"
+                "init string must be 'fast', 'robust', 'learned', 'mac', 'global', or 'features', "
+                f"got {init!r}"
             )
     elif init is None:
         # Default to the FAST feature init (FPFH + GPU-batched RANSAC, ~20-35 ms) so a bare
@@ -452,7 +497,7 @@ def register(
     else:
         T0 = init.to(device=device, dtype=dtype)
 
-    feature_only = init in ("features", "robust", "learned") and not user_residuals
+    feature_only = init in ("features", "robust", "learned", "mac") and not user_residuals
     if feature_only:
         # Return the self-contained feature registration (no full-overlap LM that would corrupt a
         # partial-overlap init).  Recover the scale from the transform block for Sim(3).

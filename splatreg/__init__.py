@@ -59,6 +59,13 @@ except ImportError:  # pragma: no cover
 # v1.2: real-SH Wigner-D rotation (pure torch — rotates f_rest with the splat).
 from .sh import rotate_sh, sh_rotation_matrix  # noqa: F401
 
+# post-v1.2: MAC maximal-clique correspondence seed (init="mac"; clique enumeration needs the
+# optional networkx — the import itself is torch-only, the dependency is checked at call time).
+try:
+    from .mac import mac_pose, mac_feature_align  # noqa: F401
+except ImportError:  # pragma: no cover
+    mac_pose = mac_feature_align = None  # type: ignore
+
 __version__ = "1.2.0"
 __all__ = [
     "apply_transform",
@@ -95,4 +102,7 @@ __all__ = [
     # v1.2 SH Wigner rotation
     "rotate_sh",
     "sh_rotation_matrix",
+    # MAC maximal-clique seed (init="mac")
+    "mac_pose",
+    "mac_feature_align",
 ]

@@ -78,8 +78,8 @@ is scale + implicit-field robustness, and it costs ~80× in SE(3) (see limitatio
 
 ## 5. Test suite (library-bar rigor)
 
-`pytest tests/` → **126 passing** (Jacobian audit + Lie ops + LM solver + io round-trip + CLI +
-photometric/exposure/ladder + SH Wigner rotation + pose covariance). `tests/conftest.py` (deterministic
+`pytest tests/` → **143 passing** (Jacobian audit + Lie ops + LM solver + io round-trip + CLI +
+photometric/exposure/ladder + SH Wigner rotation + pose covariance + MAC maximal-clique seed). `tests/conftest.py` (deterministic
 seed fixture), `splatreg/testing.py` (a shippable `assert_residual_jacobian` so every future
 residual gets the numerical audit — the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS` equivalent).
 `black` + `mypy` are clean and `splatreg/py.typed` ships.
@@ -462,6 +462,53 @@ unchanged; exact `C·H = σ̂²I` consistency; the all-points-identical degenera
 30 iters; same protocol + gates). Recorded run (CPU, `OMP_NUM_THREADS=2`,
 `CUDA_VISIBLE_DEVICES=""`): **6/6 cells within gate in 40.7 s wall** — worst rot err 0.158°,
 worst trans 1.41 mm, worst scale err 0.144%, peak RSS 0.85 GiB.
+
+## 5k. MAC maximal-clique seed (`init="mac"`) — synthetic validation (3DLoMatch pending)
+
+MAC (*3D Registration with Maximal Cliques*, Zhang, Sun, Wang & Guo, CVPR 2023) replaces
+RANSAC-style hypothesis generation, reimplemented in pure torch + networkx (`splatreg/mac.py`;
+no vendored C++): rigidity compatibility graph (`|‖p_i−p_j‖ − ‖q_i−q_j‖| < γ`) re-weighted by
+the **SC² second-order measure** (`w₂ = s ⊙ (S·S)` — chance-compatible outlier pairs share no
+common neighbourhood, so their weight collapses), **maximal cliques** (Bron–Kerbosch, lazy
+generator) as consensus hypotheses, **weighted SVD** (Kabsch, SC² weights) per clique,
+inlier-count winner refit on its consensus set, then the standard overlap-aware ICP polish.
+Worst-case caps (the paper applies the same kind): ≤ 1000 correspondences, per-node degree cap
+48 (top edges by SC² weight, AND-symmetrised → hard bound), clique-count cap 10k + 4 s wall
+budget on the enumeration (both exact — the lazy generator is cut, not the returned list),
+node-guided selection → ≤ 64 hypotheses. Sim(3) (the paper is SE(3)-only): scale first from the
+**median correspondence pairwise-distance ratio**, de-scale, SE(3) MAC, residual-scale refit on
+the consensus inliers.
+
+Measured (CPU `OMP_NUM_THREADS=2`, synthetic contaminated correspondence sets, 200 corr,
+40° / [0.1,−0.05,0.2] m true pose, 3 mm inlier noise — `tests/test_mac.py`, 18 tests):
+
+| set | MAC rot err | fast-init RANSAC engine rot err |
+|---|---|---|
+| 30 % random outliers | 0.04° | 0.04° |
+| 60 % random outliers | 0.16° | 0.16° |
+| 90 % random outliers | 0.16° | 0.16° |
+| 60 % outliers, structured decoy | 0.16° | 0.16° |
+| **90 % outliers, structured decoy** | **0.16°** | **78.0° (failed)** |
+| 100 % outliers | honest `success=False`, T = I | — |
+| Sim(3), 50 % outliers, s = 1.7 | scale err 0.02 %, rot 0.05° | — |
+| runtime, 500 corr | **0.09 s** (< 5 s budget, asserted) | — |
+
+The *structured decoy* is a reflection-consistent outlier cluster (pairwise distances preserved
+→ it forms a large compatible component that **out-degrees the true inliers**, so the greedy
+max-degree clique prefilter feeds RANSAC the wrong consensus; no proper rigid pose fits a
+reflection, so every hypothesis drawn from it is wrong). MAC enumerates *both* consensus
+cliques and the true one wins on inlier count — exactly the multi-consensus regime the paper
+targets. Degenerate inputs (0/2 correspondences, all-outlier) return an honest
+`success=False` identity with the sub-floor consensus count reported — never a silent wrong
+pose.
+
+**Pending (honesty):** the MAC paper reports lifting GeoTransformer's **3DLoMatch**
+registration recall ~71 % → ~78 % when MAC replaces its hypothesis generation; the hook is
+implemented (`learned_feature_align(..., seed_selector="mac")` runs MAC over GeoTransformer's
+learned correspondences at the paper's 0.10 m inlier threshold) but the benchmark needs the
+3DLoMatch data + GeoTransformer weights on a GPU box and has **not** been run on this
+implementation — we cite the paper for the expectation and claim only the synthetic table
+above.
 
 ## 6. Honest limitations (no overstating)
 
