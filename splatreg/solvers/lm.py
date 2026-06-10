@@ -276,9 +276,20 @@ def run_lm(
     Returns
     -------
     :class:`~splatreg.core.types.RegisterResult` with the refined ``T`` and an ``info`` dict
-    holding ``cost`` (final 0.5||Wr||^2), ``cost_history``, ``n_iters``, ``rmse``, and ``dof``.
-    For ``transform="sim3"`` the returned ``T`` is the full similarity ``[[s*R, t], [0, 1]]`` and
-    ``scale`` is the recovered ``s``; the SE(3) path keeps ``scale == 1``.
+    holding ``cost`` (final 0.5||Wr||^2), ``cost_history``, ``n_iters``, ``rmse``, ``dof``, plus
+    the pose-uncertainty pair for pose-graph / loop-closure use:
+
+    * ``info["information"]`` — the UNDAMPED Gauss-Newton information matrix ``JᵀWJ`` at the
+      final accepted linearisation (``(6, 6)`` for SE(3); ``(7, 7)`` for Sim(3), log-scale
+      channel last — the tangent ordering ``[tx, ty, tz, rx, ry, rz, (log_s)]``).
+    * ``info["covariance"]`` — its inverse scaled by the unbiased residual variance
+      ``σ̂² = ||Wr||² / (R − dof)`` (the classic NLLS pose covariance: 2x the residual noise
+      means ~4x the covariance). ``None`` when ``JᵀWJ`` is singular (under-constrained pose —
+      inspect ``information``'s null space instead).
+
+    Both are torch tensors on the solve device. For ``transform="sim3"`` the returned ``T`` is
+    the full similarity ``[[s*R, t], [0, 1]]`` and ``scale`` is the recovered ``s``; the SE(3)
+    path keeps ``scale == 1``.
     """
     dof = _DOF.get(transform)
     if dof is None:
@@ -341,9 +352,31 @@ def run_lm(
     last_cost = cost_history[-1] if cost_history else float("nan")
 
     rmse = float("nan")
+    information = None
+    covariance = None
     if problem is not None:
         wr = problem.weight.reshape(-1) * problem.r
         rmse = float((wr * wr).mean().clamp_min(0.0).sqrt().item()) if wr.numel() else float("nan")
+        # Pose information / covariance from the FINAL ACCEPTED LINEARISATION (the last assembled
+        # JᵀWJ — at convergence the linearisation point and the returned T differ by a step below
+        # `convergence_tol`, so this is the Gauss-Newton information at the solution without
+        # paying an extra residual+Jacobian pass in the hot loop). `information` is the UNDAMPED
+        # JᵀWJ (dof×dof; 6 for SE(3), 7 for Sim(3) with the log-scale channel last);
+        # `covariance` is its inverse scaled by the unbiased residual-variance estimate
+        # σ̂² = ||Wr||² / (R − dof) — the classic nonlinear-least-squares pose covariance, so
+        # noisier data honestly reports a looser covariance. `covariance` is None when the
+        # system is singular (under-constrained problem: trust `information`'s null space).
+        if wr.numel():
+            Jw = problem.J * problem.weight.reshape(-1, 1)
+            information = Jw.transpose(-1, -2) @ Jw
+            n_rows = int(problem.r.shape[0])
+            sigma2 = float((wr * wr).sum().item()) / max(n_rows - dof, 1)
+            try:
+                covariance = sigma2 * torch.linalg.inv(information)
+                if not bool(torch.isfinite(covariance).all()):
+                    covariance = None
+            except RuntimeError:  # exactly singular JᵀWJ
+                covariance = None
 
     # Recover the similarity scale from the final transform (cube-root of the 3x3 block det); for
     # SE(3) the block is a pure rotation so this is exactly 1.0.
@@ -356,5 +389,7 @@ def run_lm(
         "rmse": rmse,
         "dof": dof,
         "transform": transform,
+        "information": information,
+        "covariance": covariance,
     }
     return RegisterResult(T=T, scale=scale, converged=converged, info=info)
