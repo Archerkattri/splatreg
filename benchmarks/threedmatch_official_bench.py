@@ -203,6 +203,18 @@ def main():
     )
     ap.add_argument("--init", default="robust",
                     choices=["fast", "robust", "learned", "features", "global", "open3d"])
+    ap.add_argument(
+        "--seed-selector",
+        default="lgr",
+        choices=["lgr", "mac"],
+        help=(
+            "init='learned' ONLY: hypothesis stage over GeoTransformer's correspondences. "
+            "'lgr' (default) = the model's own local-to-global estimate (the published-numbers "
+            "path); 'mac' = MAC maximal-clique consensus (Zhang et al. CVPR 2023, paper 0.10 m "
+            "inlier threshold) with single-forward LGR fallback. Per-scene MAC engage/clique "
+            "stats are logged."
+        ),
+    )
     ap.add_argument("--device", default=os.environ.get("SPLATREG_DEVICE", "cpu"))
     ap.add_argument("--max-pairs", type=int, default=0, help="0 = all official pairs")
     ap.add_argument("--scenes", default="", help="comma-sep scene subset (default all 8)")
@@ -220,6 +232,9 @@ def main():
     total_gt = total_pos = total_pred = 0
     all_errors = []
     ms_list = []
+    # seed_selector='mac' diagnostics (init='learned' only).
+    mac_engaged = mac_fallback = mac_truncated = 0
+    mac_cliques, mac_hyps, mac_inliers, mac_matches = [], [], [], []
     t_start = time.perf_counter()
 
     for scene in scenes:
@@ -265,6 +280,33 @@ def main():
             t0 = time.perf_counter()
             if args.init == "open3d":
                 T_est = open3d_fpfh_ransac(src, tgt, args.voxel)
+            elif args.init == "learned":
+                # Same path register(init='learned') short-circuits to (default residuals ->
+                # the learned registrar's pose is returned DIRECTLY), called directly so the
+                # seed_selector hypothesis stage ('lgr' = published-numbers default / 'mac')
+                # is selectable and the MAC clique stats are visible.
+                from splatreg.align_features import learned_feature_align
+
+                T_t, linfo = learned_feature_align(
+                    to_gaussians(tgt, device), to_gaussians(src, device),
+                    transform="se3", seed_selector=args.seed_selector,
+                )
+                T_est = T_t.detach().cpu().numpy().astype(np.float64)
+                if args.seed_selector == "mac":
+                    mi = linfo.get("mac")
+                    if mi is not None:
+                        mac_matches.append(mi["n_matches"])
+                        mac_cliques.append(mi["n_cliques"])
+                        mac_hyps.append(mi["n_hypotheses"])
+                        if mi["truncated"]:
+                            mac_truncated += 1
+                        if linfo.get("seed") == "geotransformer+mac":
+                            mac_engaged += 1
+                            mac_inliers.append(mi["n_inliers"])
+                        else:
+                            mac_fallback += 1
+                    else:
+                        mac_fallback += 1  # correspondence extraction failed -> LGR/robust path
             else:
                 res = register(to_gaussians(tgt, device), to_gaussians(src, device),
                                init=args.init, transform="se3")
@@ -290,7 +332,8 @@ def main():
 
     dt = time.perf_counter() - t_start
     print("\n" + "=" * 68)
-    print(f"OFFICIAL {args.split}   init={args.init!r}   voxel={args.voxel}   device={device}")
+    sel = f"   seed_selector={args.seed_selector!r}" if args.init == "learned" else ""
+    print(f"OFFICIAL {args.split}   init={args.init!r}{sel}   voxel={args.voxel}   device={device}")
     print("=" * 68)
     print(f"  pairs evaluated      : {total_pred} / {total_gt} official non-adjacent")
     # Official RR = mean of per-scene recalls (Choi/GeoTransformer report this).
@@ -301,6 +344,18 @@ def main():
         print(f"  RTE (mean, success)  : {np.mean(scene_rte):.3f} m")
     print(f"  median ms/pair       : {np.median(ms_list):.1f}")
     print(f"  total wall           : {dt:.1f} s")
+    if args.init == "learned" and args.seed_selector == "mac":
+        n_run = mac_engaged + mac_fallback
+        print(
+            f"  MAC engaged          : {mac_engaged}/{n_run} pairs "
+            f"({mac_fallback} LGR-fallback, {mac_truncated} truncated enumerations)"
+        )
+        if mac_matches:
+            print(
+                f"  MAC stats (median)   : {np.median(mac_matches):.0f} corr -> "
+                f"{np.median(mac_cliques):.0f} cliques -> {np.median(mac_hyps):.0f} hyps"
+                + (f" -> {np.median(mac_inliers):.0f} consensus inliers" if mac_inliers else "")
+            )
     print("=" * 68)
 
 

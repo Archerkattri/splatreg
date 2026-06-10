@@ -65,12 +65,19 @@ Canonical Choi/Zeng protocol (1279 non-adjacent `gt.log` pairs, covariance-weigh
 | Method | 3DMatch RR | RRE | RTE | 3DLoMatch RR |
 |---|---|---|---|---|
 | **splatreg `learned`** (GeoTransformer seed + guarded refine) | **91.5%** / 93.5% pooled | 1.81° | 0.071 m | 72.5% / **74.4%** pooled |
+| splatreg `learned`, `seed_selector="mac"` (MAC cliques, same forward/refine) | 91.7% / 93.8% | 1.83° | 0.071 m | 72.1% / 74.6% pooled |
 | splatreg `robust` (classical Open3D seed) | ~67.1% | — | — | ~15% |
 | GeoTransformer (published) | ~92% | — | — | ~74% |
 | Open3D FPFH+RANSAC | ~77% | — | — | ~20% |
 
 The refine is *guarded* (accepted only when it does not worsen the overlap residual): a
 per-pair audit found **0 pairs** where it demoted a GeoTransformer success.
+
+The `seed_selector="mac"` row is the measured answer to "does the MAC paper's ~71→78 %
+3DLoMatch lift transfer?": **no — a wash** (every delta within ±4 pairs, ~+50 % runtime), because
+at native voxel GeoTransformer's correspondences are already consensus-dominated (median
+600–800 MAC inliers) and the guarded refine absorbs seed-level differences. `lgr` stays the
+default; details in `RESULTS.md` §5k.
 
 ## Object pose (ADD / ADD-S)
 
