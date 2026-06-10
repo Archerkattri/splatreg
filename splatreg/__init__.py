@@ -16,7 +16,7 @@ from .quality import QualityConfig, resolve_quality
 
 # The high-level pipeline (splatreg.api) is added by the carve; tolerate its absence pre-build.
 try:
-    from .api import register, merge, Tracker  # noqa: F401
+    from .api import apply_transform, register, merge, Tracker  # noqa: F401
 except ImportError:
     register = merge = Tracker = None  # type: ignore
 
@@ -58,6 +58,7 @@ except ImportError:  # pragma: no cover
 
 __version__ = "1.1.0"
 __all__ = [
+    "apply_transform",
     "register",
     "merge",
     "Tracker",
