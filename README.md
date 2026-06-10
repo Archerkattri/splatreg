@@ -133,7 +133,10 @@ splatreg is the **only library** that registers native Gaussian splats with SE(3
 | `"fast"` *(default)* | FPFH + GPU-batched RANSAC seed → closed-form LM | objects / full-overlap, **~17 ms** |
 | `"robust"` | Open3D FPFH+RANSAC seed → splatreg refine + scale | real metre-scale scans |
 | `"learned"` | pretrained GeoTransformer seed → splatreg refine + scale | best accuracy on real scans |
+| `"mac"` | MAC maximal-clique consensus (Zhang et al. CVPR 2023) over the correspondences → weighted SVD → refine | outlier-heavy / multi-consensus correspondence sets |
 | `"global"` | blind super-Fibonacci SO(3) sweep | robust fallback, any rotation |
+
+`init="mac"` reimplements the MAC hypothesis generator (rigidity compatibility graph with the SC² second-order weighting → maximal cliques → weighted SVD per clique, with explicit correspondence/degree/clique-count/time caps) in pure torch + networkx (`pip install "splatreg[mac]"`). *Evidence ([`tests/test_mac.py`](tests/test_mac.py), CPU synthetic):* matches the fast-init RANSAC engine at 30/60/90 % random outliers (≤ 0.2° rot err); on a 90 %-contaminated set with a structured (reflection-consistent) decoy cluster the greedy-prefilter+RANSAC engine fails at ~78° while MAC stays < 0.2°; all-outlier sets return an honest `success=False` identity; 500 correspondences ≈ 0.1 s CPU. It also plugs into the learned path (`learned_feature_align(..., seed_selector="mac")` — MAC over GeoTransformer's correspondences, the combination the MAC paper reports lifting 3DLoMatch recall ~71→78 %; **that benchmark is pending on our implementation** — we cite the paper's number, not our own).
 
 ---
 
@@ -178,7 +181,7 @@ d(p)   = (p − q̃(p)) · ñ(p)                    # signed distance — the re
 Every number is reproducible; full record in [`RESULTS.md`](RESULTS.md).
 
 ```bash
-python -m pytest tests/ -q                        # 126 passing
+python -m pytest tests/ -q                        # 143 passing
 python tests/test_jacobians.py                    # analytic vs numerical Jacobian audit
 python examples/validate_recovery.py --fast       # CPU smoke: 6/6 recovery in ~41 s
 SPLATREG_DEVICE=cuda python examples/validate_recovery.py --device cuda   # 36/36 recovery

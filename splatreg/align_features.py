@@ -1580,6 +1580,53 @@ def _geotransformer_seed(src: torch.Tensor, tgt: torch.Tensor, device: torch.dev
         return None
 
 
+def _geotransformer_correspondences(
+    src: torch.Tensor, tgt: torch.Tensor, device: torch.device
+) -> tuple[torch.Tensor, torch.Tensor] | None:
+    """GeoTransformer's learned dense correspondences ``(src_corr, tgt_corr)``, or ``None``.
+
+    Same forward as :func:`_geotransformer_seed` but returns the model's matched point pairs
+    (``src_corr_points`` / ``ref_corr_points``) instead of its LGR-estimated transform — the
+    input the MAC maximal-clique hypothesis stage needs (``seed_selector="mac"``).  Returns
+    ``None`` on any failure so the caller can fall back.
+    """
+    bundle = _load_geotransformer(device)
+    if bundle is None:
+        return None
+    model, cfg, collate_fn, to_cuda, release_cuda = bundle
+    try:
+        import numpy as _np
+
+        ref_np = tgt.detach().cpu().to(torch.float32).numpy()
+        src_np = src.detach().cpu().to(torch.float32).numpy()
+        data_dict = {
+            "ref_points": ref_np,
+            "src_points": src_np,
+            "ref_feats": _np.ones((ref_np.shape[0], 1), dtype=_np.float32),
+            "src_feats": _np.ones((src_np.shape[0], 1), dtype=_np.float32),
+            "transform": _np.eye(4, dtype=_np.float32),
+        }
+        neighbor_limits = [38, 36, 36, 38]
+        data_dict = collate_fn(
+            [data_dict],
+            cfg.backbone.num_stages,
+            cfg.backbone.init_voxel_size,
+            cfg.backbone.init_radius,
+            neighbor_limits,
+        )
+        data_dict = to_cuda(data_dict) if str(device).startswith("cuda") else data_dict
+        with torch.no_grad():
+            out = model(data_dict)
+        out = release_cuda(out)
+        src_corr = torch.as_tensor(_np.asarray(out["src_corr_points"]), dtype=torch.float32)
+        tgt_corr = torch.as_tensor(_np.asarray(out["ref_corr_points"]), dtype=torch.float32)
+        if src_corr.shape[0] < 3 or src_corr.shape != tgt_corr.shape:
+            return None
+        return src_corr, tgt_corr
+    except Exception:
+        return None
+
+
 @torch.no_grad()
 def learned_feature_align(
     target: Gaussians,
@@ -1588,6 +1635,7 @@ def learned_feature_align(
     transform: str = "se3",
     voxel: float | None = None,
     refine_iters: int = 30,
+    seed_selector: str = "lgr",
 ) -> tuple[torch.Tensor, dict]:
     """LEARNED registrar: pretrained GeoTransformer seed + splatreg overlap-aware refine (+ Sim(3)).
 
@@ -1603,11 +1651,24 @@ def learned_feature_align(
     or its forward fails, it falls back to :func:`robust_feature_align` (classical seed) so the
     function always returns a pose.
 
+    ``seed_selector`` picks the hypothesis stage on top of GeoTransformer's learned
+    correspondences: ``"lgr"`` (default) uses the model's own local-to-global registration
+    estimate (``estimated_transform``); ``"mac"`` re-estimates the seed pose from the model's
+    matched point pairs with the MAC maximal-clique stage (:func:`splatreg.mac.mac_pose`,
+    Zhang et al. CVPR 2023 — the published 3DLoMatch tie-breaker; ~71→78 % recall over
+    GeoTransformer in their paper.  That number is **pending** verification on this
+    implementation — it needs the 3DLoMatch data + GeoTransformer features on a GPU box; see
+    ``docs_site/init-modes.md``).  ``"mac"`` falls back to ``"lgr"`` when the correspondence
+    extraction or MAC consensus fails, so the contract is unchanged.
+
     Args / Returns: identical contract to :func:`robust_feature_align`; ``info`` additionally carries
-    ``used_learned`` (bool) and ``seed`` (``"geotransformer"`` / ``"robust-fallback"``).
+    ``used_learned`` (bool) and ``seed`` (``"geotransformer"`` / ``"geotransformer+mac"`` /
+    ``"robust-fallback"``).
     """
     if transform not in ("se3", "sim3"):
         raise ValueError(f"transform must be 'se3' or 'sim3', got {transform!r}")
+    if seed_selector not in ("lgr", "mac"):
+        raise ValueError(f"seed_selector must be 'lgr' or 'mac', got {seed_selector!r}")
     with_scale = transform == "sim3"
     dev = source.means.device
     dtype = source.means.dtype
@@ -1625,7 +1686,25 @@ def learned_feature_align(
     if src_full.shape[0] < 4 or tgt_full.shape[0] < 4:
         return torch.eye(4, device=dev, dtype=dtype), info
 
-    T_seed = _geotransformer_seed(src_full, tgt_full, dev)
+    T_seed = None
+    seed_name = "geotransformer"
+    if seed_selector == "mac":
+        # MAC hypothesis stage over the learned correspondences (instead of the model's LGR).
+        corr = _geotransformer_correspondences(src_full, tgt_full, dev)
+        if corr is not None:
+            try:
+                from .mac import mac_pose
+
+                # 0.10 m inlier threshold = the MAC paper's 3DMatch/3DLoMatch evaluation setting
+                # (scene-scale scans; the object-scale _FS_INLIER_TOL would starve the consensus).
+                rr = mac_pose(corr[0].to(dev), corr[1].to(dev), with_scale=with_scale, inlier_tol=0.10)
+                if rr["success"]:
+                    T_seed = rr["T"].to(torch.float64)
+                    seed_name = "geotransformer+mac"
+            except Exception:
+                T_seed = None  # MAC unavailable/failed -> LGR fallback below
+    if T_seed is None:
+        T_seed = _geotransformer_seed(src_full, tgt_full, dev)
     if T_seed is None:
         # Learned backend unavailable → classical robust seed (still a strong, scale-correct path).
         T, rinfo = robust_feature_align(
@@ -1637,7 +1716,7 @@ def learned_feature_align(
         return T, rinfo
 
     info["used_learned"] = True
-    info["seed"] = "geotransformer"
+    info["seed"] = seed_name
     if voxel is None:
         voxel = min(_cloud_voxel(src_full), _cloud_voxel(tgt_full))
     info["voxel"] = float(voxel)

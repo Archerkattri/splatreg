@@ -14,6 +14,12 @@ degrade to `None` at import time rather than breaking the package.
 
 ::: splatreg.api.Tracker
 
+## MAC maximal-clique seed (`init="mac"`)
+
+::: splatreg.mac.mac_feature_align
+
+::: splatreg.mac.mac_pose
+
 ## Multi-splat bundle registration
 
 ::: splatreg.bundle.bundle_register

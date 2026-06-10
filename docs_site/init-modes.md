@@ -11,6 +11,7 @@ library. The trade is speed ↔ robustness:
 | `"robust"` | Open3D FPFH+RANSAC seed (scale-correct, auto-voxelled) → overlap-aware refine | real metre-scale scans | ~100 ms+ |
 | `"learned"` | pretrained GeoTransformer seed → the same overlap-aware refine | best accuracy on real scans (91.5% official 3DMatch) | ~104 ms |
 | `"global"` | blind super-Fibonacci SO(3) sweep + batched trimmed ICP | unknown, possibly huge rotation; no features needed | ~0.8–1.4 s |
+| `"mac"` | MAC maximal-clique consensus over the FPFH correspondences (Zhang et al. CVPR 2023) → weighted SVD per clique → overlap-aware refine | outlier-heavy / multi-consensus correspondence sets | ~0.03–0.3 s (CPU, scales with clique count) |
 | `"features"` | complete partial-overlap registrar (FPFH → clique-filtered RANSAC → overlap-aware point-to-plane refine + basin-sweep fallback) | the two captures see *different parts* of the object | seconds (deep sweep) |
 
 You can also pass an explicit 4×4 tensor as `init` (e.g. a pose prior from odometry), or
@@ -25,12 +26,55 @@ You can also pass an explicit 4×4 tensor as `init` (e.g. a pose prior from odom
 - **You have no idea how the splats are oriented and they look feature-poor** (smooth,
   near-symmetric geometry where descriptors are non-discriminative) → `"global"`.
 - **Partial overlap** (one capture saw the left side, the other the right) → `"features"`.
+- **Outlier-heavy or multi-consensus correspondences** (repetitive structure, symmetric
+  decoys, a contaminated learned matcher) → `"mac"` (below).
+
+## `init="mac"` — maximal-clique hypothesis generation
+
+`"mac"` reimplements **MAC** (*3D Registration with Maximal Cliques*, Zhang, Sun, Wang & Guo,
+CVPR 2023) in pure torch + networkx, replacing RANSAC minimal samples as the hypothesis
+generator:
+
+1. a **rigidity compatibility graph** over the correspondences (edge iff
+   `| ‖p_i−p_j‖ − ‖q_i−q_j‖ | < γ`), edge weights re-scored by the **second-order SC²
+   measure** (`w₂ = s ⊙ (S·S)` — an edge is only as strong as the compatible neighbourhood the
+   two correspondences *share*, which zeroes chance-compatible outlier pairs);
+2. **all maximal cliques** of that graph (Bron–Kerbosch with pivoting), each one a consensus
+   hypothesis — including secondary consensus sets a greedy prefilter or a lucky-draw RANSAC
+   never isolates. Worst-case blowup is capped: ≤ 1000 correspondences, per-node degree cap
+   (top-48 edges by SC² weight), clique-count cap + wall-clock budget on the lazy enumeration,
+   and node-guided selection down to ≤ 64 hypotheses;
+3. a **weighted SVD** (Kabsch, SC² weights) per clique, scored by inlier count over all
+   correspondences; the winner is refit on its full consensus set, then polished by the same
+   overlap-aware ICP the `"robust"`/`"learned"` registrars use.
+
+Sim(3): MAC's rigidity constraint is SE(3)-only, so the scale is estimated **first** (median
+of correspondence pairwise-distance ratios), the source de-scaled, SE(3) MAC run, and a
+residual scale refit on the consensus inliers.
+
+Measured on synthetic contaminated correspondence sets (CPU, `tests/test_mac.py`): at 30/60/90 %
+random outliers MAC matches the fast-init RANSAC engine (rot err ≤ 0.2°); on a 90 %-contaminated
+set with a *structured* decoy cluster (reflection-consistent — it out-degrees the true inliers)
+the greedy-prefilter+RANSAC engine fails at ~78° while MAC stays **< 0.2°**; an all-outlier set
+returns an honest `info["success"]=False` identity. 500 correspondences run in ~0.1 s on a
+2-thread CPU (budget-tested < 5 s).
+
+Inside `init="learned"`, `seed_selector="mac"`
+(`learned_feature_align(..., seed_selector="mac")`) runs MAC over **GeoTransformer's learned
+correspondences** instead of the model's own LGR estimator — the exact combination the MAC
+paper reports lifting GeoTransformer's 3DLoMatch registration recall **~71 % → ~78 %**.
+
+!!! note "3DLoMatch numbers pending"
+    That recall lift is the *paper's* number, cited as the expectation — it has **not** yet
+    been verified on splatreg's implementation (it needs the 3DLoMatch dataset + the
+    GeoTransformer weights on a GPU box). What is verified today is the synthetic evidence
+    above. Needs networkx: `pip install "splatreg[mac]"`.
 
 ## Partial overlap: the honest contract
 
-`init="features"`, `"robust"`, and `"learned"` are *complete registrars*, not just seeds.
+`init="features"`, `"robust"`, `"learned"`, and `"mac"` are *complete registrars*, not just seeds.
 The default residual set assumes **full overlap** — its ICP would drag a good partial-overlap
-pose off-target — so with the default residuals these three modes return their own
+pose off-target — so with the default residuals these modes return their own
 registration **directly** and skip the LM. Pass an explicit overlap-safe `residuals=[...]`
 if you want the LM to run on top of the feature init.
 
@@ -53,8 +97,10 @@ result.info["feature"]      # the full per-stage diagnostic dict
 ## Fallback chain
 
 All string inits are guarded: `"learned"` falls back to `"robust"`, `"fast"` falls back to
-`"global"`, and everything falls back to identity (with a logged note) when an optional
-dependency or pretrained weight is unavailable. Your call never hard-fails because a model
+`"global"`, `"mac"` raises a clear `ImportError` with the install hint when networkx is
+missing (an explicit opt-in extra, like the solver backends) and returns an honestly-flagged
+identity when the correspondences carry no consensus, and everything else falls back to
+identity (with a logged note) when an optional dependency or pretrained weight is unavailable. Your call never hard-fails because a model
 file is missing.
 
 ## Quality policy
