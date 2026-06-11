@@ -530,6 +530,43 @@ def test_lm_solver_unit_weight_matches_manual():
     assert err < 1e-10, f"LM delta doesn't match manual normal-equation solve: max|Δ|={err:.2e}"
 
 
+# ---------------------------------------------------------------------------
+# 8. Sim(3) autodiff memory fix — T detached before jacrev closure
+# ---------------------------------------------------------------------------
+
+
+def test_sim3_autodiff_jacobian_detaches_T():
+    """Jacobian produced via the Sim(3) autodiff path has no grad_fn (T is detached).
+
+    The fix: _autodiff_jacobian binds ``T_const = T.detach()`` before the inner
+    closure captures it. This test verifies the contract: even when the caller
+    provides a ``T`` that has an autograd graph attached (e.g. from an outer
+    grad-enabled context), the returned Jacobian is a plain leaf tensor with no
+    grad_fn, so autograd graphs cannot accumulate across LM iterations.
+    """
+    from splatreg.solvers.lm import _autodiff_jacobian
+    from splatreg.core.lie import sim3_exp
+
+    target = _make_grid_splat(100)
+    source = target
+
+    # Give T a grad_fn by wrapping it in a differentiable op (mimics an outer autograd scope).
+    T_base = torch.eye(4, dtype=DT, device=DEV)
+    dummy = torch.zeros(4, 4, dtype=DT, device=DEV, requires_grad=True)
+    T_with_grad = T_base + dummy * 0.0
+    assert T_with_grad.grad_fn is not None, "precondition: T must have a grad_fn for this test"
+
+    icp = ICP(point_to_plane=False)
+    J = _autodiff_jacobian(icp, T_with_grad, target, source, dof=7, exp_fn=sim3_exp)
+
+    assert J.shape[-1] == 7, f"Sim3 autodiff Jacobian should have 7 columns, got {J.shape}"
+    assert J.grad_fn is None, (
+        "Jacobian from _autodiff_jacobian must have no grad_fn — T must be detached "
+        "before the jacrev closure so outer autograd graphs do not leak into the Jacobian."
+    )
+    assert torch.isfinite(J).all(), "Jacobian values must be finite"
+
+
 if __name__ == "__main__":
     import traceback
 
