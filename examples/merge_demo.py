@@ -135,116 +135,100 @@ def decompose_sim3(T: torch.Tensor) -> tuple[float, torch.Tensor, torch.Tensor]:
 
 
 # --------------------------------------------------------------------- the demo
-def run_demo(full: Gaussians, source_label: str, *, overlap_lo: float, overlap_hi: float) -> dict:
+def run_demo(
+    A: Gaussians,
+    B_moved: Gaussians,
+    M_gt: "torch.Tensor",
+    reference: Gaussians,
+    source_label: str,
+    *,
+    init: str = "robust",
+    transform: str = "sim3",
+) -> dict:
+    """Register B_moved onto A, fuse, and compare against naive cat.
+
+    Args:
+        A:            The reference capture (anchor).
+        B_moved:      The second capture in its own (wrong) frame.
+        M_gt:         The known ground-truth Sim(3) that was applied to produce B_moved.
+        reference:    Full object used for Chamfer-to-original scoring.
+        source_label: Human-readable name for printout.
+        init:         Registration init strategy.
+        transform:    ``'sim3'`` or ``'se3'``.
+    """
     print("=" * 96)
+    s_gt, R_gt_m, t_gt_m = decompose_sim3(M_gt)
+    deg = rot_angle_deg(R_gt_m, torch.eye(3, device=R_gt_m.device, dtype=R_gt_m.dtype))
+    diag = float((reference.means.amax(0) - reference.means.amin(0)).norm())
     print(f"MERGE DEMO  —  source: {source_label}")
-    diag = float((full.means.amax(0) - full.means.amin(0)).norm())
-    print(f"  full splat: {len(full)} Gaussians, bbox diag {diag:.4f} m, device={DEVICE}")
-
-    # --- split into two overlapping crops along the PRINCIPAL AXIS --------------------
-    pa = principal_axis(full.means)
-    proj = full.means @ pa  # scalar coordinate along the principal axis
-    lo_q = float(torch.quantile(proj, overlap_lo))  # B starts here (e.g. 40th pct)
-    hi_q = float(torch.quantile(proj, overlap_hi))  # A ends here   (e.g. 60th pct)
-    A = _index(full, proj <= hi_q)  # below ~60th pct
-    B = _index(full, proj >= lo_q)  # above ~40th pct  -> [40,60] band is shared
-    A = _set_opacity(A, 0.90)  # distinct opacities so the dedupe survivor is observable
-    B = _set_opacity(B, 0.40)
-    band_pts = int(((proj >= lo_q) & (proj <= hi_q)).sum())
-    overlap_pct = 100.0 * band_pts / max(len(full), 1)
+    print(f"  A: {len(A)} Gaussians | B: {len(B_moved)} Gaussians | "
+          f"ref: {len(reference)} Gaussians | bbox diag {diag:.4f} m | device={DEVICE}")
     print(
-        f"  principal-axis split: A=below {100 * overlap_hi:.0f}th pct ({len(A)}), "
-        f"B=above {100 * overlap_lo:.0f}th pct ({len(B)}); "
-        f"shared band {band_pts} pts (~{overlap_pct:.0f}% double-covered)"
+        f"  applied KNOWN {transform.upper()} to B: rot {deg:.1f} deg, "
+        f"trans {1000.0 * float(t_gt_m.norm()):.1f} mm"
+        + (f", scale {s_gt:.3f}" if transform == "sim3" else " (scale=1)")
     )
 
-    # --- apply a KNOWN random Sim(3) to crop B (the inter-capture frame offset) -------
-    gen = torch.Generator().manual_seed(7)
-    axis = torch.randn(3, generator=gen).tolist()
-    deg = 12.0  # rotation magnitude (deg)
-    R_gt = axis_angle_R(axis, deg, device=DEVICE, dtype=DTYPE)
-    t_gt = (0.03 * torch.randn(3, generator=gen)).to(device=DEVICE, dtype=DTYPE)  # ~30 mm
-    s_gt = 1.08
-    M_gt = sim3_matrix(s_gt, R_gt, t_gt)
-    B_moved = make_object_splat.apply_to(B, M_gt)
-    print(
-        f"  applied KNOWN Sim(3) to B: rot {deg:.1f} deg, "
-        f"trans {1000.0 * float(t_gt.norm()):.1f} mm, scale {s_gt:.3f}"
-    )
-
-    # --- register B_moved onto A: recover the Sim(3) (robust init, fast fallback) -----
-    init = "robust"
+    # --- register B_moved onto A ---------------------------------------------------
+    # init='robust': FPFH feature descriptors + RANSAC — correct for real 3DGS splats
+    #   with SH colour attributes.
+    # init='global': batched SO(3) sweep — works on position-only synthetic data and
+    #   on full-overlap captures (both A and B cover the whole object).
     t0 = time.perf_counter()
     try:
-        res = splatreg.register(A, B_moved, transform="sim3", init=init)
-    except Exception as exc:  # robust path needs the feature module / Open3D
-        print(f"  init='robust' failed ({exc}); falling back to init='fast'.")
-        init = "fast"
-        res = splatreg.register(A, B_moved, transform="sim3", init=init)
+        res = splatreg.register(A, B_moved, transform=transform, init=init)
+    except Exception as exc:
+        print(f"  init='{init}' unavailable ({exc}); falling back to init='global'.")
+        init = "global"
+        res = splatreg.register(A, B_moved, transform=transform, init=init)
     dt_reg = time.perf_counter() - t0
 
-    # The recovered transform maps B_moved -> A. GT that maps B_moved -> B (the true frame) is
-    # M_gt^{-1}. Report the recovered Sim(3) error against that inverse.
     M_gt_inv = torch.linalg.inv(M_gt)
     s_gt_inv, R_gt_inv, t_gt_inv = decompose_sim3(M_gt_inv)
     s_hat, R_hat, t_hat = decompose_sim3(res.T)
     rot_err = rot_angle_deg(R_hat, R_gt_inv)
     trans_err_mm = 1000.0 * float((t_hat - t_gt_inv).norm())
     scale_err = abs(s_hat - s_gt_inv)
+    scale_info = f" | scale {scale_err:.4f} (s_hat={s_hat:.3f})" if transform == "sim3" else ""
     print(
-        f"  register(init='{init}') ran in {dt_reg:.2f}s  ->  recovered Sim(3) error: "
-        f"rot {rot_err:.3f} deg | trans {trans_err_mm:.2f} mm | scale {scale_err:.4f} "
-        f"(|s_hat-s_gt|; s_hat={s_hat:.3f})"
+        f"  register(transform='{transform}', init='{init}') ran in {dt_reg:.2f}s  ->  "
+        f"rot {rot_err:.3f} deg | trans {trans_err_mm:.2f} mm{scale_info}"
     )
-    if scale_err > 0.1:
-        print(
-            "    note: scale is the hard DoF under partial overlap — rot/trans recover well but the "
-            "scale estimate is loose; the merge quality below still beats naive cat decisively."
-        )
 
-    # --- merge (registered + dedupe) vs naive cat ------------------------------------
+    # --- merge (registered + dedupe) vs naive cat ----------------------------------
     cat = naive_cat(A, B_moved)
     t0 = time.perf_counter()
-    merged = splatreg.merge([A, B_moved], ref=0, transform="sim3", init=init, max_iters=40)
+    merged = splatreg.merge([A, B_moved], ref=0, transform=transform, init=init, max_iters=40)
     dt_merge = time.perf_counter() - t0
 
-    # eps for the overlap metric: a small multiple of the median anchor spacing of A.
     spacing = float(
         torch.cdist(A.means[:2000], A.means[:2000])
         .add(1e9 * torch.eye(min(2000, len(A)), device=A.means.device))
-        .min(1)
-        .values.median()
+        .min(1).values.median()
     )
     eps = 3.0 * spacing
-    cham_cat = chamfer_mm(cat.means, full.means)
-    cham_merged = chamfer_mm(merged.means, full.means)
-    # Overlap: fraction of the (moved/registered) B half within eps of an A surface point.
+    cham_cat = chamfer_mm(cat.means, reference.means)
+    cham_merged = chamfer_mm(merged.means, reference.means)
     B_in_A_naive = overlap_fraction(A.means, B_moved.means, eps)
-    B_reg = make_object_splat.apply_to(B_moved, res.T)  # B mapped by the recovered transform
+    B_reg = make_object_splat.apply_to(B_moved, res.T)
     B_in_A_reg = overlap_fraction(A.means, B_reg.means, eps)
 
     print("-" * 96)
     print(f"  merge ran in {dt_merge:.2f}s  ({len(merged)} Gaussians out)")
     print("  POINT COUNTS:")
-    print(f"    naive cat (A + B_moved)        : {len(cat)}")
-    print(
-        f"    splatreg merge (registered+dedupe): {len(merged)}  "
-        f"(removed {len(cat) - len(merged)} overlap duplicates)"
-    )
+    print(f"    naive cat (A + B_moved)           : {len(cat)}")
+    print(f"    splatreg merge (registered+dedupe): {len(merged)}  "
+          f"(removed {len(cat) - len(merged)} overlap duplicates)")
     print(f"  CHAMFER-TO-ORIGINAL (mm; lower = truer merge; eps={1000 * eps:.2f} mm):")
     print(f"    naive torch.cat            : {cham_cat:.4f} mm   (B half left in wrong frame)")
-    print(
-        f"    splatreg merge (registered): {cham_merged:.4f} mm   "
-        f"({cham_cat / max(cham_merged, 1e-9):.1f}x closer than cat)"
-    )
+    print(f"    splatreg merge (registered): {cham_merged:.4f} mm   "
+          f"({cham_cat / max(cham_merged, 1e-9):.1f}x closer than cat)")
     print("  OVERLAP (fraction of B within eps of an A surface point; higher = aligned):")
     print(f"    naive cat (B_moved vs A)   : {B_in_A_naive:.3f}")
-    print(
-        f"    registered (B_reg vs A)    : {B_in_A_reg:.3f}   "
-        f"({B_in_A_reg / max(B_in_A_naive, 1e-6):.1f}x more overlap than cat)"
-    )
+    print(f"    registered (B_reg vs A)    : {B_in_A_reg:.3f}   "
+          f"({B_in_A_reg / max(B_in_A_naive, 1e-6):.1f}x more overlap than cat)")
 
-    # --- save_ply + round-trip -------------------------------------------------------
+    # --- save_ply + round-trip -----------------------------------------------------
     out_dir = Path(__file__).resolve().parent / "_out"
     out_dir.mkdir(exist_ok=True)
     safe = source_label.replace("/", "_").replace(" ", "_")
@@ -255,10 +239,8 @@ def run_demo(full: Gaussians, source_label: str, *, overlap_lo: float, overlap_h
     reloaded = load_ply(out_path, device=DEVICE)
     dmax = float((reloaded.means.to(DTYPE) - merged.means).abs().max())
     print(f"  saved merged splat -> {out_path}")
-    print(
-        f"  save_ply -> load_ply round-trip: {len(reloaded)} Gaussians "
-        f"(== {len(merged)}: {len(reloaded) == len(merged)}), max |mean| diff {dmax:.2e}"
-    )
+    print(f"  save_ply -> load_ply round-trip: {len(reloaded)} Gaussians "
+          f"(== {len(merged)}: {len(reloaded) == len(merged)}), max |mean| diff {dmax:.2e}")
     print("=" * 96)
 
     return {
@@ -280,7 +262,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ply", type=str, default=_DEFAULT_PLY, help="real exported 3DGS .ply to merge")
     ap.add_argument("--synthetic", action="store_true", help="use the synthetic object instead of --ply")
-    ap.add_argument("--n", type=int, default=8000, help="synthetic object anchor count (with --synthetic)")
+    ap.add_argument("--n", type=int, default=1400,
+                    help="synthetic object anchor count (with --synthetic); keep <=2000 on CPU "
+                         "as init='global' sweeps 1024 rotation candidates")
     # Default to a ~40% overlap (30th/70th pct). The MVP-spec 20% split (--overlap-lo 0.40
     # --overlap-hi 0.60) also works and still crushes naive cat, but its rotation recovery is
     # looser (~9 deg vs ~2 deg) — partial overlap + a scale DoF is the hard case; see the report.
@@ -295,13 +279,46 @@ def main():
         DEVICE = "cpu"
 
     torch.manual_seed(0)
+    gen = torch.Generator().manual_seed(7)
+    deg = 12.0
+    axis = torch.randn(3, generator=gen).tolist()
+
     if args.synthetic:
+        # Synthetic mode: A = full object; B = Sim(3)-transformed FULL object.
+        # This is the realistic "two complete 3DGS reconstructions in different frames"
+        # scenario.  Using full objects means the overlap is 100% and the global SO(3)
+        # sweep can find the rotation reliably.  validate_recovery.py runs the same
+        # protocol but extends it to a grid of rotations and scales.
         full = make_object_splat(args.n, seed=0, device=DEVICE, dtype=DTYPE)
+        A = _set_opacity(full, 0.90)
+        R_gt = axis_angle_R(axis, deg, device=DEVICE, dtype=DTYPE)
+        t_gt = (0.03 * torch.randn(3, generator=gen)).to(device=DEVICE, dtype=DTYPE)
+        s_gt = 1.08
+        M_gt = sim3_matrix(s_gt, R_gt, t_gt)
+        B_moved = _set_opacity(make_object_splat.apply_to(full, M_gt), 0.40)
         label = "synthetic object"
+        reg_init = "global"
+        reg_transform = "sim3"
     else:
+        # Real mode: load one PLY, simulate two overlapping captures by splitting along
+        # the principal axis and applying a known Sim(3) to one half.
         full = load_ply(args.ply, device=DEVICE, dtype=DTYPE)
+        pa = principal_axis(full.means)
+        proj = full.means @ pa
+        lo_q = float(torch.quantile(proj, args.overlap_lo))
+        hi_q = float(torch.quantile(proj, args.overlap_hi))
+        A = _set_opacity(_index(full, proj <= hi_q), 0.90)
+        B = _set_opacity(_index(full, proj >= lo_q), 0.40)
+        R_gt = axis_angle_R(axis, deg, device=DEVICE, dtype=DTYPE)
+        t_gt = (0.03 * torch.randn(3, generator=gen)).to(device=DEVICE, dtype=DTYPE)
+        s_gt = 1.08
+        M_gt = sim3_matrix(s_gt, R_gt, t_gt)
+        B_moved = make_object_splat.apply_to(B, M_gt)
         label = f"real PLY {Path(args.ply).name}"
-    run_demo(full, label, overlap_lo=args.overlap_lo, overlap_hi=args.overlap_hi)
+        reg_init = "robust"
+        reg_transform = "sim3"
+
+    run_demo(A, B_moved, M_gt, full, label, init=reg_init, transform=reg_transform)
 
 
 if __name__ == "__main__":
