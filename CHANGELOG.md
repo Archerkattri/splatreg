@@ -5,6 +5,7 @@ All notable changes, per version. Auto-generated from git tags by
 
 ## Unreleased
 
+- docs: add per-version CHANGELOG (d0d1dfc)
 - Remove ScanNet-GSReg benchmark and references (dataset not available) (95a4459)
 
 ## v1.3.2 — 2026-06-11
