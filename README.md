@@ -7,7 +7,7 @@
 ### Register Gaussian splats: align and merge 3DGS scans into one SE(3)/Sim(3) frame.
 
 [![PyPI](https://img.shields.io/pypi/v/splatreg)](https://pypi.org/project/splatreg/)
-[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20618389-1682D4.svg)](https://doi.org/10.5281/zenodo.20618389)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20633466-1682D4.svg)](https://doi.org/10.5281/zenodo.20633466)
 [![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 [![Docs](https://img.shields.io/badge/docs-archerkattri.github.io%2Fsplatreg-teal.svg)](https://archerkattri.github.io/splatreg/)
@@ -270,7 +270,7 @@ and always resolves to the latest archived release:
   author  = {Attri, Krishi},
   title   = {splatreg: composable SE(3)/Sim(3) registration for 3D Gaussian Splatting},
   url     = {https://github.com/Archerkattri/splatreg},
-  doi     = {10.5281/zenodo.20618389},
+  doi     = {10.5281/zenodo.20633466},
   version = {1.3.0},
   year    = {2026}
 }

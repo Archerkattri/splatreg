@@ -22,7 +22,7 @@ date-released: "2026-06-10"
 license: "BSD-3-Clause"
 repository-code: "https://github.com/Archerkattri/splatreg"
 url: "https://github.com/Archerkattri/splatreg"
-doi: 10.5281/zenodo.20618389
+doi: 10.5281/zenodo.20633466
 keywords:
   - gaussian-splatting
   - 3dgs
