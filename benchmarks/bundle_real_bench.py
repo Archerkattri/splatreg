@@ -22,7 +22,7 @@ For each real splat:
 WHAT IS REAL: the splat geometry, the partial overlapping crops, the pairwise ``register`` solves,
 and the consistency numbers. WHAT REMAINS for an official number: the captures here are crops of one
 splat under a known ring (controlled overlap + GT), NOT ``N`` independently-reconstructed real scans
-with their own noise and an external GT trajectory (e.g. a ScanNet-GSReg / multi-scan-loop dataset).
+with their own noise and an external GT trajectory (e.g. a multi-scan-loop capture dataset).
 
 Run:
     CUDA_VISIBLE_DEVICES=0 SPLATREG_DEVICE=cuda \\
