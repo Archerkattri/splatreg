@@ -8,8 +8,8 @@ this benchmark proves it on **real, noisy, non-synthetic 3D-Gaussian-Splatting g
 
 Why this is a credible test and not circular
 ---------------------------------------------
-There is no public splat-registration GT-pose dataset, and the GaussReg ScanNet-GSReg set is
-not readily downloadable. So we use the same KNOWN-transform protocol the synthetic harness uses,
+There is no readily-available public splat-registration GT-pose dataset. So we use the same
+KNOWN-transform protocol the synthetic harness uses,
 but feed it REAL splat geometry and (optionally) corrupt the moved copy to mimic a *second* real
 capture of the same object:
 
