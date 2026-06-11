@@ -21,3 +21,6 @@ site/
 docs/*
 !docs/RELEASING.md
 !docs/DEPLOY_DOCS.md
+
+# Research paper draft (local-only; papers NEVER in repos)
+paper/
