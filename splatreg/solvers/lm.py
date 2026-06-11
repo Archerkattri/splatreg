@@ -77,10 +77,19 @@ def _autodiff_jacobian(
     (same function, same ``delta=0`` point), chunking trades nothing but peak memory. ``run_lm``
     threads ``jac_row_chunk`` from the quality policy. Returns ``(..., dim, dof)``, matching the
     analytic-Jacobian shape; ``run_lm`` flattens it afterwards.
+
+    Sim(3) autodiff memory fix: ``T`` is detached before the closure captures it. ``jacrev``
+    differentiates ONLY with respect to ``delta``; ``T`` is a constant linearisation point. Without
+    the detach, any autograd graph attached to ``T`` (e.g. from a caller that wrapped ``T`` in
+    grad-enabled ops, or from vmap's internal bookkeeping across iterations) is captured inside the
+    jacrev scope and accumulates iteration-over-iteration. Detaching severs that chain so only the
+    graph for ``delta -> exp_fn(delta)`` is live during the reverse pass, keeping peak memory
+    ``O(jac_row_chunk x target_anchors)`` regardless of how many LM iterations have run.
     """
+    T_const = T.detach()  # linearisation point -- NOT differentiated; only delta is the variable
 
     def _r_of_delta(delta: torch.Tensor) -> torch.Tensor:
-        return residual.residual(T @ exp_fn(delta), target, source)
+        return residual.residual(T_const @ exp_fn(delta), target, source)
 
     delta0 = torch.zeros(dof, device=T.device, dtype=T.dtype)
     chunk = max(1, int(jac_row_chunk))
