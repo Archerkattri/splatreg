@@ -523,7 +523,8 @@ MAC genuinely engaged on **100 % of pairs** (0 LGR fallbacks, 1 truncated enumer
 both splits; 3DLoMatch median 3830 correspondences → 2555 maximal cliques → 64 hypotheses →
 602 consensus inliers; 3DMatch median 5137 → 2565 → 64 → 803).
 
-**Verdict: a wash, not the paper's ~71 → 78 % lift** — every delta is within ±4 pairs of LGR.
+**Verdict: a wash, not the paper's lift** (MAC's Table 3 reports boosting GeoTransformer 92.0 → 95.7 %
+on 3DMatch and 75.0 → 78.9 % on 3DLoMatch in its own pipeline) — every delta is within ±4 pairs of LGR.
 The plausible reasons, stated honestly: (1) at native voxel GeoTransformer's correspondence
 sets are already *consensus-dominated* (median 600–800 MAC inliers out of ≤ 1000 graphed) —
 in that regime any sane hypothesis stage finds the same pose, and the multi-consensus /
