@@ -467,7 +467,7 @@ worst trans 1.41 mm, worst scale err 0.144%, peak RSS 0.85 GiB.
 
 ## 5k. MAC maximal-clique seed (`init="mac"`) — synthetic validation + measured 3DMatch/3DLoMatch verdict
 
-MAC (*3D Registration with Maximal Cliques*, Zhang, Sun, Wang & Guo, CVPR 2023) replaces
+MAC (*3D Registration with Maximal Cliques*, Zhang, Yang, Zhang & Zhang, CVPR 2023) replaces
 RANSAC-style hypothesis generation, reimplemented in pure torch + networkx (`splatreg/mac.py`;
 no vendored C++): rigidity compatibility graph (`|‖p_i−p_j‖ − ‖q_i−q_j‖| < γ`) re-weighted by
 the **SC² second-order measure** (`w₂ = s ⊙ (S·S)` — chance-compatible outlier pairs share no
