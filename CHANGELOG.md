@@ -1,100 +1,133 @@
-# Changelog — splatreg
+# Changelog
 
-All notable changes, per version. Auto-generated from git tags by
-`third_party/launch_materials/gen_changelogs.sh`; do not edit by hand.
+All notable changes to splatreg. Every claim below is backed by a recorded run or a test;
+the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
 
 ## Unreleased
 
-- docs: add per-version CHANGELOG (d0d1dfc)
-- Remove ScanNet-GSReg benchmark and references (dataset not available) (95a4459)
+### Removed
+- The ScanNet-GSReg (GaussReg ECCV'24) benchmark harness and all references to it.
+  The dataset is not readily available, so the real-data validation anchor is the
+  controlled-capture harness (`realdata_bench.py` / `bundle_real_bench.py`) instead.
 
-## v1.3.2 — 2026-06-11
+## 1.3.2 (2026-06-11)
 
-- chore(release): v1.3.2 (8c0a9f0)
-- fix(merge_demo): restructure synthetic mode + correct transform/init selection (9835d54)
-- test(sim3): regression-gate the autodiff memory fix (T detached in jacrev closure) (c421b6a)
-- fix(sim3): detach T in autodiff Jacobian closure to prevent graph accumulation (bf07848)
-- fix(doi): update Zenodo DOI to correct concept record (a1255b4)
-- Correct MAC published gains to the primary source (+3.7/+3.9 points, CVPR 2023 Table 3) (79f81f8)
-- bench: add official ScanNet-GSReg (GaussReg ECCV'24) 82-scene Sim(3) protocol harness (d6bae9b)
-- Fix MAC author attribution (CVPR 2023: Zhang, Yang, Zhang and Zhang) (eb56315)
-- chore: gitignore paper/ (local-only drafts) (3a44b97)
+### Fixed
+- Sim(3) autodiff memory: `T` is now detached inside the `jacrev` closure of the LM
+  driver, preventing the autograd graph from accumulating across iterations
+  (regression-gated by `tests/test_sim3_autodiff_jacobian_detaches_T`).
+- `merge_demo` synthetic mode restructured so A is the full object and B is a
+  Sim(3)-transformed copy (previously A and B were different partial crops, which made
+  ICP impossible); the correct `transform`/`init` are now threaded through. Chamfer on
+  the demo improved 18.97 -> 0.28 mm.
 
-## v1.3.1 — 2026-06-10
+## 1.3.1 (2026-06-10)
 
-- v1.3.1 (a79b26d)
-- fix: apply SDF residual weight once, normalise log_scales on fusion, guard empty-index knn (5ab6483)
+### Fixed
 
-## v1.3.0 — 2026-06-10
+- SDF residual weight is now applied exactly once. `SDF.residual` / `SDF.jacobian` pre-multiplied
+  by `self.weight` while the solver also folds in `sqrt(weight)`, so the effective least-squares
+  objective scaled as `weight**3` (every other residual lets the solver own the weight). The default
+  `register` stack `[ICP(weight=1.0), SDF(weight=0.3)]` therefore ran the SDF term at an effective
+  weight of `0.3**3 ≈ 0.027` instead of `0.3`. Fixed so the SDF contribution scales linearly with
+  its weight (`tests/test_weighting_and_fusion_fixes.py::test_sdf_weight_applied_once`). The feature
+  (`init="learned"`) 3DMatch / 3DLoMatch headline numbers are NOT affected (that path never uses the
+  SDF residual); the synthetic-recovery smoke stays at 100% of the gate, with slightly relaxed
+  precision now that the SDF term contributes at its intended weight.
+- `merge()` and bundle fusion now normalise every piece to the reference's `log_scales` convention
+  before concatenating scales. Previously a mix of linear-scale and log-scale splats was concatenated
+  raw and labelled with the reference flag, silently mis-exponentiating the odd-one-out
+  (`tests/test_weighting_and_fusion_fixes.py::test_merge_preserves_scales_across_log_convention`).
+- `SpatialIndex.knn()` on an index built from zero points now returns empty `(Q, 0)` results,
+  matching `radius()`'s contract, instead of crashing in `topk`
+  (`tests/test_weighting_and_fusion_fixes.py::test_empty_index_knn_returns_empty`).
 
-- production sweep: dead-code removal, ruff-clean, public apply_transform in CLI/notebook, docstring typography (859ab95)
-- MAC-seed verdict measured: official 3DMatch/3DLoMatch, both selectors — a wash, lgr stays default (20e10a2)
-- init='mac': MAC maximal-clique correspondence seed (Zhang et al. CVPR 2023) (240c5d9)
+## 1.3.0 (2026-06-10)
 
-## v1.2.0 — 2026-06-10
+### Added
 
-- v1.2: results-backed docs for the SH/exposure/ladder/covariance/--fast additions (27ddeb5)
-- validate_recovery.py --fast: <2 min CPU smoke preset of the recovery harness (b1570be)
-- expose pose information/covariance on RegisterResult.info (pose-graph use) (65540d2)
-- photometric refine: per-pair exposure compensation + coarse-to-fine render ladder (6c9fa4e)
-- SH Wigner rotation: f_rest now rotates with the splat (Ivanic-Ruedenberg) (4aacc2d)
-- api: public apply_transform() — align scans without merging (917bc80)
-- DOI badge: static shields.io (Zenodo badge endpoint 302s through GitHub's proxy) (4c4d8eb)
-- CITATION.cff: real Zenodo concept DOI (61f9d85)
-- Add Zenodo DOI (CITATION.cff + README badge) (865ddf0)
+- `init="mac"`: MAC maximal-clique correspondence seed (Zhang et al., CVPR 2023),
+  reimplemented in pure torch + networkx (`pip install "splatreg[mac]"`). SC²-weighted
+  rigidity compatibility graph, Bron-Kerbosch maximal cliques as consensus hypotheses,
+  weighted SVD per clique, plus a Sim(3) extension (median pairwise-distance-ratio scale).
+  On synthetic contaminated sets it matches the RANSAC engine at 30/60/90% random outliers
+  and wins the structured-decoy regime decisively (RANSAC ~78° failure, MAC <0.2°);
+  all-outlier sets return an honest `success=False` identity (`tests/test_mac.py`).
+- `seed_selector="mac"` inside `init="learned"`: MAC over GeoTransformer's correspondences.
+- The measured MAC verdict on the full official splits (same forward/voxel/refine, only the
+  hypothesis stage differs): a wash, not a lift. 3DLoMatch 72.1% mean / 74.6% pooled (MAC)
+  vs 72.5% / 74.4% (LGR); 3DMatch 91.7% / 93.8% vs 91.5% / 93.5%; every delta within
+  ±4 pairs at ~+50% runtime. `seed_selector="lgr"` stays the default; `"mac"` remains the
+  tool for genuinely contaminated correspondence sets (`RESULTS.md` §5k).
 
-## v1.1.0 — 2026-06-09
+### Changed
 
-- v1.1.0: results-backed docs for the new additions (bdb5445)
-- CLI, docs site, photometric refinement, DC PLY round-trip fix (53a0ade)
-- chore: use relative paths in benchmarks/examples; update test count (f771727)
+- Production sweep: dead code removed (unused private helpers in `align.py` /
+  `align_features.py`, leftover unused locals), ruff clean across the package, tests, and
+  benchmarks; the CLI and the Colab quickstart now use the public `apply_transform` instead
+  of the private `_apply_transform_to_gaussians`.
+- README restructured as a storefront: capability matrix vs the alternative tools, results
+  table with per-row provenance, the 30-second quickstart with both the merge and the
+  align-without-merge workflows.
+- Docs site refreshed (MAC verdict, SH rotation, pose covariance, align-without-merge) and
+  typography normalised across all public text.
 
-## v1.0.3 — 2026-06-08
+## 1.2.0 (2026-06-10)
 
-- chore: bump version to 1.0.3 (0892a43)
-- docs: restructure README for discoverability — hook first, install/quickstart before deep tech (9a29e0b)
-- docs: drop roadmap, trim limitations to genuine immovable edges only (87c81ad)
-- docs: restructure roadmap — condense shipped items, remove non-workable todos, clean scope statement (071ecac)
+### Added
 
-## v1.0.2 — 2026-06-08
+- Spherical harmonics rotate WITH the splat: `splatreg.sh` builds real-basis Wigner-D
+  matrices for any degree (Ivanic-Ruedenberg recurrence, 1996 + the 1998 erratum) directly
+  in the 3DGS sign convention; wired into `apply_transform`, `merge`, and the `align` CLI so
+  the view-dependent lobes (`f_rest`) turn with a recovered transform. Math locked
+  renderer-free against an independent hand-coded 3DGS basis evaluator: rotated coefficients
+  evaluated at `d` equal the originals at `R⁻¹d` to ~2.4e-15 in float64
+  (`tests/test_sh_rotation.py`).
+- Public `apply_transform()`: the align-without-merging workflow. Register two scans, bake
+  the recovered SE(3)/Sim(3) into the source, save each scan as its own PLY.
+- Photometric exposure compensation (default ON): bounded per-channel gain/bias fit on the
+  rendered source, alternated with the pose LM. A ×1.3 + 0.05 source tint absorbs into the
+  Sim(3) scale without it (scale error 0.10% → 3.99%); with it the tinted pair recovers
+  0.47% and a clean pair is unaffected (0.01%).
+- Coarse-to-fine render ladder (`refine_kwargs=dict(ladder=(96, 160, 256))`): each rung
+  warm-starts the next. From a 6° offset a cold 96 px rung stalls at 5.61°; the 32→64→96
+  ladder lands 2.55° at equal per-stage budget.
+- Pose covariance for pose graphs: builtin-LM results expose `info["information"]` (the
+  undamped JᵀWJ at the final accepted linearisation; 6×6 SE(3) / 7×7 Sim(3)) and
+  `info["covariance"]` (its scaled inverse; `None` if singular, never faked)
+  (`tests/test_pose_covariance.py`).
+- `validate_recovery.py --fast`: a CPU smoke preset of the recovery harness (same protocol
+  and gates, smaller budget). Recorded: 6/6 cells within gate in ~41 s on a 2-thread CPU.
+- Zenodo DOI: concept DOI 10.5281/zenodo.20618389 in `CITATION.cff` and the README badge.
 
-- release: v1.0.2 — ship v0.2/v0.3 features (object-pose, camera-loc, bundle, spatial-index) to PyPI; sync __version__ 0.0.1->1.0.2 (1bbe724)
-- docs(v0.2): README — YCB-CAD object-pose ADD-S AUC 0.995, corrected official-protocol gap (b06b880)
-- bench(v0.2): YCB-CAD object-pose — ADD-S AUC 0.995 on the canonical google_16k models (7f47c30)
-- bench(v0.2/v0.3): real-data numbers on GaussianFeels splats (2c169bb)
-- harden(v0.2/v0.3): robust bundle edges + vectorised batch index queries + wide-baseline camera seed (99aee5d)
-- Delete .github/workflows directory (5d60ce3)
-- feat(v0.3): multi-splat bundle registration + scene-scale spatial index (38eaf60)
-- feat(v0.2): 6-DoF object-pose mode (ADD/ADD-S) + camera localization in a splat (0dc6d9b)
-- chore: gitignore internal docs/ + sync RESULTS with README (merge + speed tables) (d965e30)
-- chore: remove unused square logo (banner is the only displayed image) (e0369df)
-- docs: badge row — add PyPI version + real links, drop vanity badges (3cf58ce)
+## 1.1.0 (2026-06-09)
 
-## v1.0.1 — 2026-06-07
+### Added
 
-- release 1.0.1: show banner on PyPI (absolute-URL README header) + version bump (0f46557)
-- docs: landscape banner in README header + transparent (bg-removed) square logo for PyPI/icon (9afffa7)
-- docs: add logo to README header + social banner asset (5b8c5f4)
-- docs: roadmap v1.0 shipped (BSD, public, PyPI: pip install splatreg) + icon brief (a645868)
-- splatreg: BSD-3-Clause relicense + partial-overlap fix (4/9->6/9) + scale line-search (c7f1c63)
-- docs: slim README to a clean product page (258->170) (a97a0fd)
-- splatreg 1.0.0 — backends, official 3DMatch/3DLoMatch (matches GeoTransformer), CI, seeded RANSAC (fbaa3e3)
-- feat(splatreg): real-splat MERGE DEMO — the MVP deliverable (4.9x Chamfer, 21.9x overlap vs naive concat) (6d6c00c)
-- docs(README): thorough update — 3DMatch SOTA-beat, init modes (fast/robust/learned), real speed, honest open items (4fcfc26)
-- feat(splatreg): init="learned" (GeoTransformer) — beats learned SOTA on 3DMatch (94% RR vs GeoTr 92.5%) (6cfd206)
-- feat(splatreg): init="robust" — competitive on real 3DMatch (ties Open3D RR, ~2.5x better RRE/RTE) (a847f65)
-- perf(splatreg): sub-30ms full registration + honest first 3DMatch benchmark (d0f2597)
-- feat(splatreg): fast feature-init by default — from-scratch registration 4x faster, 36/36 preserved (d599df3)
-- feat(splatreg): real-time warm-start tracking (<40ms) + Sim(3) closed-form speed + robustness + real-data (285360f)
-- chore: remove orphaned scratch experiments; fix last dangling docs/ comment-ref (near-pi test docstring now reflects the landed fix) (7425ac4)
-- feat(partial-overlap): overlap-aware point-to-plane feature aligner + honest ambiguity detection (930a2c2)
-- fix(docs): correct symmetric robustness 9/9 -> 7/9 (re-verified by running the bench; prior figure was an unverified agent report) (eaa583a)
-- style: black the docstring + example edits (30f1249)
-- chore(repo): drop internal docs/ + .github CI/pre-commit; move hero figure to assets/; fix all references (540cbee)
-- fix(ci): drop unused scipy from the install (broke CI: torch index has no scipy, and it's never imported); remove debug verify scripts (1df36ea)
-- docs: refresh RESULTS.md to current state (closed-form gradient, near-pi log, 30 tests, symmetric 9/9) (9b7896c)
-- docs: flagship README + before/after hero figure + Jacobian docstring accuracy (606d1fc)
-- style: apply black (line-length 110) across the package (d23ddee)
-- validation suite + closed-form SDF gradient + robust near-pi log + CI (71ac123)
-- splatreg v0.1.0: composable SE(3)/Sim(3) Gaussian-splat registration (2c4ce50)
+- `splatreg` CLI: `align` / `merge` / `info` from the shell, standard 3DGS PLY in/out. The
+  recorded `align` run takes a source from 154 mm Chamfer off the target to 0.05 mm with no
+  Python written.
+- `refine="photometric"`: opt-in PhotoReg-style splat-to-splat photometric stage after the
+  geometric solve, for the poses geometry cannot see (symmetry / texture-only DoF), no real
+  images needed. On a rotation-symmetric colored sphere the geometric solve worsens
+  6.0°→11.2° while the photometric stage lands 2.2° (real gsplat rasterizer: 5°/7 mm →
+  0.36°/0.5 mm in ~1.1 s); neutral on dense-overlap pairs, hence opt-in.
+- Docs site at <https://archerkattri.github.io/splatreg/> (mkdocs-material + mkdocstrings).
 
+### Fixed
+
+- DC-only PLY round-trip: `load_ply` used to return raw SH-DC values in the RGB slot, so a
+  following `save_ply` double-encoded them and colors drifted every load→save cycle.
+  DC-only loads now return true RGB and round-trip losslessly; full-SH round-trip stays
+  bit-exact (`tests/test_io_roundtrip_dc.py`).
+
+## 1.0.x (2026-06-07 / 2026-06-08)
+
+- 1.0.0: first public release. SE(3)/Sim(3) registration behind the closed-form-Jacobian
+  Gaussian-SDF residual, super-Fibonacci global init, `init="fast"/"robust"/"learned"`,
+  official 3DMatch/3DLoMatch at GeoTransformer-class recall (91.5% mean / 93.5% pooled),
+  real-splat merge demo (Chamfer 10.3 → 2.0 mm vs naive concat), BSD-3-Clause, PyPI.
+- 1.0.1: README banner on PyPI; version sync.
+- 1.0.2: v0.2/v0.3 features shipped to PyPI (object-pose mode with ADD/ADD-S/AUC, camera
+  localization, multi-splat bundle registration, scene-scale spatial index).
+- 1.0.3: relative paths in benchmarks/examples; discoverability README pass.
