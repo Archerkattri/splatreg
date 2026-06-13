@@ -276,6 +276,19 @@ and always resolves to the latest archived release:
 }
 ```
 
+**Paper (preprint).** engrXiv, [doi:10.31224/7313](https://doi.org/10.31224/7313):
+
+```bibtex
+@article{attri2026splatreg,
+  author  = {Attri, Krishi},
+  title   = {Registering Gaussian Splats Without the Point-Cloud Detour: Accuracy,
+             Representation Semantics, and a Negative Result on Hypothesis-Stage Transfer},
+  journal = {engrXiv},
+  doi     = {10.31224/7313},
+  year    = {2026}
+}
+```
+
 ## License & layout
 
 BSD 3-Clause: permissive, composes with the gsplat / Theseus / GTSAM ecosystem.
