@@ -100,30 +100,77 @@ class ICP(Residual):
         self,
         point_to_plane: bool = True,
         max_correspondence_dist: float = 0.0,
+        n_points: int = 0,
+        nn_chunk_size: int = 2048,
         weight: float = 1.0,
         robust: Optional[Any] = None,
+        seed: int = 0,
     ):
         super().__init__(weight=weight, robust=robust)
         self.point_to_plane = bool(point_to_plane)
         self.max_correspondence_dist = float(max_correspondence_dist)
+        self.n_points = int(n_points)
+        self.nn_chunk_size = int(nn_chunk_size)
+        self.seed = int(seed)
         self._n_corr = 0  # last correspondence count, exposed via dim()
+        self._sample_cache_key: Optional[tuple] = None
+        self._sample_idx: Optional[torch.Tensor] = None
 
     def requires(self) -> set:
         return {"source_gaussians"}
 
     # ── source point extraction ──────────────────────────────────────────────────
 
-    @staticmethod
-    def _source_points(source: Any) -> torch.Tensor:
+    def _source_points(self, source: Any) -> torch.Tensor:
         if isinstance(source, Gaussians):
-            return source.means
-        if isinstance(source, Frame):
+            pts = source.means
+        elif isinstance(source, Frame):
             if source.point_cloud is None:
                 raise ValueError("ICP source Frame has no point_cloud")
-            return source.point_cloud
-        if torch.is_tensor(source):
-            return source
-        raise TypeError("ICP source must be a Gaussians, a Frame with point_cloud, or an (N,3) tensor")
+            pts = source.point_cloud
+        elif torch.is_tensor(source):
+            pts = source
+        else:
+            raise TypeError("ICP source must be a Gaussians, a Frame with point_cloud, or an (N,3) tensor")
+
+        m = int(pts.shape[0])
+        if self.n_points <= 0 or m <= self.n_points:
+            return pts
+
+        key = (id(source), m, pts.data_ptr(), self.n_points, self.seed)
+        if self._sample_cache_key != key or self._sample_idx is None:
+            stride = max(1, m // self.n_points)
+            offset = self.seed % stride
+            idx = torch.arange(offset, m, stride, device=pts.device, dtype=torch.long)[: self.n_points]
+            if idx.shape[0] < self.n_points:
+                tail = torch.arange(m - (self.n_points - idx.shape[0]), m, device=pts.device, dtype=torch.long)
+                idx = torch.cat([idx, tail]).unique(sorted=True)[: self.n_points]
+            self._sample_idx = idx
+            self._sample_cache_key = key
+        return pts[self._sample_idx]
+
+    def _nearest_target(self, queries: torch.Tensor, target_points: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Nearest target anchor per query, with bounded peak memory.
+
+        A dense ``torch.cdist(queries, target_points)`` is O(N*M) memory. For million-anchor
+        splats that is terabytes, so split the query side into fixed blocks. The result is the
+        same nearest-neighbour assignment as the dense call; only the live working set changes.
+        """
+        n = int(queries.shape[0])
+        if n == 0:
+            empty_dist = queries.new_zeros(0)
+            empty_idx = torch.empty(0, device=queries.device, dtype=torch.long)
+            return empty_dist, empty_idx
+        chunk = self.nn_chunk_size if self.nn_chunk_size > 0 else n
+        chunk = max(1, int(chunk))
+        d_chunks = []
+        i_chunks = []
+        for lo in range(0, n, chunk):
+            d = torch.cdist(queries[lo : lo + chunk], target_points)
+            min_dist, nn = d.min(dim=1)
+            d_chunks.append(min_dist)
+            i_chunks.append(nn)
+        return torch.cat(d_chunks, dim=0), torch.cat(i_chunks, dim=0)
 
     def _correspondences(self, T: torch.Tensor, target: Gaussians, source: Any):
         """Return ``(p, q, n, src_pts, keep)`` at the current pose.
@@ -138,8 +185,7 @@ class ICP(Residual):
         p = (R @ src.T).T + t  # (N, 3)
 
         tgt = target.means.to(device=src.device, dtype=src.dtype)  # (M, 3)
-        dists = torch.cdist(p, tgt)  # (N, M)
-        min_dist, nn = dists.min(dim=1)  # (N,), (N,)
+        min_dist, nn = self._nearest_target(p, tgt)  # (N,), (N,)
 
         if self.max_correspondence_dist > 0.0:
             keep = min_dist <= self.max_correspondence_dist

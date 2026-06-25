@@ -278,17 +278,25 @@ def _default_residuals(target: Any, quality: QualityConfig) -> list:
     Peak memory is bounded regardless by the row-chunked Sim(3) autodiff Jacobian (``solvers/lm.py``).
     """
     from .residuals import ICP, SDF  # local import: residuals are optional plugins
+    from .residuals.icp import _gaussian_surface_normals
 
     sigma = _auto_sdf_sigma(target)
+    target_normals = _gaussian_surface_normals(target)
     # n_points=0 tells SDF to use ALL source anchors (its `m <= n_points` short-circuit). The
     # QualityConfig stores None for "full"; map that to 0 here.
     n_points = 0 if quality.n_points is None else int(quality.n_points)
     return [
-        ICP(point_to_plane=False, weight=_DEFAULT_ICP_WEIGHT),
+        ICP(
+            point_to_plane=False,
+            weight=_DEFAULT_ICP_WEIGHT,
+            n_points=n_points,
+            nn_chunk_size=quality.sdf_chunk_size,
+        ),
         SDF(
             sigma=sigma,
             weight=_DEFAULT_SDF_WEIGHT,
             n_points=n_points,
+            target_normals=target_normals,
             knn=quality.knn,
             chunk_size=quality.sdf_chunk_size,
         ),
