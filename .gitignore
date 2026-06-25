@@ -24,3 +24,15 @@ docs/*
 
 # Research paper draft (local-only; papers NEVER in repos)
 paper/
+
+# LaTeX build outputs (local-only)
+*.aux
+*.bcf
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz
