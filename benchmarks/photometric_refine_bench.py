@@ -3,8 +3,7 @@
 
 Protocol (the merge-seam scenario, controlled):
 
-1. Load a real exported 3DGS splat (``--ply``; defaults to the GaussianFeels 103k capture used by
-   ``examples/merge_demo.py``).
+1. Load a real exported 3DGS splat (``--ply`` or ``SPLATREG_PHOTOMETRIC_BENCH_PLY``).
 2. Random-split it into two DISJOINT halves A (target) and B (source) — same surface, *different
    Gaussians*, like two captures of the same object — and move B by a KNOWN small SE(3)
    (default 2 deg + 0.5%-of-extent translation: the residual pose error a geometric registration
@@ -45,9 +44,6 @@ from splatreg.residuals.photometric import (  # noqa: E402
     camera_ring,
     refine_photometric,
 )
-
-_DEFAULT_PLY = "/home/krishi/workspace/gaussianfeels/outputs/_opt_fscore_sd05_b10_h4/final.ply"
-
 
 def rot_err_deg(T: torch.Tensor, T_gt: torch.Tensor) -> float:
     s = lambda M: M[:3, :3].det().abs().clamp_min(1e-18) ** (1.0 / 3.0)
@@ -103,7 +99,12 @@ def seam_l1(target: Gaussians, source: Gaussians, T: torch.Tensor, cams, K, px: 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--ply", default=_DEFAULT_PLY)
+    ap.add_argument(
+        "--ply",
+        default=os.environ.get("SPLATREG_PHOTOMETRIC_BENCH_PLY"),
+        required=os.environ.get("SPLATREG_PHOTOMETRIC_BENCH_PLY") is None,
+        help="real 3DGS PLY path, or set SPLATREG_PHOTOMETRIC_BENCH_PLY",
+    )
     ap.add_argument("--rot-deg", type=float, default=2.0, help="known seam rotation error")
     ap.add_argument("--trans-frac", type=float, default=0.005, help="translation as fraction of extent")
     ap.add_argument("--views", type=int, default=6)
@@ -135,9 +136,9 @@ def main() -> None:
     cams, K = camera_ring(A, args.views, width=args.px, height=args.px)
     seam0 = seam_l1(A, B_moved, torch.eye(4, device=device), cams, K, args.px, sh_degree)
 
-    # Geometric stage on an anchor SUBSAMPLE (the default ICP residual builds a dense source x
-    # target cdist — 51k x 51k would be ~10 GiB; 8k x 8k is ~0.25 GiB and registration pipelines
-    # subsample anyway). The photometric refine then runs on the FULL halves.
+    # Geometric stage on an anchor subsample for speed. The default ICP residual honors
+    # quality's source cap and chunks nearest-neighbor queries, but this benchmark is about the
+    # photometric stage, so keep the geometric setup small and deterministic.
     t0 = time.time()
     geo = register(
         subsample(A, args.geo_anchors, seed=1),
