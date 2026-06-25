@@ -10,6 +10,26 @@ the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
   The dataset is not readily available, so the real-data validation anchor is the
   controlled-capture harness (`realdata_bench.py` / `bundle_real_bench.py`) instead.
 
+## 1.3.3 (2026-06-25)
+
+### Fixed
+
+- Large-splat alignment no longer builds a dense source-by-target ICP distance matrix. The
+  default ICP residual now honors the resolved `quality` source sample cap and evaluates nearest
+  neighbors in query chunks, so `--quality low`, numeric quality values, and `quality="auto"` bound
+  the ICP memory path as intended.
+- The default SDF residual now receives target normals derived from the Gaussian scale/orientation
+  data instead of estimating target normals with a dense target-by-target kNN pass. This removes a
+  second full-target memory path for million-Gaussian PLYs.
+
+### Verified
+
+- Reproduced on a public 3,177,554-Gaussian PLY from `Voxel51/gaussian_splatting`. With
+  `quality=0.05`, the largest observed `torch.cdist` call was `64 x 3,177,554` instead of an
+  all-pairs `3,177,554 x 3,177,554` allocation.
+- A controlled visual test on the same PLY recovered a known 5 degree / `[2.0, -1.2, 0.5]`
+  synthetic offset with `0.000734` scene-unit translation error.
+
 ## 1.3.2 (2026-06-11)
 
 ### Fixed

@@ -66,7 +66,7 @@ try:
 except ImportError:  # pragma: no cover
     mac_pose = mac_feature_align = None  # type: ignore
 
-__version__ = "1.3.2"
+__version__ = "1.3.3"
 __all__ = [
     "apply_transform",
     "register",
