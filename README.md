@@ -176,6 +176,22 @@ the value is a generalist seed + splatreg's provable SH rotation, honest pose co
 scale, and overlap-aware refine on top — not the last recall point on one benchmark. Drop in a
 higher-recall correspondence model as the seed the day it ships a permissive, zero-shot checkpoint.
 
+**The BUFFER-X seed, built and validated (2026-07-01).** The zero-shot seed is now built and run
+on **real 3DMatch**, with both seeds pushed through the *identical* splatreg refine so the
+comparison isolates the seed rather than the pipeline. On high-overlap pairs (overlap ≥ 0.3,
+n=371, 50/scene across all 8 scenes) BUFFER-X reaches **0.965 recall** (median RRE 1.70°) against
+**0.569** (3.04°) for the classical robust FPFH seed; in the low-overlap 3DLoMatch regime
+(overlap 0.10–0.30, n=400) it holds **0.752** (3.23°) against **0.092** (107.9°) — an **8× recall**
+lift where classical FPFH collapses to ~random. BUFFER-X wins all 8 scenes in both regimes.
+Stated honestly: the pair set is GT-derived from the fragments' `.info.txt` poses (the official
+`gt.log` metadata is absent), not the literal official split; and both seeds share the lighter
+`feature_align` refine — a fair head-to-head, but the absolute numbers are not the full-pipeline
+ones. Weights come from Hugging Face `Hyungtae-Lim/BUFFER-X`; a native build on a modern stack
+(CUDA 12.8 / sm_120 / torch 2.11 / numpy 2.x) is nontrivial, with the full sudo-free recipe in
+[`docs/BUFFERX_BUILD_MODERN_CUDA.md`](docs/BUFFERX_BUILD_MODERN_CUDA.md). Note the checkpoints are
+full-model state_dicts: loading them into the `.Desc`/`.Pose` submodules silently loads nothing
+(random weights → garbage seeds), fixed in `c54d8c9`.
+
 **The MAC verdict, stated honestly.** `init="mac"` reimplements the MAC hypothesis generator
 (SC²-weighted rigidity graph → maximal cliques → weighted SVD per clique, with explicit
 caps) in pure torch + networkx (`pip install "splatreg[mac]"`). On synthetic contaminated

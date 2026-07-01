@@ -12,14 +12,33 @@ the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
   overlap-aware ICP (+ Sim(3) scale) as `"learned"`/`"robust"`. Optional and lazily loaded
   (mirrors the GeoTransformer backend); falls back to `"robust"` with a logged note when its
   built CUDA extensions / Hugging Face weights are absent. Setup:
-  `splatreg/third_party_models/README-BUFFERX.md`. Added to the `register`/`splatreg align --init`
-  choices.
+  `splatreg/third_party_models/README-BUFFERX.md`; full modern-stack build recipe
+  (CUDA 12.8 / sm_120 / torch 2.11 / numpy 2.x) in `docs/BUFFERX_BUILD_MODERN_CUDA.md`. Added to
+  the `register`/`splatreg align --init` choices.
 - `register(init="learned", seed_gate=True)`: an opt-in (default off) Decision-PCR-style
   (arXiv 2507.14965) confidence gate that scores the learned seed (mutual-NN inlier ratio + SC²
   spatial consistency, reusing the `mac` rigidity machinery) and rejects/reseeds a low-confidence
   hypothesis from the classical `"robust"` path *before* LM refinement, instead of blindly refining
   the top seed. Scores surface in `result.info["seed_gate"]`. Tests:
   `tests/test_bufferx_seedgate.py` (fallback path + gate accepts good seed / rejects planted decoy).
+
+### Fixed
+
+- BUFFER-X weight loading: the pretrained checkpoints are **full-model** state_dicts (keys
+  prefixed `Desc.`/`Pose.`), so loading them into the `.Desc`/`.Pose` submodules under
+  `strict=False` matched nothing and silently ran on random weights (garbage seeds). Now loaded
+  into the whole model, so `init="bufferx"` produces real seeds (commit `c54d8c9`).
+
+### Verified
+
+- `init="bufferx"` built and run on **real 3DMatch**, both seeds through the identical splatreg
+  refine so the comparison isolates the seed. High-overlap (overlap ≥ 0.3, n=371, 50/scene, all 8
+  scenes): BUFFER-X recall 0.965 (median RRE 1.70°) vs classical robust seed 0.569 (3.04°).
+  Low-overlap 3DLoMatch regime (overlap 0.10–0.30, n=400): 0.752 (3.23°) vs 0.092 (107.9°) — 8×
+  recall; classical FPFH collapses to ~random on low overlap. BUFFER-X wins all 8 scenes in both
+  regimes. Caveats: pairs are GT-derived from the fragments' `.info.txt` poses (official `gt.log`
+  absent), not the literal official split; both seeds share the lighter `feature_align` refine
+  (fair head-to-head, but not the full-pipeline absolute numbers).
 
 ### Removed
 - The ScanNet-GSReg (GaussReg ECCV'24) benchmark harness and all references to it.
