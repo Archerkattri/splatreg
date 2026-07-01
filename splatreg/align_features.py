@@ -1598,6 +1598,8 @@ def learned_feature_align(
     voxel: float | None = None,
     refine_iters: int = 30,
     seed_selector: str = "lgr",
+    seed_gate: bool = False,
+    seed_gate_min_conf: float = 0.10,
 ) -> tuple[torch.Tensor, dict]:
     """LEARNED registrar: pretrained GeoTransformer seed + splatreg overlap-aware refine (+ Sim(3)).
 
@@ -1622,6 +1624,14 @@ def learned_feature_align(
     implementation, it needs the 3DLoMatch data + GeoTransformer features on a GPU box; see
     ``docs_site/init-modes.md``).  ``"mac"`` falls back to ``"lgr"`` when the correspondence
     extraction or MAC consensus fails, so the contract is unchanged.
+
+    ``seed_gate`` (default ``False``) adds a Decision-PCR-style confidence check
+    (:func:`_seed_gate_score`, arXiv 2507.14965 in spirit) *before* LM refinement: the candidate
+    seed is scored by its mutual-NN inlier ratio + SC² spatial consistency, and a seed below
+    ``seed_gate_min_conf`` is REJECTED and RESEEDED from the classical ``robust`` path (keeping
+    whichever of the two scores higher) instead of blindly refining a low-confidence hypothesis.
+    Off by default so the baseline contract is unchanged; when on, ``info['seed_gate']`` carries the
+    scores and whether a reseed happened.
 
     Args / Returns: identical contract to :func:`robust_feature_align`; ``info`` additionally carries
     ``used_learned`` (bool), ``seed`` (``"geotransformer"`` / ``"geotransformer+mac"`` /
@@ -1694,6 +1704,44 @@ def learned_feature_align(
 
     info["used_learned"] = True
     info["seed"] = seed_name
+
+    # ── Decision-PCR-style seed gate (opt-in): reject/reseed a low-confidence hypothesis ──────────
+    # Instead of blindly refining the top learned hypothesis, score it (mutual-NN inlier ratio + SC²
+    # spatial consistency).  A confident seed passes straight through; a low-confidence one is
+    # reseeded from the classical robust path and we keep whichever scores higher.
+    if seed_gate:
+        # Scale-adaptive inlier tolerance: a small multiple of the target point spacing (object-
+        # scale ~cm, scene-scale ~dm) so the gate's inlier test is meaningful across scales.
+        gate_tol = 3.0 * _cloud_voxel(tgt_full, mult=1.0)
+        gs = _seed_gate_score(src_full, tgt_full, T_seed.to(device=dev, dtype=dtype), inlier_tol=gate_tol)
+        gate_info = {
+            "learned_conf": gs["confidence"],
+            "learned_inlier_ratio": gs["inlier_ratio"],
+            "learned_sc2": gs["sc2_consistency"],
+            "min_conf": float(seed_gate_min_conf),
+            "reseeded": False,
+            "accepted": "learned",
+        }
+        if gs["confidence"] < seed_gate_min_conf:
+            # Reseed from the classical robust path and keep the better-scoring candidate.
+            try:
+                T_rs, _ = robust_feature_align(
+                    target, source, transform=transform, voxel=voxel, refine_iters=refine_iters
+                )
+                gr = _seed_gate_score(
+                    src_full, tgt_full, T_rs.to(device=dev, dtype=dtype), inlier_tol=gate_tol
+                )
+                gate_info["reseeded"] = True
+                gate_info["reseed_conf"] = gr["confidence"]
+                if gr["confidence"] > gs["confidence"]:
+                    T_seed = T_rs.to(torch.float64)
+                    seed_name = "robust-reseed"
+                    info["seed"] = seed_name
+                    gate_info["accepted"] = "robust-reseed"
+            except Exception:
+                pass  # reseed unavailable → keep the (flagged) learned seed
+        info["seed_gate"] = gate_info
+
     if voxel is None:
         voxel = min(_cloud_voxel(src_full), _cloud_voxel(tgt_full))
     info["voxel"] = float(voxel)
@@ -1702,6 +1750,294 @@ def learned_feature_align(
     # SAME refine policy as robust_feature_align: Open3D point-to-plane ICP for SE(3) (scale-correct,
     # tightens the learned seed at room scale); splatreg overlap-aware Sim(3) ICP when a scale DoF is
     # wanted.  Accept the refine only if it does not worsen the overlap residual.
+    if not with_scale:
+        T_o3d = _open3d_icp_refine(src_full, tgt_full, T0, voxel, iters=refine_iters)
+        T_ref = T_o3d.to(device=dev, dtype=dtype) if T_o3d is not None else T0
+    else:
+        T_ref = _overlap_icp_polish(
+            src_full,
+            tgt_full,
+            T0,
+            with_scale=True,
+            iters=refine_iters,
+            n_src=min(4000, src_full.shape[0]),
+            n_tgt=min(2000, tgt_full.shape[0]),
+        )
+    r0 = _overlap_residual_norm(src_full, tgt_full, T0, with_scale=with_scale)
+    r1 = _overlap_residual_norm(src_full, tgt_full, T_ref, with_scale=with_scale)
+    T = T_ref if r1 <= r0 + 1e-6 else T0
+    info["confidence"] = float(max(0.0, 1.0 - min(r0, r1)))
+    return T.to(device=dev, dtype=dtype), info
+
+
+# ── seed-quality gate (Decision-PCR-style confidence check) ─────────────────────
+
+
+def _seed_gate_score(
+    src_full: torch.Tensor,
+    tgt_full: torch.Tensor,
+    T: torch.Tensor,
+    *,
+    inlier_tol: float,
+    n_src: int = 800,
+    n_tgt: int = 800,
+) -> dict:
+    """Data-driven confidence for a *candidate seed* transform, before it hits LM refinement.
+
+    A lightweight stand-in for Decision PCR's learned correspondence-confidence head (arXiv
+    2507.14965): rather than blindly refining the top hypothesis, score it with two cheap,
+    training-free signals over mutual-nearest-neighbour correspondences and reject/reseed the ones
+    that are clearly wrong.
+
+    Signals (both in ``[0, 1]``):
+
+    * **inlier ratio** — transform the (sub-sampled) source by ``T``, take the mutual-NN pairs to the
+      target, and measure the fraction that land within ``inlier_tol``.  A correct seed maps the
+      overlap onto the target so most mutual matches are inliers; a wrong / decoy seed scatters the
+      source off the target and the ratio collapses.
+    * **SC² spatial consistency** — build the second-order (SC²) rigidity-compatibility graph
+      (:func:`splatreg.mac.compatibility_graph`, the same machinery ``init="mac"`` uses) over the
+      *untransformed* matched pairs and report the fraction of mutually rigidity-consistent edges.
+      Real inlier correspondences are pairwise-distance consistent (a rigid/similarity motion
+      preserves distances) so a true seed's matches form a dense compatible sub-graph; random decoy
+      matches do not.
+
+    ``confidence = inlier_ratio * sqrt(sc2_consistency)`` combines them so a seed must be BOTH
+    well-fitting AND geometrically self-consistent to score high.  Returns a dict with
+    ``inlier_ratio`` / ``sc2_consistency`` / ``n_corr`` / ``confidence``.  Pure torch (+ the optional
+    ``mac`` module for the SC² term; if it is unavailable the SC² term degrades to ``1.0`` so the
+    gate still runs on the inlier ratio alone).
+    """
+    out = {"inlier_ratio": 0.0, "sc2_consistency": 0.0, "n_corr": 0, "confidence": 0.0}
+    src = _stride_subsample(src_full, n_src).double()
+    tgt = _stride_subsample(tgt_full, n_tgt).double()
+    if src.shape[0] < 4 or tgt.shape[0] < 4:
+        return out
+
+    block = T[:3, :3].double()  # already s*R for Sim(3)
+    t = T[:3, 3].double()
+    src_t = src @ block.transpose(-1, -2) + t  # (Ns, 3) transformed source
+
+    d = torch.cdist(src_t, tgt)  # (Ns, Nt)
+    d_s2t, i_s2t = d.min(dim=1)  # each source -> nearest target
+    i_t2s = d.argmin(dim=0)  # each target -> nearest source
+    src_range = torch.arange(src.shape[0], device=src.device)
+    mutual = i_t2s[i_s2t] == src_range  # reciprocal NN
+    mut = src_range[mutual]
+    tgt_idx = i_s2t[mutual]
+    n_mut = int(mut.numel())
+    out["n_corr"] = n_mut
+    if n_mut < 3:
+        return out
+
+    inlier_ratio = float((d_s2t[mutual] < inlier_tol).float().mean().item())
+    out["inlier_ratio"] = inlier_ratio
+
+    # SC² spatial consistency over the mutual correspondences (transform-invariant rigidity check).
+    cs = src[mut]  # untransformed source correspondence points
+    ct = tgt[tgt_idx]
+    if cs.shape[0] > 256:  # cap the O(M^2) graph (deterministic strided subsample)
+        sel = torch.linspace(0, cs.shape[0] - 1, 256, device=cs.device).round().to(torch.int64)
+        cs, ct = cs[sel], ct[sel]
+    sc2 = 1.0
+    try:
+        from .mac import compatibility_graph
+
+        gamma = 2.0 * float(inlier_tol)
+        adj, _w2 = compatibility_graph(cs.float(), ct.float(), gamma)
+        M = adj.shape[0]
+        poss = M * (M - 1)
+        sc2 = float(adj.sum().item()) / max(poss, 1) if poss > 0 else 0.0
+    except Exception:
+        sc2 = 1.0  # mac module unavailable → gate on the inlier ratio alone
+    out["sc2_consistency"] = sc2
+    out["confidence"] = float(inlier_ratio * math.sqrt(max(sc2, 0.0)))
+    return out
+
+
+# ── BUFFER-X zero-shot seed (ICCV 2025, optional) + splatreg refine ─────────────
+
+# Module-level cache of the loaded BUFFER-X model + config (paid once per process, per device).
+_BUFFERX_CACHE: dict = {}
+
+
+def _bufferx_paths() -> tuple[str, str] | None:
+    """Resolve ``(repo_root, pose_weights)`` for the bundled BUFFER-X, or ``None``.
+
+    BUFFER-X ("Towards Zero-Shot Point Cloud Registration in Diverse Scenes", ICCV 2025,
+    MIT-SPARK/BUFFER-X) lives under ``splatreg/third_party_models/BUFFER-X`` (gitignored, cloned +
+    built by the Tier-2 setup; see ``third_party_models/README-BUFFERX.md``).  We discover it
+    relative to this file so the path is robust to the caller's CWD.  Returns ``None`` (→ caller
+    falls back to ``init="robust"``) when the repo, its downloaded pretrained checkpoints, or its
+    built CUDA neighbour/subsampling extensions are absent.
+    """
+    import glob
+    import os
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.normpath(os.path.join(here, "..", "third_party_models", "BUFFER-X"))
+    # HF release layout: snapshot/threedmatch/{Desc,Pose}/best.pth
+    pose_w = os.path.join(repo, "snapshot", "threedmatch", "Pose", "best.pth")
+    desc_w = os.path.join(repo, "snapshot", "threedmatch", "Desc", "best.pth")
+    # The KPConv neighbour/subsampling C++ extensions must be built (compile_wrappers.sh).
+    ext_ok = bool(glob.glob(os.path.join(repo, "cpp_wrappers", "cpp_subsampling", "*.so"))) and bool(
+        glob.glob(os.path.join(repo, "cpp_wrappers", "cpp_neighbors", "*.so"))
+    )
+    if not (os.path.isfile(pose_w) and os.path.isfile(desc_w) and ext_ok):
+        return None
+    return repo, pose_w
+
+
+def _load_bufferx(device: torch.device):
+    """Lazily import + load the pretrained BUFFER-X 3DMatch model (cached), or ``None``.
+
+    Mirrors :func:`_load_geotransformer`: adds the BUFFER-X repo to ``sys.path``, builds the model
+    from its 3DMatch config, loads the released Desc/Pose checkpoints, moves it to ``device`` in eval
+    mode.  Returns ``(model, cfg)`` or ``None`` if anything (import / weights / CUDA-ext) is
+    unavailable, in which case the caller falls back to the classical ``robust`` seed.
+    """
+    key = str(device)
+    if key in _BUFFERX_CACHE:
+        return _BUFFERX_CACHE[key]
+    paths = _bufferx_paths()
+    if paths is None:
+        _BUFFERX_CACHE[key] = None
+        return None
+    repo, pose_w = paths
+    import os
+    import sys
+
+    if repo not in sys.path:
+        sys.path.insert(0, repo)
+    try:
+        from config import make_cfg  # type: ignore  # BUFFER-X dataset config factory
+        from models.BUFFERX import BufferX  # type: ignore
+
+        cfg = make_cfg("3DMatch", os.path.join(repo, "snapshot"))
+        cfg.stage = "test"
+        model = BufferX(cfg).to(device).eval()
+        # Load the two released sub-module checkpoints (descriptor + pose).
+        desc_w = os.path.join(repo, "snapshot", "threedmatch", "Desc", "best.pth")
+        model.Desc.load_state_dict(torch.load(desc_w, map_location="cpu"), strict=False)
+        model.Pose.load_state_dict(torch.load(pose_w, map_location="cpu"), strict=False)
+    except Exception:
+        _BUFFERX_CACHE[key] = None
+        return None
+    bundle = (model, cfg)
+    _BUFFERX_CACHE[key] = bundle
+    return bundle
+
+
+def _bufferx_seed(src: torch.Tensor, tgt: torch.Tensor, device: torch.device) -> torch.Tensor | None:
+    """Zero-shot global seed (source→target 4×4) from pretrained BUFFER-X, or ``None``.
+
+    Runs the BUFFER-X model on the two Gaussian-center clouds and returns its estimated pose (the
+    ``init_pose`` its patch-descriptor matching + pose estimator recover).  BUFFER-X is a *zero-shot*
+    registrar — one set of weights generalises across sensors/scales with no per-dataset retraining —
+    which is why it is the splat-native learned seed here: splatreg's overlap-aware ICP (+ optional
+    Sim(3) scale) then refines it, exactly as the ``learned`` path refines the GeoTransformer seed.
+    Returns ``None`` on any failure (model unavailable, forward error, heavy CUDA-only preprocessing
+    absent) so the caller can fall back.
+    """
+    bundle = _load_bufferx(device)
+    if bundle is None:
+        return None
+    model, cfg = bundle
+    try:
+        import numpy as _np
+
+        # BUFFER-X's test-mode forward expects a data_source dict of sphericity-voxelised clouds +
+        # KPConv neighbour stacks assembled by its dataloader (CUDA-only C++ ops).  Build the minimal
+        # inputs it reads; any missing preprocessing raises → we return None and the caller falls back.
+        data_source = {
+            "src_fds_pcd": tgt.new_tensor(src.detach().cpu().numpy(), dtype=torch.float32).to(device),
+            "tgt_fds_pcd": tgt.new_tensor(tgt.detach().cpu().numpy(), dtype=torch.float32).to(device),
+            "is_aligned_to_global_z": False,
+        }
+        with torch.no_grad():
+            out = model(data_source)
+        if out is None:
+            return None
+        pose = out[0] if isinstance(out, (tuple, list)) else out  # (pose, times, ...) in test mode
+        T = _np.asarray(pose, dtype=_np.float64).reshape(4, 4)
+        return torch.as_tensor(T, dtype=torch.float64)
+    except Exception:
+        return None
+
+
+@torch.no_grad()
+def bufferx_feature_align(
+    target: Gaussians,
+    source: Gaussians,
+    *,
+    transform: str = "se3",
+    voxel: float | None = None,
+    refine_iters: int = 30,
+) -> tuple[torch.Tensor, dict]:
+    """ZERO-SHOT registrar: pretrained BUFFER-X seed + splatreg overlap-aware refine (+ Sim(3)).
+
+    Mirrors :func:`learned_feature_align` but swaps GeoTransformer's per-dataset-trained 3DMatch seed
+    for **BUFFER-X** (ICCV 2025, "Towards Zero-Shot Point Cloud Registration in Diverse Scenes"): a
+    single generalist model that registers across sensors/scales with **no per-dataset training**,
+    which matches splatreg's splat-native, minimal-assumptions philosophy.  BUFFER-X estimates the
+    coarse SE(3) seed from the two Gaussian-center clouds; splatreg then runs the SAME overlap-aware
+    refine the ``learned`` / ``robust`` paths use (Open3D point-to-plane ICP for SE(3), its own
+    Sim(3) overlap ICP to additionally recover scale), accepting the refine only when it does not
+    worsen the overlap residual.
+
+    Guarded: when BUFFER-X (its module / built CUDA-ext / pretrained weights) is unavailable, or its
+    forward fails, it falls back to :func:`robust_feature_align` (classical seed) with a logged
+    warning so the function always returns a pose — the same graceful-degradation contract as
+    ``init="learned"``.
+
+    Returns: identical contract to :func:`robust_feature_align`; ``info`` additionally carries
+    ``used_bufferx`` (bool) and ``seed`` (``"bufferx"`` / ``"robust-fallback"``).
+    """
+    if transform not in ("se3", "sim3"):
+        raise ValueError(f"transform must be 'se3' or 'sim3', got {transform!r}")
+    with_scale = transform == "sim3"
+    dev = source.means.device
+    dtype = source.means.dtype
+    src_full = source.means.to(torch.float32)
+    tgt_full = target.means.to(device=dev, dtype=torch.float32)
+
+    info = {
+        "voxel": 0.0,
+        "n_corr": 0,
+        "used_open3d": False,
+        "used_bufferx": False,
+        "seed": "none",
+        "confidence": 0.0,
+    }
+    if src_full.shape[0] < 4 or tgt_full.shape[0] < 4:
+        return torch.eye(4, device=dev, dtype=dtype), info
+
+    T_seed = _bufferx_seed(src_full, tgt_full, dev)
+    if T_seed is None:
+        # Zero-shot backend unavailable → classical robust seed (still a strong, scale-correct path).
+        import logging as _logging
+
+        _logging.getLogger("splatreg").info(
+            "init='bufferx' requested but BUFFER-X (module / built CUDA-ext / pretrained weights) is "
+            "unavailable; falling back to the classical 'robust' seed. See "
+            "splatreg/third_party_models/README-BUFFERX.md to enable it."
+        )
+        T, rinfo = robust_feature_align(
+            target, source, transform=transform, voxel=voxel, refine_iters=refine_iters
+        )
+        rinfo = dict(rinfo)
+        rinfo["used_bufferx"] = False
+        rinfo["seed"] = "robust-fallback"
+        return T, rinfo
+
+    info["used_bufferx"] = True
+    info["seed"] = "bufferx"
+    if voxel is None:
+        voxel = min(_cloud_voxel(src_full), _cloud_voxel(tgt_full))
+    info["voxel"] = float(voxel)
+
+    T0 = T_seed.to(device=dev, dtype=dtype)
+    # SAME refine policy as learned_feature_align.
     if not with_scale:
         T_o3d = _open3d_icp_refine(src_full, tgt_full, T0, voxel, iters=refine_iters)
         T_ref = T_o3d.to(device=dev, dtype=dtype) if T_o3d is not None else T0

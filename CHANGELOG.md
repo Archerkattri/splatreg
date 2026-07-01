@@ -5,6 +5,22 @@ the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
 
 ## Unreleased
 
+### Added
+- `init="bufferx"`: a zero-shot learned seed via **BUFFER-X** (ICCV 2025, "Towards Zero-Shot
+  Point Cloud Registration in Diverse Scenes", MIT-SPARK/BUFFER-X) — a single generalist model
+  that registers across sensors/scales with no per-dataset training — refined by the same
+  overlap-aware ICP (+ Sim(3) scale) as `"learned"`/`"robust"`. Optional and lazily loaded
+  (mirrors the GeoTransformer backend); falls back to `"robust"` with a logged note when its
+  built CUDA extensions / Hugging Face weights are absent. Setup:
+  `splatreg/third_party_models/README-BUFFERX.md`. Added to the `register`/`splatreg align --init`
+  choices.
+- `register(init="learned", seed_gate=True)`: an opt-in (default off) Decision-PCR-style
+  (arXiv 2507.14965) confidence gate that scores the learned seed (mutual-NN inlier ratio + SC²
+  spatial consistency, reusing the `mac` rigidity machinery) and rejects/reseeds a low-confidence
+  hypothesis from the classical `"robust"` path *before* LM refinement, instead of blindly refining
+  the top seed. Scores surface in `result.info["seed_gate"]`. Tests:
+  `tests/test_bufferx_seedgate.py` (fallback path + gate accepts good seed / rejects planted decoy).
+
 ### Removed
 - The ScanNet-GSReg (GaussReg ECCV'24) benchmark harness and all references to it.
   The dataset is not readily available, so the real-data validation anchor is the

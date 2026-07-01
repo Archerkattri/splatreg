@@ -10,6 +10,7 @@ library. The trade is speed ↔ robustness:
 | `"fast"` *(default)* | FPFH descriptors + GPU-batched 3-point RANSAC seed → LM polish | objects / full-overlap captures | **~17 ms** |
 | `"robust"` | Open3D FPFH+RANSAC seed (scale-correct, auto-voxelled) → overlap-aware refine | real metre-scale scans | ~100 ms+ |
 | `"learned"` | pretrained GeoTransformer seed → the same overlap-aware refine | best accuracy on real scans (91.5% official 3DMatch) | ~104 ms |
+| `"bufferx"` | pretrained BUFFER-X zero-shot seed (ICCV 2025) → the same overlap-aware refine | cross-sensor / cross-scale scans, **no per-dataset training** | GPU (falls back to `"robust"` on CPU) |
 | `"global"` | blind super-Fibonacci SO(3) sweep + batched trimmed ICP | unknown, possibly huge rotation; no features needed | ~0.8–1.4 s |
 | `"mac"` | MAC maximal-clique consensus over the FPFH correspondences (Zhang et al. CVPR 2023) → weighted SVD per clique → overlap-aware refine | outlier-heavy / multi-consensus correspondence sets | ~0.03–0.3 s (CPU, scales with clique count) |
 | `"features"` | complete partial-overlap registrar (FPFH → clique-filtered RANSAC → overlap-aware point-to-plane refine + basin-sweep fallback) | the two captures see *different parts* of the object | seconds (deep sweep) |
@@ -23,6 +24,9 @@ You can also pass an explicit 4×4 tensor as `init` (e.g. a pose prior from odom
   It handles full rotations and is two orders of magnitude faster than the blind sweep.
 - **Real indoor/outdoor scans (metre scale, sensor noise)** → `"robust"`, or `"learned"`
   for the best accuracy (GeoTransformer-class recall; needs its weights available).
+- **Captures from different sensors / at different scales, and you don't want to train a
+  per-dataset model** → `"bufferx"` (zero-shot; falls back to `"robust"` when its weights are
+  absent). Add `seed_gate=True` to `"learned"` to reject/reseed a low-confidence learned seed.
 - **You have no idea how the splats are oriented and they look feature-poor** (smooth,
   near-symmetric geometry where descriptors are non-discriminative) → `"global"`.
 - **Partial overlap** (one capture saw the left side, the other the right) → `"features"`.
@@ -75,9 +79,45 @@ paper reports lifting GeoTransformer's 3DLoMatch registration recall **~71 % →
     does not occur, and the guarded refine absorbs seed-level differences. Details in
     `RESULTS.md` §5k. Needs networkx: `pip install "splatreg[mac]"`.
 
+## `init="bufferx"`: zero-shot seed (BUFFER-X, ICCV 2025)
+
+`"bufferx"` swaps GeoTransformer for **BUFFER-X** — *Towards Zero-Shot Point Cloud Registration in
+Diverse Scenes* (ICCV 2025, [MIT-SPARK/BUFFER-X](https://github.com/MIT-SPARK/BUFFER-X)) — as the
+coarse seed, then runs the *same* overlap-aware refine (+ Sim(3) scale) as `"learned"`/`"robust"`.
+The point is generality: BUFFER-X is a single **zero-shot** model that registers across sensors and
+scales with **no per-dataset training**, which is why it is splatreg's learned seed of choice — a
+splat registrar should not need a per-scene/per-sensor trained model to align two captures.
+
+BUFFER-X is optional and lazily loaded (its CUDA neighbour/subsampling extensions + Hugging Face
+checkpoints are not shipped). When absent — always the case on a CPU box — `"bufferx"` transparently
+falls back to the classical `"robust"` seed with a logged note. Setup (clone + build + weights) is in
+[`splatreg/third_party_models/README-BUFFERX.md`](https://github.com/Archerkattri/splatreg).
+
+### 2026 positioning
+
+Per-dataset-trained backbones now lead 3DMatch: **PSReg** and **DiffusionPCR** report **95 %+**
+registration recall, above the ~91.5 % GeoTransformer seed splatreg wraps. splatreg does *not* chase
+that number — it keeps a zero-shot learned option (BUFFER-X) instead. The value is a generalist seed
+plus splatreg's provable SH rotation, honest pose covariance, Sim(3) scale, and overlap-aware refine
+on top, not the last recall point on one benchmark; a higher-recall correspondence model can be
+dropped in as the seed the day it ships a permissive zero-shot checkpoint.
+
+## `seed_gate=True`: Decision-PCR-style seed confidence (opt-in)
+
+`register(init="learned", seed_gate=True)` (default **off**) adds a lightweight, training-free
+stand-in for **Decision PCR**'s learned confidence head (arXiv 2507.14965). Before LM refinement it
+scores the candidate learned seed with two cheap signals over mutual-NN correspondences — the
+**inlier ratio** (fraction landing within tolerance after the seed transform) and an **SC² spatial
+consistency** term (the same rigidity-graph machinery `init="mac"` uses) — and *rejects and reseeds*
+a low-confidence hypothesis from the classical `"robust"` path (keeping whichever scores higher)
+instead of blindly refining a bad seed. The scores land in `result.info["seed_gate"]`. On synthetic
+known-transform pairs the gate never rejects a correct seed and rejects a planted decoy
+([`tests/test_bufferx_seedgate.py`](https://github.com/Archerkattri/splatreg)); full retraining of
+the classification head is out of scope.
+
 ## Partial overlap: the honest contract
 
-`init="features"`, `"robust"`, `"learned"`, and `"mac"` are *complete registrars*, not just seeds.
+`init="features"`, `"robust"`, `"learned"`, `"bufferx"`, and `"mac"` are *complete registrars*, not just seeds.
 The default residual set assumes **full overlap** (its ICP would drag a good partial-overlap
 pose off-target), so with the default residuals these modes return their own
 registration **directly** and skip the LM. Pass an explicit overlap-safe `residuals=[...]`
@@ -101,8 +141,8 @@ result.info["feature"]      # the full per-stage diagnostic dict
 
 ## Fallback chain
 
-All string inits are guarded: `"learned"` falls back to `"robust"`, `"fast"` falls back to
-`"global"`, `"mac"` raises a clear `ImportError` with the install hint when networkx is
+All string inits are guarded: `"learned"` and `"bufferx"` fall back to `"robust"`, `"fast"` falls
+back to `"global"`, `"mac"` raises a clear `ImportError` with the install hint when networkx is
 missing (an explicit opt-in extra, like the solver backends) and returns an honestly-flagged
 identity when the correspondences carry no consensus, and everything else falls back to
 identity (with a logged note) when an optional dependency or pretrained weight is unavailable. Your call never hard-fails because a model

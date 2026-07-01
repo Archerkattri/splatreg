@@ -133,7 +133,9 @@ def _robust_init(target, source: Any, transform: str, device, dtype) -> tuple[to
     return T.to(device=device, dtype=dtype), info
 
 
-def _learned_init(target, source: Any, transform: str, device, dtype) -> tuple[torch.Tensor, dict]:
+def _learned_init(
+    target, source: Any, transform: str, device, dtype, *, seed_gate: bool = False
+) -> tuple[torch.Tensor, dict]:
     """Learned coarse init: pretrained GeoTransformer seed + splatreg overlap-aware refine + info.
 
     Mirrors :func:`_robust_init` but uses the LEARNED GeoTransformer 3DMatch correspondence model
@@ -141,6 +143,9 @@ def _learned_init(target, source: Any, transform: str, device, dtype) -> tuple[t
     overlap-aware ICP (and Sim(3) scale) on top.  Falls back inside ``learned_feature_align`` to the
     classical ``robust`` seed when GeoTransformer (its module / built CUDA-ext / pretrained weights)
     is unavailable; falls back to identity if the feature module itself cannot be imported.
+
+    ``seed_gate`` (default off) turns on the Decision-PCR-style confidence check that rejects/reseeds
+    a low-confidence learned hypothesis before LM refinement.
     """
     empty_info = {
         "voxel": 0.0,
@@ -159,7 +164,38 @@ def _learned_init(target, source: Any, transform: str, device, dtype) -> tuple[t
             exc,
         )
         return _identity(device, dtype), dict(empty_info)
-    T, info = learned_feature_align(target, source, transform=transform)
+    T, info = learned_feature_align(target, source, transform=transform, seed_gate=seed_gate)
+    return T.to(device=device, dtype=dtype), info
+
+
+def _bufferx_init(target, source: Any, transform: str, device, dtype) -> tuple[torch.Tensor, dict]:
+    """Zero-shot coarse init: pretrained BUFFER-X seed + splatreg overlap-aware refine + info.
+
+    Mirrors :func:`_learned_init` but uses **BUFFER-X** (ICCV 2025, "Towards Zero-Shot Point Cloud
+    Registration in Diverse Scenes", MIT-SPARK/BUFFER-X) for the seed — a single generalist model
+    that registers across sensors/scales with NO per-dataset training, matching splatreg's splat-
+    native philosophy.  Falls back inside ``bufferx_feature_align`` to the classical ``robust`` seed
+    when BUFFER-X (its module / built CUDA-ext / pretrained weights) is unavailable; falls back to
+    identity if the feature module itself cannot be imported.
+    """
+    empty_info = {
+        "voxel": 0.0,
+        "n_corr": 0,
+        "used_open3d": False,
+        "used_bufferx": False,
+        "seed": "none",
+        "confidence": 0.0,
+    }
+    try:
+        from splatreg.align_features import bufferx_feature_align
+    except Exception as exc:  # pragma: no cover
+        _log.info(
+            "init='bufferx' requested but splatreg.align_features is unavailable (%s); "
+            "falling back to identity init.",
+            exc,
+        )
+        return _identity(device, dtype), dict(empty_info)
+    T, info = bufferx_feature_align(target, source, transform=transform)
     return T.to(device=device, dtype=dtype), info
 
 
@@ -336,6 +372,7 @@ def register(
     quality: Union[str, float, QualityConfig, None] = "full",
     refine: Optional[str] = None,
     refine_kwargs: Optional[dict] = None,
+    seed_gate: bool = False,
 ) -> RegisterResult:
     """Register ``source`` onto ``target`` over a list of residuals, returning the 4x4 transform.
 
@@ -382,6 +419,13 @@ def register(
           classical FPFH ~77 % ceiling) supplies the coarse seed, then the SAME overlap-aware ICP
           (+ Sim(3) scale) refine as ``"robust"``.  Falls back to ``"robust"`` (then identity) when
           GeoTransformer's module / built CUDA-ext / pretrained weights are unavailable.
+        * ``"bufferx"``, ZERO-SHOT registrar (:func:`splatreg.align_features.bufferx_feature_align`):
+          BUFFER-X (ICCV 2025, "Towards Zero-Shot Point Cloud Registration in Diverse Scenes",
+          MIT-SPARK/BUFFER-X) supplies the coarse seed from the two Gaussian-center clouds — a single
+          generalist model that generalises across sensors/scales with NO per-dataset training —
+          then the SAME overlap-aware ICP (+ Sim(3) scale) refine as ``"robust"``.  Falls back to
+          ``"robust"`` (then identity) when BUFFER-X's module / built CUDA-ext / pretrained weights
+          are unavailable (see ``splatreg/third_party_models/README-BUFFERX.md``).
         * ``"mac"``, MAC maximal-clique registrar (:func:`splatreg.mac.mac_feature_align`;
           Zhang et al., CVPR 2023): instead of RANSAC minimal samples, hypotheses come from the
           **maximal cliques** of an SC²-weighted rigidity-compatibility graph over the FPFH
@@ -429,6 +473,11 @@ def register(
         :func:`splatreg.residuals.photometric.refine_photometric`: ``n_views``, ``width`` /
         ``height``, ``radius`` / ``radius_mult``, ``dssim_weight``, ``jac_mode``, ``max_iters``,
         ``render_fn``, ``sh_degree``, ...). Ignored when ``refine`` is ``None``.
+    seed_gate : opt-in (default ``False``) Decision-PCR-style confidence gate for ``init="learned"``.
+        When on, the learned seed is scored (mutual-NN inlier ratio + SC² spatial consistency) BEFORE
+        LM refinement; a low-confidence seed is rejected and reseeded from the classical ``robust``
+        path (keeping whichever scores higher) instead of blindly refining a bad hypothesis. No-op
+        for other init modes. The scores land in the result ``info`` under ``seed_gate``.
 
     Returns
     -------
@@ -489,13 +538,17 @@ def register(
         elif init == "robust":
             T0, feature_info = _robust_init(target, source, transform, device, dtype)
         elif init == "learned":
-            T0, feature_info = _learned_init(target, source, transform, device, dtype)
+            T0, feature_info = _learned_init(
+                target, source, transform, device, dtype, seed_gate=seed_gate
+            )
+        elif init == "bufferx":
+            T0, feature_info = _bufferx_init(target, source, transform, device, dtype)
         elif init == "mac":
             T0, feature_info = _mac_init(target, source, transform, device, dtype)
         else:
             raise ValueError(
-                "init string must be 'fast', 'robust', 'learned', 'mac', 'global', or 'features', "
-                f"got {init!r}"
+                "init string must be 'fast', 'robust', 'learned', 'bufferx', 'mac', 'global', or "
+                f"'features', got {init!r}"
             )
     elif init is None:
         # Default to the FAST feature init (FPFH + GPU-batched RANSAC, ~20-35 ms) so a bare
@@ -505,7 +558,7 @@ def register(
     else:
         T0 = init.to(device=device, dtype=dtype)
 
-    feature_only = init in ("features", "robust", "learned", "mac") and not user_residuals
+    feature_only = init in ("features", "robust", "learned", "bufferx", "mac") and not user_residuals
     if feature_only:
         # Return the self-contained feature registration (no full-overlap LM that would corrupt a
         # partial-overlap init).  Recover the scale from the transform block for Sim(3).

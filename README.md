@@ -154,8 +154,27 @@ Every number is measured and reproducible; the provenance column points at the f
 | `"fast"` *(default)* | FPFH + GPU-batched RANSAC seed → closed-form LM | objects / full-overlap, **~17 ms** |
 | `"robust"` | Open3D FPFH+RANSAC seed → splatreg refine + scale | real metre-scale scans |
 | `"learned"` | pretrained GeoTransformer seed → splatreg refine + scale | best accuracy on real scans |
+| `"bufferx"` | pretrained **BUFFER-X** zero-shot seed (ICCV 2025) → splatreg refine + scale | cross-sensor / cross-scale scans with **no per-dataset training** |
 | `"mac"` | MAC maximal-clique consensus (Zhang et al. CVPR 2023) → weighted SVD → refine | outlier-heavy / multi-consensus correspondence sets |
 | `"global"` | blind super-Fibonacci SO(3) sweep | robust fallback, any rotation |
+
+Two options refine the *seed* rather than the pose: `init="learned"` accepts `seed_gate=True`
+(off by default), a Decision-PCR-style confidence check (arXiv 2507.14965) that scores the learned
+seed (mutual-NN inlier ratio + SC² spatial consistency) and reseeds a low-confidence hypothesis from
+the classical `"robust"` path *before* LM refinement, instead of blindly refining a bad seed. And
+`init="bufferx"` swaps GeoTransformer for **BUFFER-X** ("Towards Zero-Shot Point Cloud Registration
+in Diverse Scenes", ICCV 2025) — a single generalist model that registers across sensors and scales
+with no per-dataset training. Both learned backends are optional and lazily loaded; when their
+weights / CUDA extensions are absent they fall back to `"robust"` with a logged note (BUFFER-X setup:
+[`splatreg/third_party_models/README-BUFFERX.md`](splatreg/third_party_models/README-BUFFERX.md)).
+
+**2026 positioning.** Per-dataset-trained backbones like **PSReg** and **DiffusionPCR** now top the
+3DMatch leaderboard (95%+ registration recall), above the ~91.5% GeoTransformer seed splatreg wraps.
+splatreg deliberately keeps a *zero-shot* learned option (BUFFER-X) rather than chasing that number:
+a splat registrar should not require training a per-scene/per-sensor model to align two captures, so
+the value is a generalist seed + splatreg's provable SH rotation, honest pose covariance, Sim(3)
+scale, and overlap-aware refine on top — not the last recall point on one benchmark. Drop in a
+higher-recall correspondence model as the seed the day it ships a permissive, zero-shot checkpoint.
 
 **The MAC verdict, stated honestly.** `init="mac"` reimplements the MAC hypothesis generator
 (SC²-weighted rigidity graph → maximal cliques → weighted SVD per clique, with explicit

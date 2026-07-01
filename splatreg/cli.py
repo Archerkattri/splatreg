@@ -275,12 +275,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_align.add_argument(
         "--init",
-        choices=("fast", "robust", "learned", "mac", "global", "features"),
+        choices=("fast", "robust", "learned", "bufferx", "mac", "global", "features"),
         default="fast",
         help=(
             "initializer: fast (default, FPFH+RANSAC seed), robust (Open3D FPFH+RANSAC, real "
-            "scans), learned (GeoTransformer, best accuracy), mac (maximal-clique consensus, "
-            "outlier-heavy correspondences), global (blind SO(3) sweep), features (partial overlap)"
+            "scans), learned (GeoTransformer, best accuracy), bufferx (BUFFER-X zero-shot, no "
+            "per-dataset training), mac (maximal-clique consensus, outlier-heavy correspondences), "
+            "global (blind SO(3) sweep), features (partial overlap)"
         ),
     )
     p_align.set_defaults(func=_cmd_align)
@@ -305,7 +306,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_merge.add_argument(
         "--init",
-        choices=("fast", "robust", "learned", "mac", "global", "features"),
+        choices=("fast", "robust", "learned", "bufferx", "mac", "global", "features"),
         default="global",
         help="per-pair initializer (default: global, robust to large inter-capture offsets)",
     )
