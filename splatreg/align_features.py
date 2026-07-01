@@ -1916,10 +1916,14 @@ def _load_bufferx(device: torch.device):
         cfg = make_cfg("3DMatch", os.path.join(repo, "snapshot"))
         cfg.stage = "test"
         model = BufferX(cfg).to(device).eval()
-        # Load the two released sub-module checkpoints (descriptor + pose).
+        # The released Desc/Pose checkpoints are BOTH full-model state_dicts
+        # (keys prefixed ``Desc.``/``Pose.``), so they load into the whole model,
+        # not the ``.Desc``/``.Pose`` submodules (loading into a submodule silently
+        # matches nothing under strict=False -> random weights). Load descriptor
+        # then pose so the final pose-stage weights win.
         desc_w = os.path.join(repo, "snapshot", "threedmatch", "Desc", "best.pth")
-        model.Desc.load_state_dict(torch.load(desc_w, map_location="cpu"), strict=False)
-        model.Pose.load_state_dict(torch.load(pose_w, map_location="cpu"), strict=False)
+        model.load_state_dict(torch.load(desc_w, map_location="cpu"), strict=False)
+        model.load_state_dict(torch.load(pose_w, map_location="cpu"), strict=False)
     except Exception:
         _BUFFERX_CACHE[key] = None
         return None
