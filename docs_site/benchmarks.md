@@ -91,14 +91,13 @@ below isolate the seed rather than the pipeline. Recall counts a pair as recalle
 
 | Regime | BUFFER-X seed | classical robust seed | pair set |
 |---|---|---|---|
-| **3DMatch** (all pairs, n=1250) | **0.974** · median RRE 1.46° | 0.670 · 1.94° | official `gt.log`, 6/8 scenes |
-| 3DMatch, non-adjacent (n=998) | **0.973** | 0.612 | official `gt.log`, 6/8 scenes |
-| 3DMatch, adjacent (n=252) | **0.980** | 0.901 | official `gt.log`, 6/8 scenes |
-| **3DLoMatch** low overlap (n=400) | **0.752** · 3.23° | 0.092 · 107.9° | 50/scene GT-derived |
+| **3DMatch** (n=1619) | **0.962** · median RRE 1.46° | 0.630 · 2.12° | complete official `gt.log`, 8/8 scenes |
+| **3DLoMatch** (n=1781) | **0.777** · 2.77° | 0.122 · 103.4° | complete official `gt.log` |
+| 3DLoMatch regime, earlier GT-derived run (n=400) | 0.752 · 3.23° | 0.092 · 107.9° | 50/scene, `.info.txt`-derived |
 
 <figure class="sr-figure" markdown="span">
   <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/bufferx_recall.png" alt="BUFFER-X zero-shot seed vs classical FPFH seed: registration recall on 3DMatch and the low-overlap regime">
-  <figcaption>Zero-shot BUFFER-X seed vs the classical FPFH seed, identical splatreg refine. The remaining two 3DMatch scenes and the official 3DLoMatch runs are in progress; both seeds share the lighter <code>feature_align</code> refine, a fair head-to-head that isolates the seed rather than reporting full-pipeline absolute numbers.</figcaption>
+  <figcaption>Zero-shot BUFFER-X seed vs the classical FPFH seed, identical splatreg refine. Final numbers are the complete official <code>gt.log</code> pair sets (3DMatch 8/8 scenes; official 3DLoMatch). Both seeds share the lighter <code>feature_align</code> refine — a fair head-to-head that isolates the seed rather than reporting full-pipeline absolute numbers. BUFFER-X wins every scene on both splits.</figcaption>
 </figure>
 
 ## Object pose (ADD / ADD-S)

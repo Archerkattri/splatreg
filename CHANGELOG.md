@@ -5,6 +5,8 @@ the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
 
 ## Unreleased
 
+## v1.4.0 — 2026-07-02
+
 ### Added
 - `init="bufferx"`: a zero-shot learned seed via **BUFFER-X** (ICCV 2025, "Towards Zero-Shot
   Point Cloud Registration in Diverse Scenes", MIT-SPARK/BUFFER-X) — a single generalist model
@@ -41,11 +43,12 @@ the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
 ### Verified
 
 - `init="bufferx"` built and run on **real 3DMatch**, both seeds pushed through the *identical*
-  splatreg refine so the comparison isolates the seed. On the **official `gt.log` pair set**
-  (6/8 scenes done so far, n=1250; recall = RRE < 15° and RTE < 0.3 m): BUFFER-X seed recall
-  **0.974** (median RRE 1.46°) vs the classical robust FPFH seed **0.670** (1.94°); the win holds
-  on the harder non-adjacent pairs (0.973 vs 0.612, n=998). The remaining two 3DMatch scenes and
-  the official 3DLoMatch runs are in progress in the research project.
+  splatreg refine so the comparison isolates the seed. **Complete official `gt.log` pair sets**
+  (recall = RRE < 15° and RTE < 0.3 m): **3DMatch (8/8 scenes, n=1619)** BUFFER-X seed recall
+  **0.962** (median RRE 1.46°) vs the classical robust FPFH seed **0.630** (2.12°);
+  **official 3DLoMatch (n=1781)** BUFFER-X **0.777** (2.77°) vs classical **0.122** (103.4°) —
+  **6.4×** the recall where the classical seed's median error is effectively random. BUFFER-X wins
+  every scene on both splits.
 - Earlier GT-derived run (pairs derived from the fragments' `.info.txt` poses, 50/scene, all 8
   scenes): high-overlap (overlap ≥ 0.3, n=371) BUFFER-X 0.965 (median RRE 1.70°) vs 0.569 (3.04°);
   low-overlap 3DLoMatch regime (overlap 0.10–0.30, n=400) 0.752 (3.23°) vs 0.092 (107.9°) — an 8×

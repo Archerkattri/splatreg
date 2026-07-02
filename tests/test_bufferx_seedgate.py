@@ -89,16 +89,22 @@ def _known_pair(seed: int = 7):
 # ---------------------------------------------------------------------------
 
 
-def test_bufferx_paths_absent_on_cpu_box():
-    """No built CUDA-ext + downloaded weights → the resolver reports the backend absent (None)."""
-    assert _bufferx_paths() is None
+def test_bufferx_paths_resolution_is_consistent():
+    """The resolver returns None exactly when the built backend (weights + CUDA ext) is absent;
+    when the backend IS installed it must resolve to an existing repo + weights file."""
+    import os
+    paths = _bufferx_paths()
+    if paths is None:
+        return  # backend absent: the documented fallback state
+    repo, pose_w = paths
+    assert os.path.isdir(repo) and os.path.isfile(pose_w)
 
 
-def test_bufferx_seed_returns_none_when_backend_absent():
-    """The lazy seed returns None (never raises) when BUFFER-X is unavailable → caller falls back."""
+def test_bufferx_seed_never_raises():
+    """The lazy seed returns None (absent backend) or a 4x4 transform (present) — never raises."""
     tgt, src = _known_pair()
     out = _bufferx_seed(src.means.to(torch.float32), tgt.means.to(torch.float32), torch.device("cpu"))
-    assert out is None
+    assert out is None or (hasattr(out, "shape") and tuple(out.shape) == (4, 4))
 
 
 def test_bufferx_align_falls_back_cleanly_and_recovers():

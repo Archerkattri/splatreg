@@ -178,22 +178,21 @@ higher-recall correspondence model as the seed the day it ships a permissive, ze
 
 **The BUFFER-X seed, built and validated.** The zero-shot seed is built and run on **real
 3DMatch**, with both seeds pushed through the *identical* splatreg refine so the comparison
-isolates the seed rather than the pipeline. On the **official `gt.log` pair set** (6/8 scenes
-scored so far, n=1250; a pair counts as recalled at RRE < 15° and RTE < 0.3 m) the BUFFER-X seed
-reaches **0.974 recall** (median RRE 1.46°) against **0.670** (1.94°) for the classical robust
-FPFH seed — and the gap widens on the harder non-adjacent pairs (0.973 vs 0.612, n=998). In the
-low-overlap 3DLoMatch regime (overlap 0.10–0.30, n=400, from an earlier GT-derived run) it holds
-**0.752** (3.23°) against **0.092** (107.9°) — an **8× recall** lift where classical FPFH
-collapses to ~random. BUFFER-X wins every scene in both regimes.
+isolates the seed rather than the pipeline. On the **complete official `gt.log` pair sets**
+(a pair counts as recalled at RRE < 15° and RTE < 0.3 m): **3DMatch (8/8 scenes, n=1619)** the
+BUFFER-X seed reaches **0.962 recall** (median RRE 1.46°) against **0.630** (2.12°) for the
+classical robust FPFH seed; **official 3DLoMatch (n=1781)** it holds **0.777** (2.77°) against
+**0.122** (103.4°) — **6.4× the recall** where the classical seed's median error is effectively
+random. BUFFER-X wins every scene on both splits.
 
 <div align="center">
 <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/bufferx_recall.png" alt="BUFFER-X zero-shot seed vs classical FPFH seed: registration recall on 3DMatch and the low-overlap 3DLoMatch regime" width="82%">
 </div>
 
-<sub>*3DMatch bars are the official `gt.log` pair set (6/8 scenes, n=1250); the low-overlap bars are
-a 50/scene GT-derived run (n=400). Both seeds share the identical lighter `feature_align` refine,
-so these isolate the seed rather than report full-pipeline absolute numbers; the remaining scenes
-and the official 3DLoMatch runs are in progress.*</sub>
+<sub>*Final numbers are the complete official `gt.log` pair sets — 3DMatch 8/8 scenes (n=1619):
+0.962 vs 0.630; official 3DLoMatch (n=1781): 0.777 vs 0.122. Both seeds share the identical
+lighter `feature_align` refine, so these isolate the seed rather than report full-pipeline
+absolute numbers.*</sub>
 
 **Registration, happening.** One real low-overlap pair, watched end to end: the source fragment
 starts unaligned, the classical FPFH+RANSAC seed slews it into the *wrong* basin (151.5° off), then
