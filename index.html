@@ -749,7 +749,7 @@
     <a class="md-button" href="https://doi.org/10.31224/7313">Paper (engrXiv)</a>
   </div>
   <div class="sr-stats">
-    <div class="sr-stat"><div class="sr-stat__value">0.974</div><div class="sr-stat__label">BUFFER-X zero-shot seed recall, official 3DMatch (6/8 scenes)</div></div>
+    <div class="sr-stat"><div class="sr-stat__value">0.962</div><div class="sr-stat__label">BUFFER-X zero-shot seed recall, official 3DMatch (8/8 scenes, n=1619)</div></div>
     <div class="sr-stat"><div class="sr-stat__value">5.2°</div><div class="sr-stat__label">rotation error on a real splat, vs 15.3° / 36.3° for splat tools</div></div>
     <div class="sr-stat"><div class="sr-stat__value">native</div><div class="sr-stat__label">Sim(3) scale recovery — no other splat registrar does it</div></div>
     <div class="sr-stat"><div class="sr-stat__value">~2.4e-15</div><div class="sr-stat__label">SH-under-rotation error (float64), test-locked</div></div>
@@ -763,7 +763,7 @@ PLY (gsplat, Nerfstudio/splatfacto, INRIA, SuperSplat) or hands over means/covar
 <h2 id="headline-result-a-zero-shot-seed-that-holds-up-on-real-data">Headline result — a zero-shot seed that holds up on real data<a class="headerlink" href="#headline-result-a-zero-shot-seed-that-holds-up-on-real-data" title="Permanent link">&para;</a></h2>
 <figure class="sr-figure">
   <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/bufferx_recall.png" alt="BUFFER-X zero-shot seed vs classical FPFH seed: registration recall on 3DMatch and the low-overlap 3DLoMatch regime">
-  <figcaption>Registration recall for the zero-shot <strong>BUFFER-X</strong> seed (ICCV 2025) against the classical robust FPFH seed, both pushed through the <em>identical</em> splatreg refine so the bars isolate the seed. 3DMatch is the official <code>gt.log</code> pair set (6/8 scenes, n=1250); the low-overlap bars are a 50/scene GT-derived run (n=400). Both seeds share the lighter <code>feature_align</code> refine, so these isolate the seed rather than report full-pipeline absolute numbers; the remaining scenes and the official 3DLoMatch runs are in progress. See <a href="init-modes/">Init modes</a>.</figcaption>
+  <figcaption>Registration recall for the zero-shot <strong>BUFFER-X</strong> seed (ICCV 2025) against the classical robust FPFH seed, both pushed through the <em>identical</em> splatreg refine so the bars isolate the seed. 3DMatch is the complete official <code>gt.log</code> pair set (8/8 scenes, n=1619: 0.962 vs 0.630); the low-overlap bars are the official 3DLoMatch <code>gt.log</code> set (n=1781: 0.777 vs 0.122). Both seeds share the lighter <code>feature_align</code> refine, so these isolate the seed rather than report full-pipeline absolute numbers. See <a href="init-modes/">Init modes</a>.</figcaption>
 </figure>
 
 <h2 id="what-you-get-that-no-other-splat-registrar-ships">What you get that no other splat registrar ships<a class="headerlink" href="#what-you-get-that-no-other-splat-registrar-ships" title="Permanent link">&para;</a></h2>
@@ -792,6 +792,11 @@ never faked), and ambiguous overlaps are <em>flagged</em> — never silently wro
 </li>
 </ul>
 </div>
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/sh_rotation.png" alt="A view-dependent-coloured Gaussian sphere rotated 90 degrees three ways and rendered by gsplat: naive rotation (wrong colour), splatreg Wigner-D (correct), and an independent ground truth">
+  <figcaption>Provably correct SH rotation, rendered through <strong>gsplat</strong>. A view-dependent-coloured splat rotated 90°: the <strong>naive</strong> rotation leaves the higher-order SH in the old, world-fixed frame (<strong>13–15 dB</strong> vs an independent ground truth), while splatreg's real-basis <strong>Wigner-D</strong> render is <em>pixel-identical</em> to it. Coefficient round-trip <code>D(R)⁻¹·D(R)·f = f</code> to <strong>~2e-16</strong> in float64. See <a href="ply-interop/">PLY interop</a>.</figcaption>
+</figure>
+
 <h2 id="30-seconds-end-to-end">30 seconds, end to end<a class="headerlink" href="#30-seconds-end-to-end" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>splatreg
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>splatreg<span class="w"> </span>align<span class="w"> </span>scan_a.ply<span class="w"> </span>scan_b.ply<span class="w"> </span>-o<span class="w"> </span>b_aligned.ply<span class="w">     </span><span class="c1"># register + write aligned PLY</span>
@@ -814,6 +819,11 @@ never faked), and ambiguous overlaps are <em>flagged</em> — never silently wro
 <a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="c1"># or keep the scans separate, just registered into one frame:</span>
 <a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="n">save_ply</span><span class="p">(</span><span class="n">apply_transform</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">scale</span><span class="p">),</span> <span class="s2">&quot;b_aligned.ply&quot;</span><span class="p">)</span>
 </code></pre></div>
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/merge_fusion.gif" alt="Three-stage animation of merging two real overlapping 3DMatch scans: misaligned, registered by SE(3), then fused with the overlap deduped">
+  <figcaption>The 3-line <code>merge</code> on <strong>two real overlapping 3DMatch scans</strong> (<code>7-scenes-redkitchen</code>, ~19k points each): <strong>register</strong> (SE(3), recovered to <strong>0.58° / 17 mm</strong> against the 3DMatch ground truth; the seam gap closes 101 → 18 mm, overlap 0.27 → 0.82), then <strong>fuse + voxel-dedupe</strong> the double-covered seam (<strong>38,059 → 23,502</strong> Gaussians). Every number is measured on this run. Regenerate: <code>examples/make_merge_fusion_gif.py</code>.</figcaption>
+</figure>
+
 <h2 id="capability-matrix">Capability matrix<a class="headerlink" href="#capability-matrix" title="Permanent link">&para;</a></h2>
 <p>Honest comparison against the tools people actually use for this job. The accuracy row is
 measured head-to-head on a real splat with known ground truth; editor columns reflect their
@@ -897,15 +907,11 @@ design (manual transforms, not registration).</p>
 </table>
 </div>
 <h2 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>flowchart LR
-    A["splat A&lt;br/&gt;(target)"]:::s --&gt; G
-    B["splat B&lt;br/&gt;(source)"]:::s --&gt; G
-    G["&lt;b&gt;Global aligner&lt;/b&gt;&lt;br/&gt;super-Fibonacci SO(3) seeds&lt;br/&gt;+ batched trimmed ICP&lt;br/&gt;&lt;i&gt;(or FPFH / learned / BUFFER-X / MAC)&lt;/i&gt;"]:::g --&gt; L
-    L["&lt;b&gt;Levenberg-Marquardt&lt;/b&gt;&lt;br/&gt;multi-residual:&lt;br/&gt;ICP + Gaussian-SDF&lt;br/&gt;SE(3) / Sim(3)"]:::l --&gt; T["T*  (4×4)&lt;br/&gt;+ merge / dedupe"]:::o
-    classDef s fill:#e8f6f8,stroke:#17becf,color:#0b3d44;
-    classDef g fill:#fff1ee,stroke:#ff6b5b,color:#5a1a12;
-    classDef l fill:#eef7ee,stroke:#2e8b57,color:#143d22;
-    classDef o fill:#f3eefc,stroke:#7d52c7,color:#2c1654;</code></pre>
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/pipeline.png" alt="splatreg pipeline: two 3DGS splats, six coarse-init seeds (fast/robust/learned/bufferx/mac/global), a multi-residual Levenberg-Marquardt core (ICP + Gaussian-SDF, SE(3)/Sim(3)), outputs of the transform plus recovered scale and pose covariance, feeding the merge / align / track / pose-graph consumers">
+  <figcaption>Two splats → one of six coarse-init seeds → the multi-residual Levenberg–Marquardt core (ICP + the flagship Gaussian-SDF, SE(3)/Sim(3)) → the transform, recovered scale, and pose covariance → the merge / align / track / pose-graph consumers.</figcaption>
+</figure>
+
 <ol>
 <li><strong>Global init</strong>: a coarse pose from a dense super-Fibonacci rotation sweep + batched
    trimmed ICP (no local-minimum trap), with FPFH+RANSAC (<code>init="robust"</code>), learned
@@ -955,6 +961,11 @@ design (manual transforms, not registration).</p>
 </tbody>
 </table>
 <p>Full record with reproduce commands: <a href="benchmarks/">Benchmarks</a>.</p>
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/photometric_refine.gif" alt="Photometric refinement converging: a colour splat knocked 9 degrees out of alignment locks onto the target through the gsplat rasterizer, with rotation and translation error ticking down to zero">
+  <figcaption>The opt-in <strong>photometric refine</strong> for the pose geometry can't see. A colour splat knocked <strong>9° / 151 mm</strong> out of alignment is polished by the PhotoReg-style splat-vs-splat photometric LM (renders source vs target through <strong>gsplat</strong>, no real images) down to <strong>0.04° / 0.04 mm</strong> — a real per-iteration trajectory. See <a href="photometric/">Photometric refinement</a>.</figcaption>
+</figure>
+
 <div class="sr-limits">
 <p class="sr-limits__kicker">Honest edges — the repo's signature</p>
 <h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>

@@ -913,6 +913,11 @@ the v1.3 MAC verdict validated 2026-06-10.</p>
 </tr>
 </tbody>
 </table>
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/merge_fusion.gif" alt="Three-stage animation of merging two real overlapping 3DMatch scans: misaligned, registered by SE(3), then fused with the overlap deduped">
+  <figcaption>The <code>merge</code> pipeline on <strong>two real overlapping 3DMatch scans</strong> (<code>7-scenes-redkitchen</code>): register (SE(3), <strong>0.58° / 17 mm</strong> vs the 3DMatch ground truth; seam gap 101 → 18 mm, overlap 0.27 → 0.82), then fuse + voxel-dedupe the double-covered seam (<strong>38,059 → 23,502</strong> Gaussians). Measured this run. Regenerate: <code>examples/make_merge_fusion_gif.py</code>.</figcaption>
+</figure>
+
 <h2 id="synthetic-recovery-known-transform">Synthetic recovery (known-transform)<a class="headerlink" href="#synthetic-recovery-known-transform" title="Permanent link">&para;</a></h2>
 <p><code>examples/validate_recovery.py</code>: apply a known Sim(3)/SE(3), recover it.
 3 seeds × {5°, 30°, 90°} × {0.8, 1.0, 1.3 scale}:</p>
@@ -1169,6 +1174,11 @@ PhotoReg positioning: <a href="../photometric/">Photometric refinement</a>; reco
 </table>
 <p>Decisive when geometry under-constrains the pose (symmetry / texture-only DoF); neutral when
 dense overlap already pins it; floor set by render resolution (~0.3°). Hence opt-in.</p>
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/photometric_refine.gif" alt="Photometric refinement converging: a colour splat knocked 9 degrees out of alignment locks onto the target through the gsplat rasterizer, with rotation and translation error ticking down to zero">
+  <figcaption>A colour splat knocked <strong>9° / 151 mm</strong> out of alignment, polished by the splat-vs-splat photometric LM through the <strong>gsplat</strong> rasterizer down to <strong>0.04° / 0.04 mm</strong> — a real per-iteration trajectory (LM damping raised so the steps are visible). Regenerate: <code>examples/make_photometric_refine_gif.py</code>.</figcaption>
+</figure>
+
 <h2 id="sh-rotation-exposure-compensation-ladder-covariance-v12">SH rotation, exposure compensation, ladder, covariance (v1.2)<a class="headerlink" href="#sh-rotation-exposure-compensation-ladder-covariance-v12" title="Permanent link">&para;</a></h2>
 <p>Each addition ships with its measured evidence (full detail: <code>RESULTS.md</code> §5j):</p>
 <table>
@@ -1201,6 +1211,11 @@ dense overlap already pins it; floor set by render resolution (~0.3°). Hence op
 </tr>
 </tbody>
 </table>
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/sh_rotation.png" alt="A view-dependent-coloured Gaussian sphere rotated 90 degrees three ways and rendered by gsplat: naive rotation (wrong colour), splatreg Wigner-D (correct), and an independent ground truth">
+  <figcaption>The SH-rotation row, rendered through <strong>gsplat</strong>: a view-dependent-coloured splat rotated 90° — the <strong>naive</strong> rotation (SH left in the old frame) is <strong>13–15 dB</strong> off an independent ground truth, while the real-basis <strong>Wigner-D</strong> render is <em>pixel-identical</em> to it; coefficient round-trip to <strong>~2e-16</strong> in float64. Regenerate: <code>examples/make_sh_rotation_figure.py</code>.</figcaption>
+</figure>
+
 <h2 id="speed">Speed<a class="headerlink" href="#speed" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

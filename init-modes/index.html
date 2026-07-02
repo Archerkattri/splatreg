@@ -861,6 +861,11 @@ library. The trade is speed ↔ robustness:</p>
 </table>
 <p>You can also pass an explicit 4×4 tensor as <code>init</code> (e.g. a pose prior from odometry), or
 <code>None</code>, which resolves to <code>"fast"</code>.</p>
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/pipeline.png" alt="splatreg pipeline: two 3DGS splats, six coarse-init seeds (fast/robust/learned/bufferx/mac/global), a multi-residual Levenberg-Marquardt core (ICP + Gaussian-SDF, SE(3)/Sim(3)), outputs of the transform plus recovered scale and pose covariance, feeding the merge / align / track / pose-graph consumers">
+  <figcaption>Where the init seed sits in the pipeline: any one of the six coarse-init seeds feeds the same multi-residual Levenberg–Marquardt refine (ICP + Gaussian-SDF, SE(3)/Sim(3)), which emits the transform, recovered scale, and pose covariance.</figcaption>
+</figure>
+
 <h2 id="picking-one">Picking one<a class="headerlink" href="#picking-one" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Merging two captures of an object / small scene</strong> → keep the default <code>"fast"</code>.
@@ -932,17 +937,17 @@ falls back to the classical <code>"robust"</code> seed with a logged note. Setup
 <a href="https://github.com/Archerkattri/splatreg"><code>splatreg/third_party_models/README-BUFFERX.md</code></a>.</p>
 <h3 id="validated-on-real-3dmatch">Validated on real 3DMatch<a class="headerlink" href="#validated-on-real-3dmatch" title="Permanent link">&para;</a></h3>
 <p>Both seeds are pushed through the <em>identical</em> splatreg refine, so the comparison isolates the seed
-rather than the pipeline. On the <strong>official <code>gt.log</code> pair set</strong> (6/8 scenes scored so far, n=1250;
-a pair counts as recalled at RRE &lt; 15° and RTE &lt; 0.3 m) the BUFFER-X seed reaches <strong>0.974</strong> (median
-RRE 1.46°) against <strong>0.670</strong> (1.94°) for the classical robust FPFH seed, and the gap widens on the
-harder non-adjacent pairs (0.973 vs 0.612, n=998). In the low-overlap 3DLoMatch regime (overlap
-0.10–0.30, n=400, from an earlier GT-derived run) it holds <strong>0.752</strong> (3.23°) against <strong>0.092</strong>
-(107.9°) — an 8× recall lift where classical FPFH collapses to ~random. BUFFER-X wins every scene
-in both regimes.</p>
+rather than the pipeline. On the <strong>complete official <code>gt.log</code> pair set</strong> (3DMatch, 8/8 scenes,
+n=1619; a pair counts as recalled at RRE &lt; 15° and RTE &lt; 0.3 m) the BUFFER-X seed reaches <strong>0.962</strong>
+(median RRE 1.46°) against <strong>0.630</strong> (2.12°) for the classical robust FPFH seed. On the <strong>official
+3DLoMatch</strong> pair set (n=1781) it holds <strong>0.777</strong> (2.77°) against <strong>0.122</strong> (103.4°) — <strong>6.4× the
+recall</strong> where the classical seed's median error is effectively random. An earlier GT-derived
+low-overlap run (overlap 0.10–0.30, n=400) shows the same pattern (0.752 vs 0.092, an 8× lift).
+BUFFER-X wins every scene on both splits.</p>
 <figure class="sr-figure">
   <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/bufferx_recall.png" alt="BUFFER-X zero-shot seed vs classical FPFH seed: registration recall on 3DMatch and the low-overlap regime">
 <br />
-<figcaption>3DMatch bars are the official <code>gt.log</code> pair set (6/8 scenes, n=1250); the low-overlap bars are a 50/scene GT-derived run (n=400). Both seeds share the identical lighter <code>feature_align</code> refine, so these isolate the seed rather than report full-pipeline absolute numbers; the remaining scenes and the official 3DLoMatch runs are in progress.</figcaption>
+<figcaption>3DMatch bars are the complete official <code>gt.log</code> pair set (8/8 scenes, n=1619); the low-overlap bars are the official 3DLoMatch <code>gt.log</code> set (n=1781). Both seeds share the identical lighter <code>feature_align</code> refine, so these isolate the seed rather than report full-pipeline absolute numbers.</figcaption>
 </figure>
 <h3 id="registration-happening">Registration, happening<a class="headerlink" href="#registration-happening" title="Permanent link">&para;</a></h3>
 <p>The bars are the aggregate; here is one real low-overlap pair watched end to end. The source fragment
