@@ -463,10 +463,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2026-positioning" class="md-nav__link">
+  <a href="#positioning-a-zero-shot-seed-by-choice" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2026 positioning
+        Positioning: a zero-shot seed by choice
       
     </span>
   </a>
@@ -721,10 +721,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2026-positioning" class="md-nav__link">
+  <a href="#positioning-a-zero-shot-seed-by-choice" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2026 positioning
+        Positioning: a zero-shot seed by choice
       
     </span>
   </a>
@@ -958,7 +958,7 @@ seed + splatreg refine rotates it onto the target and locks on.</p>
 <br />
 <figcaption>Real 3DMatch pair <code>7-scenes-redkitchen</code> 35→46, GT overlap <strong>0.10</strong>. Both transforms are the actual <code>robust_feature_align</code> (classical, RRE <strong>151.5°</strong> ✗) and <code>bufferx_feature_align</code> (BUFFER-X, RRE <strong>2.0°</strong> ✓) library outputs — the animation interpolates between the real estimates, nothing is hand-posed. At 10% overlap the source only shares a corner with the target, so a correct lock overlaps just that corner. Regenerate with <code>examples/make_lowoverlap_gif.py</code>.</figcaption>
 </figure>
-<h3 id="2026-positioning">2026 positioning<a class="headerlink" href="#2026-positioning" title="Permanent link">&para;</a></h3>
+<h3 id="positioning-a-zero-shot-seed-by-choice">Positioning: a zero-shot seed by choice<a class="headerlink" href="#positioning-a-zero-shot-seed-by-choice" title="Permanent link">&para;</a></h3>
 <p>Per-dataset-trained backbones now lead 3DMatch: <strong>PSReg</strong> and <strong>DiffusionPCR</strong> report <strong>95 %+</strong>
 registration recall, above the ~91.5 % GeoTransformer seed splatreg wraps. splatreg does <em>not</em> chase
 that number — it keeps a zero-shot learned option (BUFFER-X) instead. The value is a generalist seed
