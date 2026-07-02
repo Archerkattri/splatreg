@@ -118,7 +118,7 @@ not registration).
 
 | | **splatreg** | splatalign | GaussianSplattingRegistration | SuperSplat / SplatTransform |
 |---|---|---|---|---|
-| Automatic splat-to-splat registration | yes (5 init modes) | ICP from identity | Open3D RANSAC+ICP | no (manual gizmo / user-given transform) |
+| Automatic splat-to-splat registration | yes (6 init modes) | ICP from identity | Open3D RANSAC+ICP | no (manual gizmo / user-given transform) |
 | Measured rotation error, real splat + GT | **5.2°** | 15.3° | 36.3° | n/a |
 | Sim(3) scale recovery | **yes, native** | no (SE(3) only) | no (SE(3) only) | manual |
 | SH (`f_rest`) rotated with the splat | **yes, test-locked** | no | no | not in any splat registrar we know of |
@@ -176,17 +176,26 @@ the value is a generalist seed + splatreg's provable SH rotation, honest pose co
 scale, and overlap-aware refine on top — not the last recall point on one benchmark. Drop in a
 higher-recall correspondence model as the seed the day it ships a permissive, zero-shot checkpoint.
 
-**The BUFFER-X seed, built and validated (2026-07-01).** The zero-shot seed is now built and run
-on **real 3DMatch**, with both seeds pushed through the *identical* splatreg refine so the
-comparison isolates the seed rather than the pipeline. On high-overlap pairs (overlap ≥ 0.3,
-n=371, 50/scene across all 8 scenes) BUFFER-X reaches **0.965 recall** (median RRE 1.70°) against
-**0.569** (3.04°) for the classical robust FPFH seed; in the low-overlap 3DLoMatch regime
-(overlap 0.10–0.30, n=400) it holds **0.752** (3.23°) against **0.092** (107.9°) — an **8× recall**
-lift where classical FPFH collapses to ~random. BUFFER-X wins all 8 scenes in both regimes.
-Stated honestly: the pair set is GT-derived from the fragments' `.info.txt` poses (the official
-`gt.log` metadata is absent), not the literal official split; and both seeds share the lighter
-`feature_align` refine — a fair head-to-head, but the absolute numbers are not the full-pipeline
-ones. Weights come from Hugging Face `Hyungtae-Lim/BUFFER-X`; a native build on a modern stack
+**The BUFFER-X seed, built and validated.** The zero-shot seed is built and run on **real
+3DMatch**, with both seeds pushed through the *identical* splatreg refine so the comparison
+isolates the seed rather than the pipeline. On the **official `gt.log` pair set** (6/8 scenes
+scored so far, n=1250; a pair counts as recalled at RRE < 15° and RTE < 0.3 m) the BUFFER-X seed
+reaches **0.974 recall** (median RRE 1.46°) against **0.670** (1.94°) for the classical robust
+FPFH seed — and the gap widens on the harder non-adjacent pairs (0.973 vs 0.612, n=998). In the
+low-overlap 3DLoMatch regime (overlap 0.10–0.30, n=400, from an earlier GT-derived run) it holds
+**0.752** (3.23°) against **0.092** (107.9°) — an **8× recall** lift where classical FPFH
+collapses to ~random. BUFFER-X wins every scene in both regimes.
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/bufferx_recall.png" alt="BUFFER-X zero-shot seed vs classical FPFH seed: registration recall on 3DMatch and the low-overlap 3DLoMatch regime" width="82%">
+</div>
+
+<sub>*3DMatch bars are the official `gt.log` pair set (6/8 scenes, n=1250); the low-overlap bars are
+a 50/scene GT-derived run (n=400). Both seeds share the identical lighter `feature_align` refine,
+so these isolate the seed rather than report full-pipeline absolute numbers; the remaining scenes
+and the official 3DLoMatch runs are in progress.*</sub>
+
+Weights come from Hugging Face `Hyungtae-Lim/BUFFER-X`; a native build on a modern stack
 (CUDA 12.8 / sm_120 / torch 2.11 / numpy 2.x) is nontrivial, with the full sudo-free recipe in
 [`docs/BUFFERX_BUILD_MODERN_CUDA.md`](docs/BUFFERX_BUILD_MODERN_CUDA.md). Note the checkpoints are
 full-model state_dicts: loading them into the `.Desc`/`.Pose` submodules silently loads nothing

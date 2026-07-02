@@ -29,16 +29,29 @@ the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
   `strict=False` matched nothing and silently ran on random weights (garbage seeds). Now loaded
   into the whole model, so `init="bufferx"` produces real seeds (commit `c54d8c9`).
 
+### Changed
+
+- Declared minimum dependency floors in `pyproject.toml` (`torch>=2.1`, `numpy>=1.24`) instead of
+  unpinned `torch`/`numpy`, so a fresh install resolves an interpreter with the tensor APIs the
+  package actually uses.
+- `tests/test_cli.py::test_console_script_registered` now **skips** (was a hard failure) when the
+  `splatreg` console-script entry point is not installed in the environment, with a note to run
+  `pip install -e .`; the assertion still runs and is meaningful once the package is installed.
+
 ### Verified
 
-- `init="bufferx"` built and run on **real 3DMatch**, both seeds through the identical splatreg
-  refine so the comparison isolates the seed. High-overlap (overlap ≥ 0.3, n=371, 50/scene, all 8
-  scenes): BUFFER-X recall 0.965 (median RRE 1.70°) vs classical robust seed 0.569 (3.04°).
-  Low-overlap 3DLoMatch regime (overlap 0.10–0.30, n=400): 0.752 (3.23°) vs 0.092 (107.9°) — 8×
-  recall; classical FPFH collapses to ~random on low overlap. BUFFER-X wins all 8 scenes in both
-  regimes. Caveats: pairs are GT-derived from the fragments' `.info.txt` poses (official `gt.log`
-  absent), not the literal official split; both seeds share the lighter `feature_align` refine
-  (fair head-to-head, but not the full-pipeline absolute numbers).
+- `init="bufferx"` built and run on **real 3DMatch**, both seeds pushed through the *identical*
+  splatreg refine so the comparison isolates the seed. On the **official `gt.log` pair set**
+  (6/8 scenes done so far, n=1250; recall = RRE < 15° and RTE < 0.3 m): BUFFER-X seed recall
+  **0.974** (median RRE 1.46°) vs the classical robust FPFH seed **0.670** (1.94°); the win holds
+  on the harder non-adjacent pairs (0.973 vs 0.612, n=998). The remaining two 3DMatch scenes and
+  the official 3DLoMatch runs are in progress in the research project.
+- Earlier GT-derived run (pairs derived from the fragments' `.info.txt` poses, 50/scene, all 8
+  scenes): high-overlap (overlap ≥ 0.3, n=371) BUFFER-X 0.965 (median RRE 1.70°) vs 0.569 (3.04°);
+  low-overlap 3DLoMatch regime (overlap 0.10–0.30, n=400) 0.752 (3.23°) vs 0.092 (107.9°) — an 8×
+  recall lift where classical FPFH collapses to ~random. BUFFER-X wins all 8 scenes in both regimes.
+- Caveat: both seeds share the lighter `feature_align` refine — a fair head-to-head that isolates
+  the seed, but not the full-pipeline absolute numbers.
 
 ### Removed
 - The ScanNet-GSReg (GaussReg ECCV'24) benchmark harness and all references to it.

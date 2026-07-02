@@ -13,6 +13,9 @@ theme:
   name: material
   icon:
     repo: fontawesome/brands/github
+  font:
+    text: IBM Plex Sans
+    code: IBM Plex Mono
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -34,6 +37,9 @@ theme:
     - content.code.copy
     - content.code.annotate
     - search.suggest
+
+extra_css:
+  - stylesheets/extra.css
 
 nav:
   - Home: index.md
@@ -62,6 +68,8 @@ plugins:
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - md_in_html
   - tables
   - toc:
       permalink: true

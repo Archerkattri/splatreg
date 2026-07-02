@@ -81,6 +81,26 @@ at native voxel GeoTransformer's correspondences are already consensus-dominated
 600–800 MAC inliers) and the guarded refine absorbs seed-level differences. `lgr` stays the
 default; details in `RESULTS.md` §5k.
 
+## BUFFER-X zero-shot seed vs classical seed (real 3DMatch)
+
+`init="bufferx"` swaps the learned seed for **BUFFER-X** (ICCV 2025), a single zero-shot model
+that registers across sensors and scales with no per-dataset training. The BUFFER-X seed and the
+classical robust FPFH seed are pushed through the *identical* splatreg refine, so the numbers
+below isolate the seed rather than the pipeline. Recall counts a pair as recalled at
+**RRE < 15° and RTE < 0.3 m**.
+
+| Regime | BUFFER-X seed | classical robust seed | pair set |
+|---|---|---|---|
+| **3DMatch** (all pairs, n=1250) | **0.974** · median RRE 1.46° | 0.670 · 1.94° | official `gt.log`, 6/8 scenes |
+| 3DMatch, non-adjacent (n=998) | **0.973** | 0.612 | official `gt.log`, 6/8 scenes |
+| 3DMatch, adjacent (n=252) | **0.980** | 0.901 | official `gt.log`, 6/8 scenes |
+| **3DLoMatch** low overlap (n=400) | **0.752** · 3.23° | 0.092 · 107.9° | 50/scene GT-derived |
+
+<figure class="sr-figure" markdown="span">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/bufferx_recall.png" alt="BUFFER-X zero-shot seed vs classical FPFH seed: registration recall on 3DMatch and the low-overlap regime">
+  <figcaption>Zero-shot BUFFER-X seed vs the classical FPFH seed, identical splatreg refine. The remaining two 3DMatch scenes and the official 3DLoMatch runs are in progress; both seeds share the lighter <code>feature_align</code> refine, a fair head-to-head that isolates the seed rather than reporting full-pipeline absolute numbers.</figcaption>
+</figure>
+
 ## Object pose (ADD / ADD-S)
 
 YCB `google_16k` CAD models, 14 objects × 4 poses, BOP symmetry convention:

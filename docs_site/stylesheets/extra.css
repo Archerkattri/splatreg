@@ -1,0 +1,195 @@
+/* ============================================================================
+   splatreg docs — landing chrome
+   Refined technical aesthetic: a dark "instrument" hero, point-cloud dot grid,
+   IBM Plex Mono wordmark, teal accent with a deep-orange spark. Works in both
+   the mkdocs-material light (default) and dark (slate) schemes.
+   ========================================================================== */
+
+:root {
+  --sr-teal:        #0f8b96;
+  --sr-teal-bright: #2fd6e0;
+  --sr-orange:      #ff6b3d;
+  --sr-ink:         #0b1417;
+  --sr-hero-a:      #0a2229;
+  --sr-hero-b:      #071519;
+}
+
+/* keep the material accent coherent with the hero */
+[data-md-color-scheme="default"] { --md-typeset-a-color: #0f8b96; }
+[data-md-color-scheme="slate"]   { --md-typeset-a-color: #2fd6e0; }
+
+/* ---- Hero ---------------------------------------------------------------- */
+.sr-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 3rem 2.6rem 2.4rem;
+  margin: 0 0 2.2rem;
+  color: #eafcff;
+  background:
+    radial-gradient(120% 130% at 12% -10%, rgba(47, 214, 224, 0.20), transparent 55%),
+    radial-gradient(90% 120% at 98% 115%, rgba(255, 107, 61, 0.14), transparent 52%),
+    linear-gradient(158deg, var(--sr-hero-a) 0%, var(--sr-hero-b) 100%);
+  box-shadow: 0 24px 60px -32px rgba(4, 22, 26, 0.75);
+  border: 1px solid rgba(47, 214, 224, 0.18);
+}
+.sr-hero::before {                /* point-cloud dot grid, fading downward */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
+  pointer-events: none;
+}
+.sr-hero > * { position: relative; z-index: 1; }
+
+.sr-hero__eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--sr-teal-bright);
+  margin: 0 0 0.9rem;
+}
+.sr-hero__mark {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-weight: 600;
+  font-size: clamp(2.1rem, 6vw, 3rem);
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+  margin: 0;
+  color: #f2feff;
+}
+.sr-hero__mark .caret {
+  color: var(--sr-teal-bright);
+  font-weight: 400;
+  animation: sr-blink 1.15s steps(1) infinite;
+}
+@keyframes sr-blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .sr-hero__mark .caret { animation: none; } }
+
+.sr-hero__tagline {
+  font-size: 1.16rem;
+  font-weight: 600;
+  margin: 0.85rem 0 0.5rem;
+  color: #dff6f9;
+}
+.sr-hero__pitch {
+  max-width: 62ch;
+  font-size: 0.96rem;
+  line-height: 1.6;
+  color: rgba(226, 246, 249, 0.82);
+  margin: 0 0 1.4rem;
+}
+.sr-hero__pitch code {
+  background: rgba(47, 214, 224, 0.14);
+  color: #b9f4fa;
+  padding: 0.05em 0.4em;
+  border-radius: 5px;
+  font-size: 0.9em;
+}
+
+/* install chip */
+.sr-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.95rem;
+  background: rgba(3, 14, 17, 0.55);
+  border: 1px solid rgba(47, 214, 224, 0.28);
+  border-radius: 10px;
+  padding: 0.6rem 0.95rem;
+  color: #eafcff;
+  margin-bottom: 1.5rem;
+}
+.sr-install .sr-prompt { color: var(--sr-teal-bright); user-select: none; }
+
+/* CTA buttons */
+.sr-cta { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-bottom: 1.9rem; }
+.sr-cta .md-button {
+  border-radius: 10px;
+  border-color: rgba(234, 252, 255, 0.35);
+  color: #eafcff;
+}
+.sr-cta .md-button--primary {
+  background: var(--sr-teal-bright);
+  border-color: var(--sr-teal-bright);
+  color: #052226;
+}
+.sr-cta .md-button--primary:hover {
+  background: #6fe8ef;
+  border-color: #6fe8ef;
+  color: #052226;
+}
+.sr-cta .md-button:hover { background: rgba(47, 214, 224, 0.16); border-color: var(--sr-teal-bright); color: #eafcff; }
+
+/* stat chips */
+.sr-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.9rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid rgba(234, 252, 255, 0.14);
+}
+.sr-stat__value {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--sr-teal-bright);
+  line-height: 1.1;
+}
+.sr-stat__label {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: rgba(226, 246, 249, 0.72);
+  margin-top: 0.25rem;
+}
+
+/* ---- Headline figure ----------------------------------------------------- */
+.sr-figure {
+  border-radius: 14px;
+  padding: 0.6rem 0.6rem 0.2rem;
+  background: #fcfcfb;
+  border: 1px solid rgba(11, 20, 23, 0.10);
+  box-shadow: 0 10px 30px -20px rgba(4, 22, 26, 0.5);
+}
+.sr-figure img { display: block; width: 100%; border-radius: 8px; }
+.sr-figure figcaption {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #52514e;
+  padding: 0.7rem 0.6rem 0.6rem;
+}
+[data-md-color-scheme="slate"] .sr-figure { background: #101416; border-color: rgba(255,255,255,0.10); }
+[data-md-color-scheme="slate"] .sr-figure figcaption { color: #b7c3c5; }
+
+/* ---- Capability matrix --------------------------------------------------- */
+.sr-matrix table { font-size: 0.84rem; }
+.sr-matrix th:nth-child(2) { color: var(--md-typeset-a-color); }
+.sr-matrix td:nth-child(2) { font-weight: 600; }
+.sr-matrix tbody, .sr-matrix tbody tr:nth-child(odd) { background: transparent; }
+
+/* ---- Honest edges (the signature) --------------------------------------- */
+.sr-limits {
+  border-radius: 14px;
+  padding: 1.3rem 1.5rem 0.6rem;
+  margin: 1.6rem 0;
+  background: linear-gradient(180deg, rgba(255, 107, 61, 0.07), transparent 70%);
+  border: 1px solid rgba(255, 107, 61, 0.28);
+  border-left: 4px solid var(--sr-orange);
+}
+.sr-limits h2, .sr-limits h3 { margin-top: 0.2rem; }
+.sr-limits .sr-limits__kicker {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--sr-orange);
+}
+
+/* grid cards accent */
+.md-typeset .grid.cards > ul > li { border-radius: 12px; }
+.md-typeset .grid.cards > ul > li:hover { border-color: var(--md-typeset-a-color); }

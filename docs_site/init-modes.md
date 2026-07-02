@@ -93,6 +93,22 @@ checkpoints are not shipped). When absent — always the case on a CPU box — `
 falls back to the classical `"robust"` seed with a logged note. Setup (clone + build + weights) is in
 [`splatreg/third_party_models/README-BUFFERX.md`](https://github.com/Archerkattri/splatreg).
 
+### Validated on real 3DMatch
+
+Both seeds are pushed through the *identical* splatreg refine, so the comparison isolates the seed
+rather than the pipeline. On the **official `gt.log` pair set** (6/8 scenes scored so far, n=1250;
+a pair counts as recalled at RRE < 15° and RTE < 0.3 m) the BUFFER-X seed reaches **0.974** (median
+RRE 1.46°) against **0.670** (1.94°) for the classical robust FPFH seed, and the gap widens on the
+harder non-adjacent pairs (0.973 vs 0.612, n=998). In the low-overlap 3DLoMatch regime (overlap
+0.10–0.30, n=400, from an earlier GT-derived run) it holds **0.752** (3.23°) against **0.092**
+(107.9°) — an 8× recall lift where classical FPFH collapses to ~random. BUFFER-X wins every scene
+in both regimes.
+
+<figure class="sr-figure" markdown="span">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/bufferx_recall.png" alt="BUFFER-X zero-shot seed vs classical FPFH seed: registration recall on 3DMatch and the low-overlap regime">
+  <figcaption>3DMatch bars are the official <code>gt.log</code> pair set (6/8 scenes, n=1250); the low-overlap bars are a 50/scene GT-derived run (n=400). Both seeds share the identical lighter <code>feature_align</code> refine, so these isolate the seed rather than report full-pipeline absolute numbers; the remaining scenes and the official 3DLoMatch runs are in progress.</figcaption>
+</figure>
+
 ### 2026 positioning
 
 Per-dataset-trained backbones now lead 3DMatch: **PSReg** and **DiffusionPCR** report **95 %+**
