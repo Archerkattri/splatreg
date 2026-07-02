@@ -1084,35 +1084,29 @@ below isolate the seed rather than the pipeline. Recall counts a pair as recalle
 </thead>
 <tbody>
 <tr>
-<td><strong>3DMatch</strong> (all pairs, n=1250)</td>
-<td><strong>0.974</strong> · median RRE 1.46°</td>
-<td>0.670 · 1.94°</td>
-<td>official <code>gt.log</code>, 6/8 scenes</td>
+<td><strong>3DMatch</strong> (n=1619)</td>
+<td><strong>0.962</strong> · median RRE 1.46°</td>
+<td>0.630 · 2.12°</td>
+<td>complete official <code>gt.log</code>, 8/8 scenes</td>
 </tr>
 <tr>
-<td>3DMatch, non-adjacent (n=998)</td>
-<td><strong>0.973</strong></td>
-<td>0.612</td>
-<td>official <code>gt.log</code>, 6/8 scenes</td>
+<td><strong>3DLoMatch</strong> (n=1781)</td>
+<td><strong>0.777</strong> · 2.77°</td>
+<td>0.122 · 103.4°</td>
+<td>complete official <code>gt.log</code></td>
 </tr>
 <tr>
-<td>3DMatch, adjacent (n=252)</td>
-<td><strong>0.980</strong></td>
-<td>0.901</td>
-<td>official <code>gt.log</code>, 6/8 scenes</td>
-</tr>
-<tr>
-<td><strong>3DLoMatch</strong> low overlap (n=400)</td>
-<td><strong>0.752</strong> · 3.23°</td>
+<td>3DLoMatch regime, earlier GT-derived run (n=400)</td>
+<td>0.752 · 3.23°</td>
 <td>0.092 · 107.9°</td>
-<td>50/scene GT-derived</td>
+<td>50/scene, <code>.info.txt</code>-derived</td>
 </tr>
 </tbody>
 </table>
 <figure class="sr-figure">
   <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/bufferx_recall.png" alt="BUFFER-X zero-shot seed vs classical FPFH seed: registration recall on 3DMatch and the low-overlap regime">
 <br />
-<figcaption>Zero-shot BUFFER-X seed vs the classical FPFH seed, identical splatreg refine. The remaining two 3DMatch scenes and the official 3DLoMatch runs are in progress; both seeds share the lighter <code>feature_align</code> refine, a fair head-to-head that isolates the seed rather than reporting full-pipeline absolute numbers.</figcaption>
+<figcaption>Zero-shot BUFFER-X seed vs the classical FPFH seed, identical splatreg refine. Final numbers are the complete official <code>gt.log</code> pair sets (3DMatch 8/8 scenes; official 3DLoMatch). Both seeds share the lighter <code>feature_align</code> refine — a fair head-to-head that isolates the seed rather than reporting full-pipeline absolute numbers. BUFFER-X wins every scene on both splits.</figcaption>
 </figure>
 <h2 id="object-pose-add-add-s">Object pose (ADD / ADD-S)<a class="headerlink" href="#object-pose-add-add-s" title="Permanent link">&para;</a></h2>
 <p>YCB <code>google_16k</code> CAD models, 14 objects × 4 poses, BOP symmetry convention:</p>
