@@ -109,6 +109,17 @@ in both regimes.
   <figcaption>3DMatch bars are the official <code>gt.log</code> pair set (6/8 scenes, n=1250); the low-overlap bars are a 50/scene GT-derived run (n=400). Both seeds share the identical lighter <code>feature_align</code> refine, so these isolate the seed rather than report full-pipeline absolute numbers; the remaining scenes and the official 3DLoMatch runs are in progress.</figcaption>
 </figure>
 
+### Registration, happening
+
+The bars are the aggregate; here is one real low-overlap pair watched end to end. The source fragment
+starts unaligned, the classical FPFH+RANSAC seed slews it into the *wrong* basin, then the BUFFER-X
+seed + splatreg refine rotates it onto the target and locks on.
+
+<figure class="sr-figure" markdown="span">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/registration_lowoverlap.gif" alt="Three-phase animation of a real low-overlap 3DMatch pair: unaligned, wrong classical FPFH+RANSAC basin (RRE 151.5 degrees), then BUFFER-X seed + splatreg refine locking onto the target (RRE 2.0 degrees)">
+  <figcaption>Real 3DMatch pair <code>7-scenes-redkitchen</code> 35→46, GT overlap <strong>0.10</strong>. Both transforms are the actual <code>robust_feature_align</code> (classical, RRE <strong>151.5°</strong> ✗) and <code>bufferx_feature_align</code> (BUFFER-X, RRE <strong>2.0°</strong> ✓) library outputs — the animation interpolates between the real estimates, nothing is hand-posed. At 10% overlap the source only shares a corner with the target, so a correct lock overlaps just that corner. Regenerate with <code>examples/make_lowoverlap_gif.py</code>.</figcaption>
+</figure>
+
 ### 2026 positioning
 
 Per-dataset-trained backbones now lead 3DMatch: **PSReg** and **DiffusionPCR** report **95 %+**

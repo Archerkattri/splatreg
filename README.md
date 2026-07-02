@@ -195,6 +195,20 @@ a 50/scene GT-derived run (n=400). Both seeds share the identical lighter `featu
 so these isolate the seed rather than report full-pipeline absolute numbers; the remaining scenes
 and the official 3DLoMatch runs are in progress.*</sub>
 
+**Registration, happening.** One real low-overlap pair, watched end to end: the source fragment
+starts unaligned, the classical FPFH+RANSAC seed slews it into the *wrong* basin (151.5° off), then
+the BUFFER-X seed + splatreg refine rotates it onto the target and locks on at 2.0°.
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/registration_lowoverlap.gif" alt="Three-phase animation of a real low-overlap 3DMatch pair: unaligned, wrong classical FPFH+RANSAC basin (RRE 151.5°), then BUFFER-X seed + splatreg refine locking onto the target (RRE 2.0°)" width="62%">
+</div>
+
+<sub>*Real 3DMatch pair `7-scenes-redkitchen` 35→46, GT overlap **0.10**. Both transforms are the
+actual `robust_feature_align` (classical, RRE **151.5°** ✗) and `bufferx_feature_align` (BUFFER-X,
+RRE **2.0°** ✓) library outputs — the animation interpolates between the real estimates, nothing is
+hand-posed. At 10 % overlap the source only shares a corner with the target, so a correct lock
+overlaps just that corner. Regenerate: [`examples/make_lowoverlap_gif.py`](examples/make_lowoverlap_gif.py).*</sub>
+
 Weights come from Hugging Face `Hyungtae-Lim/BUFFER-X`; a native build on a modern stack
 (CUDA 12.8 / sm_120 / torch 2.11 / numpy 2.x) is nontrivial, with the full sudo-free recipe in
 [`docs/BUFFERX_BUILD_MODERN_CUDA.md`](docs/BUFFERX_BUILD_MODERN_CUDA.md). Note the checkpoints are
