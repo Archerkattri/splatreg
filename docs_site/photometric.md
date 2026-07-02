@@ -38,7 +38,7 @@ original captures.
 | **Real gsplat rasterizer** (CUDA, 2k Gaussians, same sphere) | 5° / 7 mm | n/a | **0.36° / 0.5 mm** in ~1.1 s |
 | **Dense-overlap real capture** (102,944-Gaussian splat, disjoint random halves, injected 2° / 1.24 mm seam) | 2° / 1.24 mm | **0.239° / 0.26 mm** in 56 s | +1.7 s, **neutral**, geometry already pins the pose |
 
-Sources: rows 1–2 are `tests/test_photometric_refine.py` (21 tests; row 1 re-measured on
+Sources: rows 1–2 are `tests/test_photometric_refine.py` (27 tests; row 1 re-measured on
 CPU at the time of writing); row 3 is
 [`benchmarks/photometric_refine_bench.py`](https://github.com/Archerkattri/splatreg/blob/main/benchmarks/photometric_refine_bench.py)
 on the same real capture as the merge headline, GPU reference run recorded in

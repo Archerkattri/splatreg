@@ -279,7 +279,7 @@ sdf, grad   = gaussian_sdf_grad(target, query_points, sigma=0.02)  # + exact ∇
 Every number is reproducible; full record in [`RESULTS.md`](RESULTS.md).
 
 ```bash
-python -m pytest tests/ -q                        # 143 passing
+python -m pytest tests/ -q                        # 155 passing, 8 skipped
 python tests/test_jacobians.py                    # analytic vs numerical Jacobian audit
 python examples/validate_recovery.py --fast       # CPU smoke: 6/6 recovery in ~41 s
 SPLATREG_DEVICE=cuda python examples/validate_recovery.py --device cuda   # 36/36 recovery
@@ -329,7 +329,7 @@ and always resolves to the latest archived release:
   title   = {splatreg: composable SE(3)/Sim(3) registration for 3D Gaussian Splatting},
   url     = {https://github.com/Archerkattri/splatreg},
   doi     = {10.5281/zenodo.20618389},
-  version = {1.3.0},
+  version = {1.4.0},
   year    = {2026}
 }
 ```

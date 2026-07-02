@@ -25,7 +25,7 @@ All heavy subcommands accept `--quality` (`full` default, `balanced`, `low`, `au
 
 ```bash
 splatreg align target.ply source.ply -o aligned.ply \
-    [--transform se3|sim3] [--init fast|robust|learned|global|features] \
+    [--transform se3|sim3] [--init fast|robust|learned|bufferx|mac|global|features] \
     [--quality Q] [--device DEV] [--max-iters N]
 ```
 
@@ -66,7 +66,7 @@ wrote aligned.ply (1500 Gaussians, source aligned into the target frame)
 
 ```bash
 splatreg merge a.ply b.ply [c.ply ...] -o fused.ply \
-    [--ref 0] [--transform sim3|se3] [--init global|fast|robust|learned|features] \
+    [--ref 0] [--transform sim3|se3] [--init global|fast|robust|learned|bufferx|mac|features] \
     [--no-dedupe] [--dedupe-method voxel|knn] [--voxel EDGE]
 ```
 

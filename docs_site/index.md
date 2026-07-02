@@ -11,7 +11,7 @@
     <a class="md-button" href="https://doi.org/10.31224/7313">Paper (engrXiv)</a>
   </div>
   <div class="sr-stats">
-    <div class="sr-stat"><div class="sr-stat__value">0.974</div><div class="sr-stat__label">BUFFER-X zero-shot seed recall, official 3DMatch (6/8 scenes)</div></div>
+    <div class="sr-stat"><div class="sr-stat__value">0.962</div><div class="sr-stat__label">BUFFER-X zero-shot seed recall, official 3DMatch (8/8 scenes, n=1619)</div></div>
     <div class="sr-stat"><div class="sr-stat__value">5.2°</div><div class="sr-stat__label">rotation error on a real splat, vs 15.3° / 36.3° for splat tools</div></div>
     <div class="sr-stat"><div class="sr-stat__value">native</div><div class="sr-stat__label">Sim(3) scale recovery — no other splat registrar does it</div></div>
     <div class="sr-stat"><div class="sr-stat__value">~2.4e-15</div><div class="sr-stat__label">SH-under-rotation error (float64), test-locked</div></div>
@@ -27,7 +27,7 @@ PLY (gsplat, Nerfstudio/splatfacto, INRIA, SuperSplat) or hands over means/covar
 
 <figure class="sr-figure">
   <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/bufferx_recall.png" alt="BUFFER-X zero-shot seed vs classical FPFH seed: registration recall on 3DMatch and the low-overlap 3DLoMatch regime">
-  <figcaption>Registration recall for the zero-shot <strong>BUFFER-X</strong> seed (ICCV 2025) against the classical robust FPFH seed, both pushed through the <em>identical</em> splatreg refine so the bars isolate the seed. 3DMatch is the official <code>gt.log</code> pair set (6/8 scenes, n=1250); the low-overlap bars are a 50/scene GT-derived run (n=400). Both seeds share the lighter <code>feature_align</code> refine, so these isolate the seed rather than report full-pipeline absolute numbers; the remaining scenes and the official 3DLoMatch runs are in progress. See <a href="init-modes/">Init modes</a>.</figcaption>
+  <figcaption>Registration recall for the zero-shot <strong>BUFFER-X</strong> seed (ICCV 2025) against the classical robust FPFH seed, both pushed through the <em>identical</em> splatreg refine so the bars isolate the seed. 3DMatch is the complete official <code>gt.log</code> pair set (8/8 scenes, n=1619: 0.962 vs 0.630); the low-overlap bars are the official 3DLoMatch <code>gt.log</code> set (n=1781: 0.777 vs 0.122). Both seeds share the lighter <code>feature_align</code> refine, so these isolate the seed rather than report full-pipeline absolute numbers. See <a href="init-modes/">Init modes</a>.</figcaption>
 </figure>
 
 ## What you get that no other splat registrar ships
