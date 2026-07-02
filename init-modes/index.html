@@ -452,6 +452,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#registration-happening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registration, happening
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#2026-positioning" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -699,6 +710,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#registration-happening" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registration, happening
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#2026-positioning" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -921,6 +943,15 @@ in both regimes.</p>
   <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/bufferx_recall.png" alt="BUFFER-X zero-shot seed vs classical FPFH seed: registration recall on 3DMatch and the low-overlap regime">
 <br />
 <figcaption>3DMatch bars are the official <code>gt.log</code> pair set (6/8 scenes, n=1250); the low-overlap bars are a 50/scene GT-derived run (n=400). Both seeds share the identical lighter <code>feature_align</code> refine, so these isolate the seed rather than report full-pipeline absolute numbers; the remaining scenes and the official 3DLoMatch runs are in progress.</figcaption>
+</figure>
+<h3 id="registration-happening">Registration, happening<a class="headerlink" href="#registration-happening" title="Permanent link">&para;</a></h3>
+<p>The bars are the aggregate; here is one real low-overlap pair watched end to end. The source fragment
+starts unaligned, the classical FPFH+RANSAC seed slews it into the <em>wrong</em> basin, then the BUFFER-X
+seed + splatreg refine rotates it onto the target and locks on.</p>
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/registration_lowoverlap.gif" alt="Three-phase animation of a real low-overlap 3DMatch pair: unaligned, wrong classical FPFH+RANSAC basin (RRE 151.5 degrees), then BUFFER-X seed + splatreg refine locking onto the target (RRE 2.0 degrees)">
+<br />
+<figcaption>Real 3DMatch pair <code>7-scenes-redkitchen</code> 35→46, GT overlap <strong>0.10</strong>. Both transforms are the actual <code>robust_feature_align</code> (classical, RRE <strong>151.5°</strong> ✗) and <code>bufferx_feature_align</code> (BUFFER-X, RRE <strong>2.0°</strong> ✓) library outputs — the animation interpolates between the real estimates, nothing is hand-posed. At 10% overlap the source only shares a corner with the target, so a correct lock overlaps just that corner. Regenerate with <code>examples/make_lowoverlap_gif.py</code>.</figcaption>
 </figure>
 <h3 id="2026-positioning">2026 positioning<a class="headerlink" href="#2026-positioning" title="Permanent link">&para;</a></h3>
 <p>Per-dataset-trained backbones now lead 3DMatch: <strong>PSReg</strong> and <strong>DiffusionPCR</strong> report <strong>95 %+</strong>
