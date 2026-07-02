@@ -4,8 +4,8 @@ A grouped bar chart of registration recall for the zero-shot BUFFER-X seed again
 classical robust (Open3D FPFH+RANSAC) seed, both pushed through the *identical* splatreg
 refine so the comparison isolates the seed. Two regimes:
 
-  * 3DMatch     -- official gt.log pair set (6/8 scenes, n=1250): 0.974 vs 0.670
-  * 3DLoMatch   -- low-overlap regime (0.10-0.30 overlap, 50/scene run, n=400): 0.752 vs 0.092
+  * 3DMatch     -- complete official gt.log pair set (8/8 scenes, n=1619): 0.962 vs 0.630
+  * 3DLoMatch   -- complete official gt.log pair set (n=1781): 0.777 vs 0.122
 
 Writes ``assets/bufferx_recall.png`` (+ ``.svg``). CPU, deterministic, matplotlib only.
 Palette: dataviz categorical slots 1 (blue) and 8 (orange) -- a CVD-safe pair (ΔE ~96).
@@ -20,9 +20,9 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
 # --- data --------------------------------------------------------------------
-GROUPS = ["3DMatch", "3DLoMatch\n(low overlap)"]
-BUFFERX = [0.974, 0.752]
-ROBUST = [0.670, 0.092]
+GROUPS = ["3DMatch\n(gt.log, n=1619)", "3DLoMatch\n(gt.log, n=1781)"]
+BUFFERX = [0.962, 0.777]
+ROBUST = [0.630, 0.122]
 
 # --- palette (dataviz light surface) -----------------------------------------
 SURFACE = "#fcfcfb"
@@ -102,7 +102,7 @@ def main() -> str:
     ax.text(
         0.0,
         1.045,
-        "Point-cloud registration recall on real 3DMatch, identical splatreg refine",
+        "Recall on the complete official 3DMatch / 3DLoMatch gt.log sets, identical splatreg refine",
         transform=ax.transAxes,
         fontsize=10.5,
         color=INK_2,

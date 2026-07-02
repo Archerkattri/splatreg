@@ -22,7 +22,7 @@ the v1.3 MAC verdict validated 2026-06-10.
 
 <figure class="sr-figure">
   <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/merge_fusion.gif" alt="Three-stage animation of merging two real overlapping 3DMatch scans: misaligned, registered by SE(3), then fused with the overlap deduped">
-  <figcaption>The <code>merge</code> pipeline on <strong>two real overlapping 3DMatch scans</strong> (<code>7-scenes-redkitchen</code>): register (SE(3), <strong>0.58° / 17 mm</strong> vs the 3DMatch ground truth; seam gap 101 → 18 mm, overlap 0.27 → 0.82), then fuse + voxel-dedupe the double-covered seam (<strong>38,059 → 23,502</strong> Gaussians). Measured this run. Regenerate: <code>examples/make_merge_fusion_gif.py</code>.</figcaption>
+  <figcaption>The <code>merge</code> pipeline on <strong>two real overlapping 3DMatch scans</strong> (<code>7-scenes-redkitchen</code>): register (SE(3), <strong>0.58° / 17 mm</strong> vs the 3DMatch ground truth; seam gap 101 → 18 mm, overlap 0.27 → 0.82), then fuse + voxel-dedupe the double-covered seam (<strong>38,059 → 23,564</strong> Gaussians). Measured this run. Regenerate: <code>examples/make_merge_fusion_gif.py</code>.</figcaption>
 </figure>
 
 ## Synthetic recovery (known-transform)

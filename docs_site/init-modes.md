@@ -125,7 +125,7 @@ seed + splatreg refine rotates it onto the target and locks on.
   <figcaption>Real 3DMatch pair <code>7-scenes-redkitchen</code> 35→46, GT overlap <strong>0.10</strong>. Both transforms are the actual <code>robust_feature_align</code> (classical, RRE <strong>151.5°</strong> ✗) and <code>bufferx_feature_align</code> (BUFFER-X, RRE <strong>2.0°</strong> ✓) library outputs — the animation interpolates between the real estimates, nothing is hand-posed. At 10% overlap the source only shares a corner with the target, so a correct lock overlaps just that corner. Regenerate with <code>examples/make_lowoverlap_gif.py</code>.</figcaption>
 </figure>
 
-### 2026 positioning
+### Positioning: a zero-shot seed by choice
 
 Per-dataset-trained backbones now lead 3DMatch: **PSReg** and **DiffusionPCR** report **95 %+**
 registration recall, above the ~91.5 % GeoTransformer seed splatreg wraps. splatreg does *not* chase

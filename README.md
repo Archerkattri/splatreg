@@ -43,9 +43,10 @@ What you get that no other splat registrar ships (each claim traced in
 - **Pose covariance** on every builtin-LM solve (`info["information"]` /
   `info["covariance"]`), so the result plugs straight into a pose graph with an honest
   weight, `None` when singular, never faked.
-- **MAC maximal-clique seed** (`init="mac"`, Zhang et al. CVPR 2023) for contaminated
-  correspondence sets, with the honest measured verdict: a wash on official
-  3DMatch/3DLoMatch, a decisive win in the structured-decoy regime (78° failure vs <0.2°).
+- **Zero-shot and outlier-robust seeds.** A pretrained **BUFFER-X** seed (`init="bufferx"`,
+  ICCV 2025) registers across sensors and scales with no per-dataset training; a **MAC**
+  maximal-clique seed (`init="mac"`, Zhang et al. CVPR 2023) handles contaminated
+  correspondence sets — each reported with its honest measured verdict below.
 - **Sim(3) scale recovery**, which none of the competing splat tools attempt at all.
 
 <div align="center">
@@ -90,7 +91,7 @@ save_ply(fused, "fused.ply")                            # opens in SuperSplat / 
 <sub>*That 3-line merge on **two real overlapping 3DMatch scans** (`7-scenes-redkitchen`,
 ~19k points each): **register** (SE(3), recovered to **0.58° / 17 mm** against the 3DMatch ground
 truth — the seam gap closes 101 → 18 mm, overlap 0.27 → 0.82), then **fuse + voxel-dedupe** the
-double-covered seam (**38,059 → 23,502** Gaussians, 14,557 overlap duplicates dropped). Every number
+double-covered seam (**38,059 → 23,564** Gaussians, 14,495 overlap duplicates dropped). Every number
 is measured on this run; regenerate: [`examples/make_merge_fusion_gif.py`](examples/make_merge_fusion_gif.py).*</sub>
 
 Align without merging (both scans stay separate files, registered into one frame):
@@ -144,107 +145,10 @@ not registration).
 | SH (`f_rest`) rotated with the splat | **yes, test-locked** | no | no | not in any splat registrar we know of |
 | Merge + overlap dedupe | yes | no | no dedupe | concat only |
 | Photometric refine (exposure comp + ladder) | yes | no | no | no |
+| Zero-shot learned seed (BUFFER-X) | yes | no | no | no |
 | Pose covariance for pose graphs | yes | no | no | n/a |
 | Honest ambiguity flag (never silent-wrong) | yes | no | no | n/a |
 | Pure PyTorch library + CLI | yes | script | GUI | editor / CLI |
-
-## Results
-
-Every number is measured and reproducible; the provenance column points at the full record.
-
-| Benchmark | splatreg | reference | provenance |
-|---|---|---|---|
-| Real-splat merge (103k Gaussians) | Chamfer **10.3 → 2.0 mm (5.1×)**, overlap 0.03 → 0.67 (22×) | naive concat | [`RESULTS.md` §5d](RESULTS.md), `examples/merge_demo.py` |
-| Photometric refine (real rasterizer) | 5°/7 mm → **0.36°/0.5 mm** (~1.1 s) | geometric stage alone worsens the symmetric case 6.0°→11.2° | [`benchmarks/photometric_refine_results.md`](benchmarks/photometric_refine_results.md) |
-| Official 3DMatch recall (1279 pairs, Choi/Zeng protocol) | **91.5%** mean, 93.5% pooled | GeoTransformer ~92%, Open3D ~77% | [`RESULTS.md` §5b](RESULTS.md) |
-| Official 3DLoMatch (hard, 10-30% overlap) | 72.5% mean, **74.4%** pooled | GeoTransformer ~74%, Open3D ~20% | [`RESULTS.md` §5b](RESULTS.md) |
-| vs splat competitors (real splat, known GT Sim3) | **5.2°** (SE3), recovers scale (Sim3) | splatalign 15.3°, GS-Registration 36.3° | [`RESULTS.md` §5c](RESULTS.md) |
-| Object pose (canonical YCB CAD, 14 models × 4 poses) | ADD-S AUC **0.995**, 100% < 2 cm | n/a | [`RESULTS.md` §5f-ycb](RESULTS.md) |
-| Camera localization (real splat, known perturbation) | median 5°/10 mm → **0.11°/1.35 mm** | n/a | [`RESULTS.md` §5g](RESULTS.md) |
-| Known-transform recovery | **36/36 = 100%** (GPU full grid); 6/6 CPU smoke in 41 s | n/a | [`RESULTS.md` §1, §5j](RESULTS.md) |
-| Registration speed | **~17 ms** (fast init), 104 ms (learned) | GeoTransformer ~50 ms, Open3D 142 ms | [`RESULTS.md` §5e](RESULTS.md) |
-| SH rotation correctness | rotated-coeff evaluation error **~2.4e-15** (float64) | n/a | [`tests/test_sh_rotation.py`](tests/test_sh_rotation.py), [`RESULTS.md` §5j](RESULTS.md) |
-| Exposure compensation | tinted-pair scale error 3.99% → **0.47%** (clean: 0.01%, harmless) | no-compensation baseline | [`RESULTS.md` §5j](RESULTS.md) |
-| Pose covariance | SPD when well-constrained, scales with noise, `None` when singular | n/a | [`tests/test_pose_covariance.py`](tests/test_pose_covariance.py) |
-
-### Init modes: trade speed for robustness
-
-| `init=` | what | when |
-|---|---|---|
-| `"fast"` *(default)* | FPFH + GPU-batched RANSAC seed → closed-form LM | objects / full-overlap, **~17 ms** |
-| `"robust"` | Open3D FPFH+RANSAC seed → splatreg refine + scale | real metre-scale scans |
-| `"learned"` | pretrained GeoTransformer seed → splatreg refine + scale | best accuracy on real scans |
-| `"bufferx"` | pretrained **BUFFER-X** zero-shot seed (ICCV 2025) → splatreg refine + scale | cross-sensor / cross-scale scans with **no per-dataset training** |
-| `"mac"` | MAC maximal-clique consensus (Zhang et al. CVPR 2023) → weighted SVD → refine | outlier-heavy / multi-consensus correspondence sets |
-| `"global"` | blind super-Fibonacci SO(3) sweep | robust fallback, any rotation |
-
-Two options refine the *seed* rather than the pose: `init="learned"` accepts `seed_gate=True`
-(off by default), a Decision-PCR-style confidence check (arXiv 2507.14965) that scores the learned
-seed (mutual-NN inlier ratio + SC² spatial consistency) and reseeds a low-confidence hypothesis from
-the classical `"robust"` path *before* LM refinement, instead of blindly refining a bad seed. And
-`init="bufferx"` swaps GeoTransformer for **BUFFER-X** ("Towards Zero-Shot Point Cloud Registration
-in Diverse Scenes", ICCV 2025) — a single generalist model that registers across sensors and scales
-with no per-dataset training. Both learned backends are optional and lazily loaded; when their
-weights / CUDA extensions are absent they fall back to `"robust"` with a logged note (BUFFER-X setup:
-[`splatreg/third_party_models/README-BUFFERX.md`](splatreg/third_party_models/README-BUFFERX.md)).
-
-**2026 positioning.** Per-dataset-trained backbones like **PSReg** and **DiffusionPCR** now top the
-3DMatch leaderboard (95%+ registration recall), above the ~91.5% GeoTransformer seed splatreg wraps.
-splatreg deliberately keeps a *zero-shot* learned option (BUFFER-X) rather than chasing that number:
-a splat registrar should not require training a per-scene/per-sensor model to align two captures, so
-the value is a generalist seed + splatreg's provable SH rotation, honest pose covariance, Sim(3)
-scale, and overlap-aware refine on top — not the last recall point on one benchmark. Drop in a
-higher-recall correspondence model as the seed the day it ships a permissive, zero-shot checkpoint.
-
-**The BUFFER-X seed, built and validated.** The zero-shot seed is built and run on **real
-3DMatch**, with both seeds pushed through the *identical* splatreg refine so the comparison
-isolates the seed rather than the pipeline. On the **complete official `gt.log` pair sets**
-(a pair counts as recalled at RRE < 15° and RTE < 0.3 m): **3DMatch (8/8 scenes, n=1619)** the
-BUFFER-X seed reaches **0.962 recall** (median RRE 1.46°) against **0.630** (2.12°) for the
-classical robust FPFH seed; **official 3DLoMatch (n=1781)** it holds **0.777** (2.77°) against
-**0.122** (103.4°) — **6.4× the recall** where the classical seed's median error is effectively
-random. BUFFER-X wins every scene on both splits.
-
-<div align="center">
-<img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/bufferx_recall.png" alt="BUFFER-X zero-shot seed vs classical FPFH seed: registration recall on 3DMatch and the low-overlap 3DLoMatch regime" width="82%">
-</div>
-
-<sub>*Final numbers are the complete official `gt.log` pair sets — 3DMatch 8/8 scenes (n=1619):
-0.962 vs 0.630; official 3DLoMatch (n=1781): 0.777 vs 0.122. Both seeds share the identical
-lighter `feature_align` refine, so these isolate the seed rather than report full-pipeline
-absolute numbers.*</sub>
-
-**Registration, happening.** One real low-overlap pair, watched end to end: the source fragment
-starts unaligned, the classical FPFH+RANSAC seed slews it into the *wrong* basin (151.5° off), then
-the BUFFER-X seed + splatreg refine rotates it onto the target and locks on at 2.0°.
-
-<div align="center">
-<img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/registration_lowoverlap.gif" alt="Three-phase animation of a real low-overlap 3DMatch pair: unaligned, wrong classical FPFH+RANSAC basin (RRE 151.5°), then BUFFER-X seed + splatreg refine locking onto the target (RRE 2.0°)" width="62%">
-</div>
-
-<sub>*Real 3DMatch pair `7-scenes-redkitchen` 35→46, GT overlap **0.10**. Both transforms are the
-actual `robust_feature_align` (classical, RRE **151.5°** ✗) and `bufferx_feature_align` (BUFFER-X,
-RRE **2.0°** ✓) library outputs — the animation interpolates between the real estimates, nothing is
-hand-posed. At 10 % overlap the source only shares a corner with the target, so a correct lock
-overlaps just that corner. Regenerate: [`examples/make_lowoverlap_gif.py`](examples/make_lowoverlap_gif.py).*</sub>
-
-Weights come from Hugging Face `Hyungtae-Lim/BUFFER-X`; a native build on a modern stack
-(CUDA 12.8 / sm_120 / torch 2.11 / numpy 2.x) is nontrivial, with the full sudo-free recipe in
-[`docs/BUFFERX_BUILD_MODERN_CUDA.md`](docs/BUFFERX_BUILD_MODERN_CUDA.md). Note the checkpoints are
-full-model state_dicts: loading them into the `.Desc`/`.Pose` submodules silently loads nothing
-(random weights → garbage seeds), fixed in `c54d8c9`.
-
-**The MAC verdict, stated honestly.** `init="mac"` reimplements the MAC hypothesis generator
-(SC²-weighted rigidity graph → maximal cliques → weighted SVD per clique, with explicit
-caps) in pure torch + networkx (`pip install "splatreg[mac]"`). On synthetic contaminated
-sets ([`tests/test_mac.py`](tests/test_mac.py)) it matches the RANSAC engine at 30/60/90%
-random outliers and decisively wins the structured-decoy regime (RANSAC fails at ~78°, MAC
-stays <0.2°). Measured on the **full official splits** (same forward/voxel/refine, only the
-hypothesis stage differs) it is **a wash, not a lift**: 3DLoMatch 72.1/74.6 vs LGR's
-72.5/74.4, 3DMatch 91.7/93.8 vs 91.5/93.5, every delta within ±4 pairs, at ~+50% runtime.
-GeoTransformer's native-voxel correspondences are already consensus-dominated, so the
-default stays `seed_selector="lgr"`; `"mac"` is the tool for genuinely contaminated
-correspondence sets ([`RESULTS.md` §5k](RESULTS.md)).
 
 ## How it works
 
@@ -259,8 +163,8 @@ punts to a manual gizmo).
 </div>
 
 1. **Global init**: a coarse pose from a dense super-Fibonacci rotation sweep + batched
-   trimmed ICP (no local-minimum trap), with FPFH+RANSAC, learned (GeoTransformer), and MAC
-   maximal-clique seeds for harder real scans.
+   trimmed ICP (no local-minimum trap), with FPFH+RANSAC, learned (GeoTransformer), zero-shot
+   BUFFER-X, and MAC maximal-clique seeds for harder real scans.
 2. **Refinement**: a from-scratch Levenberg-Marquardt core over ICP (point-to-point /
    point-to-plane) *and* splatreg's flagship **Gaussian-SDF** residual, solving the full
    SE(3) or Sim(3) tangent, with the pose information/covariance exposed at the optimum.
@@ -285,6 +189,125 @@ from splatreg.geometry.gaussian_sdf import gaussian_sdf, gaussian_sdf_grad
 sdf, normal = gaussian_sdf(target, query_points, sigma=0.02)       # signed distance + normal
 sdf, grad   = gaussian_sdf_grad(target, query_points, sigma=0.02)  # + exact ∇_p d
 ```
+
+## Init modes: trade speed for robustness
+
+Every mode is a different way to seed the same LM core, so you pick one per capture and the
+refine, scale recovery, SH rotation, and covariance are identical downstream.
+
+| `init=` | what | when |
+|---|---|---|
+| `"fast"` *(default)* | FPFH + GPU-batched RANSAC seed → closed-form LM | objects / full-overlap, **~17 ms** |
+| `"robust"` | Open3D FPFH+RANSAC seed → splatreg refine + scale | real metre-scale scans |
+| `"learned"` | pretrained GeoTransformer seed → splatreg refine + scale | best accuracy on real scans |
+| `"bufferx"` | pretrained **BUFFER-X** zero-shot seed (ICCV 2025) → splatreg refine + scale | cross-sensor / cross-scale scans with **no per-dataset training** |
+| `"mac"` | MAC maximal-clique consensus (Zhang et al. CVPR 2023) → weighted SVD → refine | outlier-heavy / multi-consensus correspondence sets |
+| `"global"` | blind super-Fibonacci SO(3) sweep | robust fallback, any rotation |
+
+Two options refine the *seed* rather than the pose. `init="learned"` accepts `seed_gate=True`
+(off by default), a Decision-PCR-style confidence check (arXiv 2507.14965) that scores the learned
+seed (mutual-NN inlier ratio + SC² spatial consistency) and reseeds a low-confidence hypothesis from
+the classical `"robust"` path *before* LM refinement, instead of blindly refining a bad seed. And
+`init="bufferx"` swaps GeoTransformer for **BUFFER-X** ("Towards Zero-Shot Point Cloud Registration
+in Diverse Scenes", ICCV 2025) — a single generalist model that registers across sensors and scales
+with no per-dataset training. Both learned backends are optional and lazily loaded; when their
+weights / CUDA extensions are absent they fall back to `"robust"` with a logged note. BUFFER-X
+weights come from Hugging Face `Hyungtae-Lim/BUFFER-X`; a native build on a modern stack
+(CUDA 12.8 / sm_120 / torch 2.11 / numpy 2.x) is nontrivial, with the full sudo-free recipe in
+[`docs/BUFFERX_BUILD_MODERN_CUDA.md`](docs/BUFFERX_BUILD_MODERN_CUDA.md) and setup notes in
+[`third_party_models/README-BUFFERX.md`](third_party_models/README-BUFFERX.md).
+
+Per-dataset-trained backbones like **PSReg** and **DiffusionPCR** now top the 3DMatch leaderboard
+(95%+ registration recall), above the ~91.5% GeoTransformer seed splatreg wraps. splatreg
+deliberately keeps a *zero-shot* learned option (BUFFER-X) rather than chasing that number: a splat
+registrar should not require training a per-scene/per-sensor model to align two captures, so the
+value is a generalist seed plus splatreg's provable SH rotation, honest pose covariance, Sim(3)
+scale, and overlap-aware refine on top — not the last recall point on one benchmark. Drop in a
+higher-recall correspondence model as the seed the day it ships a permissive, zero-shot checkpoint.
+
+## Results
+
+Every number is measured and reproducible; the provenance column points at the full record.
+
+| Benchmark | splatreg | reference | provenance |
+|---|---|---|---|
+| Real-splat merge (103k Gaussians) | Chamfer **10.3 → 2.0 mm (5.1×)**, overlap 0.03 → 0.67 (22×) | naive concat | [`RESULTS.md` §5d](RESULTS.md), `examples/merge_demo.py` |
+| Photometric refine (real rasterizer) | 5°/7 mm → **0.36°/0.5 mm** (~1.1 s) | geometric stage alone worsens the symmetric case 6.0°→11.2° | [`benchmarks/photometric_refine_results.md`](benchmarks/photometric_refine_results.md) |
+| Official 3DMatch recall (1279 pairs, Choi/Zeng protocol) | **91.5%** mean, 93.5% pooled | GeoTransformer ~92%, Open3D ~77% | [`RESULTS.md` §5b](RESULTS.md) |
+| Official 3DLoMatch (hard, 10-30% overlap) | 72.5% mean, **74.4%** pooled | GeoTransformer ~74%, Open3D ~20% | [`RESULTS.md` §5b](RESULTS.md) |
+| vs splat competitors (real splat, known GT Sim3) | **5.2°** (SE3), recovers scale (Sim3) | splatalign 15.3°, GS-Registration 36.3° | [`RESULTS.md` §5c](RESULTS.md) |
+| Object pose (canonical YCB CAD, 14 models × 4 poses) | ADD-S AUC **0.995**, 100% < 2 cm | n/a | [`RESULTS.md` §5f-ycb](RESULTS.md) |
+| Camera localization (real splat, known perturbation) | median 5°/10 mm → **0.11°/1.35 mm** | n/a | [`RESULTS.md` §5g](RESULTS.md) |
+| Known-transform recovery | **36/36 = 100%** (GPU full grid); 6/6 CPU smoke in 41 s | n/a | [`RESULTS.md` §1, §5j](RESULTS.md) |
+| Registration speed | **~17 ms** (fast init), 104 ms (learned) | GeoTransformer ~50 ms, Open3D 142 ms | [`RESULTS.md` §5e](RESULTS.md) |
+| SH rotation correctness | rotated-coeff evaluation error **~2.4e-15** (float64) | n/a | [`tests/test_sh_rotation.py`](tests/test_sh_rotation.py), [`RESULTS.md` §5j](RESULTS.md) |
+| Exposure compensation | tinted-pair scale error 3.99% → **0.47%** (clean: 0.01%, harmless) | no-compensation baseline | [`RESULTS.md` §5j](RESULTS.md) |
+| Pose covariance | SPD when well-constrained, scales with noise, `None` when singular | n/a | [`tests/test_pose_covariance.py`](tests/test_pose_covariance.py) |
+
+### Zero-shot registration on real 3DMatch
+
+The `init="bufferx"` seed is run on **real 3DMatch**, with both seeds pushed through the
+*identical* splatreg refine so the comparison isolates the seed rather than the pipeline. On
+the **complete official `gt.log` pair sets** (a pair counts as recalled at RRE < 15° and
+RTE < 0.3 m): on **3DMatch (8/8 scenes, n=1619)** the BUFFER-X seed reaches **0.962 recall**
+(median RRE 1.46°) against **0.630** (2.12°) for the classical robust FPFH seed; on
+**official 3DLoMatch (n=1781)** it holds **0.777** (2.77°) against **0.122** (103.4°) —
+**6.4× the recall** where the classical seed's median error is effectively random. BUFFER-X
+wins every scene on both splits.
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/bufferx_recall.png" alt="BUFFER-X zero-shot seed vs classical FPFH seed: registration recall on 3DMatch and the low-overlap 3DLoMatch regime" width="82%">
+</div>
+
+<sub>*Registration recall on the complete official `gt.log` pair sets — 3DMatch 8/8 scenes (n=1619):
+0.962 vs 0.630; official 3DLoMatch (n=1781): 0.777 vs 0.122. Both seeds share the identical lighter
+`feature_align` refine, so these bars isolate the seed rather than report full-pipeline absolute
+numbers. Regenerate: [`examples/make_bufferx_figure.py`](examples/make_bufferx_figure.py).*</sub>
+
+One real low-overlap pair, watched end to end: the source fragment starts unaligned, the classical
+FPFH+RANSAC seed slews it into the *wrong* basin (151.5° off), then the BUFFER-X seed + splatreg
+refine rotates it onto the target and locks on at 2.0°.
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/registration_lowoverlap.gif" alt="Three-phase animation of a real low-overlap 3DMatch pair: unaligned, wrong classical FPFH+RANSAC basin (RRE 151.5°), then BUFFER-X seed + splatreg refine locking onto the target (RRE 2.0°)" width="62%">
+</div>
+
+<sub>*Real 3DMatch pair `7-scenes-redkitchen` 35→46, GT overlap **0.10**. Both transforms are the
+actual `robust_feature_align` (classical, RRE **151.5°** ✗) and `bufferx_feature_align` (BUFFER-X,
+RRE **2.0°** ✓) library outputs — the animation interpolates between the real estimates, nothing is
+hand-posed. At 10 % overlap the source only shares a corner with the target, so a correct lock
+overlaps just that corner. Regenerate: [`examples/make_lowoverlap_gif.py`](examples/make_lowoverlap_gif.py).*</sub>
+
+### Photometric refinement, for the pose geometry can't see
+
+When geometry alone is ambiguous — a rotation-symmetric object, a texture-only degree of freedom —
+the opt-in photometric stage (`refine="photometric"`) renders source vs target through **gsplat**
+and closes the pose the geometric solve cannot, with per-pair exposure compensation and a
+coarse-to-fine render ladder. No real images needed.
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/photometric_refine.gif" alt="Photometric refinement converging: a colour splat knocked 9 degrees out of alignment locks onto the target through the gsplat rasterizer, with rotation and translation error ticking down to zero" width="62%">
+</div>
+
+<sub>*A colour splat knocked **9° / 151 mm** out of alignment, polished by the PhotoReg-style
+splat-vs-splat photometric LM (renders through **gsplat**, no real images) down to
+**0.04° / 0.04 mm** — a real per-iteration trajectory. On the benchmark rasterizer the stage takes
+5°/7 mm → 0.36°/0.5 mm in ~1.1 s and is neutral on dense-overlap pairs, hence opt-in. Regenerate:
+[`examples/make_photometric_refine_gif.py`](examples/make_photometric_refine_gif.py).*</sub>
+
+### The MAC verdict, stated honestly
+
+`init="mac"` reimplements the MAC hypothesis generator (SC²-weighted rigidity graph → maximal
+cliques → weighted SVD per clique, with explicit caps) in pure torch + networkx
+(`pip install "splatreg[mac]"`). On synthetic contaminated sets
+([`tests/test_mac.py`](tests/test_mac.py)) it matches the RANSAC engine at 30/60/90% random
+outliers and decisively wins the structured-decoy regime (RANSAC fails at ~78°, MAC stays <0.2°).
+Measured on the **full official splits** (same forward/voxel/refine, only the hypothesis stage
+differs) it is **a wash, not a lift**: 3DLoMatch 72.1/74.6 vs LGR's 72.5/74.4, 3DMatch 91.7/93.8
+vs 91.5/93.5, every delta within ±4 pairs, at ~+50% runtime. GeoTransformer's native-voxel
+correspondences are already consensus-dominated, so the default stays `seed_selector="lgr"`;
+`"mac"` is the tool for genuinely contaminated correspondence sets
+([`RESULTS.md` §5k](RESULTS.md)).
 
 ## Validation
 

@@ -222,7 +222,9 @@ def _render_gif(target_img, src_imgs, errs):
     # hold start and end
     frames = [frames[0]] * 3 + frames + [frames[-1]] * 6
     out = os.path.join(_REPO_ROOT, "assets", "photometric_refine.gif")
-    imageio.mimsave(out, frames, format="GIF", duration=0.16, loop=0, subrectangles=True)
+    # imageio >= 2.28 reads `duration` in MILLISECONDS: ~160 ms/frame, ~1.3 s end hold.
+    per_frame_ms = [160] * (len(frames) - 1) + [1300]
+    imageio.mimsave(out, frames, format="GIF", duration=per_frame_ms, loop=0, subrectangles=True)
     print(f"wrote {out}  ({os.path.getsize(out) / 1e6:.2f} MB, {len(frames)} frames)")
 
 

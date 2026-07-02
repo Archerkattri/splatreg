@@ -275,9 +275,18 @@ def _render_gif(stats, A_np, Bm_np, Br_np, m_np, from_A, out_path):
             fnum += 1
 
     frames += [frames[-1]] * 5
-    imageio.mimsave(out_path, frames, format="GIF", duration=0.11, loop=0, subrectangles=True)
+    # imageio >= 2.28 reads `duration` in MILLISECONDS; pass a per-frame list so the
+    # turntable runs at ~110 ms/frame and the final merged frame holds for ~1.3 s.
+    per_frame_ms = [110] * (len(frames) - 1) + [1300]
+    imageio.mimsave(out_path, frames, format="GIF", duration=per_frame_ms, loop=0,
+                    subrectangles=True)
     sz = os.path.getsize(out_path) / 1e6
     print(f"wrote {out_path}  ({sz:.2f} MB, {len(frames)} frames)")
+    print(f"  STAGE-3 counts: {stats['n_cat']:,} concat -> {stats['n_merged']:,} fused "
+          f"({stats['n_dedup_removed']:,} dupes dropped)")
+    print(f"  seam {stats['seam_naive_mm']:.0f}->{stats['seam_reg_mm']:.0f} mm | "
+          f"overlap {stats['overlap_naive']:.2f}->{stats['overlap_reg']:.2f} | "
+          f"RRE {stats['rre_deg']:.2f} deg RTE {stats['rte_mm']:.0f} mm")
 
 
 if __name__ == "__main__":

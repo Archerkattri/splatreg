@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
   "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="579.623906pt" height="328.159609pt" viewBox="0 0 579.623906 328.159609" xmlns="http://www.w3.org/2000/svg" version="1.1">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="564.543281pt" height="328.159609pt" viewBox="0 0 564.543281 328.159609" xmlns="http://www.w3.org/2000/svg" version="1.1">
  <metadata>
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-07-02T01:25:15.707762</dc:date>
+    <dc:date>2026-07-02T03:39:24.672407</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -22,8 +22,8 @@
  <g id="figure_1">
   <g id="patch_1">
    <path d="M 0 328.159609 
-L 579.623906 328.159609 
-L 579.623906 0 
+L 564.543281 328.159609 
+L 564.543281 0 
 L 0 0 
 z
 " style="fill: #fcfcfb"/>
@@ -31,8 +31,8 @@ z
   <g id="axes_1">
    <g id="patch_2">
     <path d="M 53.726484 284.09332 
-L 566.663906 284.09332 
-L 566.663906 49.597812 
+L 551.583281 284.09332 
+L 551.583281 49.597812 
 L 53.726484 49.597812 
 z
 " style="fill: #fcfcfb"/>
@@ -41,14 +41,15 @@ z
     <g id="xtick_1">
      <g id="line2d_1"/>
      <g id="text_1">
-      <text style="font-size: 11.5px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: middle; fill: #0b0b0b" x="186.789749" y="296.331523" transform="rotate(-0 186.789749 296.331523)">3DMatch</text>
+      <text style="font-size: 11.5px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; fill: #0b0b0b" transform="translate(157.246995 297.482646)">3DMatch</text>
+      <text style="font-size: 11.5px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; fill: #0b0b0b" transform="translate(135.141839 311.285791)">(gt.log, n=1619)</text>
      </g>
     </g>
     <g id="xtick_2">
      <g id="line2d_2"/>
      <g id="text_2">
-      <text style="font-size: 11.5px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; fill: #0b0b0b" transform="translate(401.348533 297.482646)">3DLoMatch</text>
-      <text style="font-size: 11.5px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; fill: #0b0b0b" transform="translate(395.873454 311.285791)">(low overlap)</text>
+      <text style="font-size: 11.5px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; fill: #0b0b0b" transform="translate(390.180036 297.482646)">3DLoMatch</text>
+      <text style="font-size: 11.5px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; fill: #0b0b0b" transform="translate(374.696364 311.285791)">(gt.log, n=1781)</text>
      </g>
     </g>
    </g>
@@ -56,8 +57,8 @@ z
     <g id="ytick_1">
      <g id="line2d_3">
       <path d="M 53.726484 284.09332 
-L 566.663906 284.09332 
-" clip-path="url(#p8298cab45a)" style="fill: none; stroke: #e1e0d9; stroke-linecap: square"/>
+L 551.583281 284.09332 
+" clip-path="url(#p8029a3955c)" style="fill: none; stroke: #e1e0d9; stroke-linecap: square"/>
      </g>
      <g id="line2d_4"/>
      <g id="text_3">
@@ -67,8 +68,8 @@ L 566.663906 284.09332
     <g id="ytick_2">
      <g id="line2d_5">
       <path d="M 53.726484 228.787776 
-L 566.663906 228.787776 
-" clip-path="url(#p8298cab45a)" style="fill: none; stroke: #e1e0d9; stroke-linecap: square"/>
+L 551.583281 228.787776 
+" clip-path="url(#p8029a3955c)" style="fill: none; stroke: #e1e0d9; stroke-linecap: square"/>
      </g>
      <g id="line2d_6"/>
      <g id="text_4">
@@ -78,8 +79,8 @@ L 566.663906 228.787776
     <g id="ytick_3">
      <g id="line2d_7">
       <path d="M 53.726484 173.482232 
-L 566.663906 173.482232 
-" clip-path="url(#p8298cab45a)" style="fill: none; stroke: #e1e0d9; stroke-linecap: square"/>
+L 551.583281 173.482232 
+" clip-path="url(#p8029a3955c)" style="fill: none; stroke: #e1e0d9; stroke-linecap: square"/>
      </g>
      <g id="line2d_8"/>
      <g id="text_5">
@@ -89,8 +90,8 @@ L 566.663906 173.482232
     <g id="ytick_4">
      <g id="line2d_9">
       <path d="M 53.726484 118.176687 
-L 566.663906 118.176687 
-" clip-path="url(#p8298cab45a)" style="fill: none; stroke: #e1e0d9; stroke-linecap: square"/>
+L 551.583281 118.176687 
+" clip-path="url(#p8029a3955c)" style="fill: none; stroke: #e1e0d9; stroke-linecap: square"/>
      </g>
      <g id="line2d_10"/>
      <g id="text_6">
@@ -100,8 +101,8 @@ L 566.663906 118.176687
     <g id="ytick_5">
      <g id="line2d_11">
       <path d="M 53.726484 62.871143 
-L 566.663906 62.871143 
-" clip-path="url(#p8298cab45a)" style="fill: none; stroke: #e1e0d9; stroke-linecap: square"/>
+L 551.583281 62.871143 
+" clip-path="url(#p8029a3955c)" style="fill: none; stroke: #e1e0d9; stroke-linecap: square"/>
      </g>
      <g id="line2d_12"/>
      <g id="text_7">
@@ -114,88 +115,88 @@ L 566.663906 62.871143
    </g>
    <g id="patch_3">
     <path d="M 53.726484 284.09332 
-L 566.663906 284.09332 
+L 551.583281 284.09332 
 " style="fill: none; stroke: #c3c2b7; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
    </g>
    <g id="patch_4">
-    <path d="M 110.600299 284.09332 
-L 183.570476 284.09332 
-L 183.570476 68.62292 
-L 110.600299 68.62292 
+    <path d="M 108.928179 284.09332 
+L 179.752996 284.09332 
+L 179.752996 71.277586 
+L 108.928179 71.277586 
 z
-" clip-path="url(#p8298cab45a)" style="fill: #2a78d6"/>
+" clip-path="url(#p8029a3955c)" style="fill: #2a78d6"/>
    </g>
    <g id="patch_5">
-    <path d="M 357.411192 284.09332 
-L 430.381369 284.09332 
-L 430.381369 117.734243 
-L 357.411192 117.734243 
+    <path d="M 348.482705 284.09332 
+L 419.307521 284.09332 
+L 419.307521 112.203689 
+L 348.482705 112.203689 
 z
-" clip-path="url(#p8298cab45a)" style="fill: #2a78d6"/>
+" clip-path="url(#p8029a3955c)" style="fill: #2a78d6"/>
    </g>
    <g id="patch_6">
-    <path d="M 190.009021 284.09332 
-L 262.979198 284.09332 
-L 262.979198 135.874462 
-L 190.009021 135.874462 
+    <path d="M 186.002244 284.09332 
+L 256.827061 284.09332 
+L 256.827061 144.723349 
+L 186.002244 144.723349 
 z
-" clip-path="url(#p8298cab45a)" style="fill: #eb6834"/>
+" clip-path="url(#p8029a3955c)" style="fill: #eb6834"/>
    </g>
    <g id="patch_7">
-    <path d="M 436.819915 284.09332 
-L 509.790092 284.09332 
-L 509.790092 263.74088 
-L 436.819915 263.74088 
+    <path d="M 425.55677 284.09332 
+L 496.381586 284.09332 
+L 496.381586 257.104215 
+L 425.55677 257.104215 
 z
-" clip-path="url(#p8298cab45a)" style="fill: #eb6834"/>
+" clip-path="url(#p8029a3955c)" style="fill: #eb6834"/>
    </g>
    <g id="text_9">
-    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: middle; fill: #0b0b0b" x="147.085388" y="61.998342" transform="rotate(-0 147.085388 61.998342)">0.974</text>
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: middle; fill: #0b0b0b" x="144.340588" y="64.653009" transform="rotate(-0 144.340588 64.653009)">0.962</text>
    </g>
    <g id="text_10">
-    <text style="font-size: 11px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: middle; fill: #0b0b0b" x="393.896281" y="111.109666" transform="rotate(-0 393.896281 111.109666)">0.752</text>
+    <text style="font-size: 11px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: middle; fill: #0b0b0b" x="383.895113" y="105.579111" transform="rotate(-0 383.895113 105.579111)">0.777</text>
    </g>
    <g id="text_11">
-    <text style="font-size: 11px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: middle; fill: #0b0b0b" x="226.49411" y="129.249884" transform="rotate(-0 226.49411 129.249884)">0.670</text>
+    <text style="font-size: 11px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: middle; fill: #0b0b0b" x="221.414652" y="138.098771" transform="rotate(-0 221.414652 138.098771)">0.630</text>
    </g>
    <g id="text_12">
-    <text style="font-size: 11px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: middle; fill: #0b0b0b" x="473.305003" y="257.116303" transform="rotate(-0 473.305003 257.116303)">0.092</text>
+    <text style="font-size: 11px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: middle; fill: #0b0b0b" x="460.969178" y="250.479637" transform="rotate(-0 460.969178 250.479637)">0.122</text>
    </g>
    <g id="text_13">
-    <text style="font-size: 10.5px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: start; fill: #52514e" x="53.726484" y="36.523054" transform="rotate(-0 53.726484 36.523054)">Point-cloud registration recall on real 3DMatch, identical splatreg refine</text>
+    <text style="font-size: 10.5px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: start; fill: #52514e" x="53.726484" y="36.523054" transform="rotate(-0 53.726484 36.523054)">Recall on the complete official 3DMatch / 3DLoMatch gt.log sets, identical splatreg refine</text>
    </g>
    <g id="text_14">
     <text style="font-weight: 700; font-size: 14px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: start; fill: #0b0b0b" x="53.726484" y="23.597812" transform="rotate(-0 53.726484 23.597812)">Zero-shot BUFFER-X seed vs classical FPFH seed</text>
    </g>
    <g id="legend_1">
     <g id="patch_8">
-     <path d="M 375.646719 66.197812 
-L 386.646719 66.197812 
-L 386.646719 56.597812 
-L 375.646719 56.597812 
+     <path d="M 360.566094 66.197812 
+L 371.566094 66.197812 
+L 371.566094 56.597812 
+L 360.566094 56.597812 
 z
 " style="fill: #2a78d6"/>
     </g>
     <g id="text_15">
-     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: start; fill: #52514e" x="394.646719" y="64.797812" transform="rotate(-0 394.646719 64.797812)">BUFFER-X (zero-shot, ICCV 2025)</text>
+     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: start; fill: #52514e" x="379.566094" y="64.797812" transform="rotate(-0 379.566094 64.797812)">BUFFER-X (zero-shot, ICCV 2025)</text>
     </g>
     <g id="patch_9">
-     <path d="M 375.646719 81.800156 
-L 386.646719 81.800156 
-L 386.646719 72.200156 
-L 375.646719 72.200156 
+     <path d="M 360.566094 81.800156 
+L 371.566094 81.800156 
+L 371.566094 72.200156 
+L 360.566094 72.200156 
 z
 " style="fill: #eb6834"/>
     </g>
     <g id="text_16">
-     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: start; fill: #52514e" x="394.646719" y="80.400156" transform="rotate(-0 394.646719 80.400156)">classical robust (FPFH+RANSAC)</text>
+     <text style="font-size: 10px; font-family: 'DejaVu Sans', 'Segoe UI', 'Arial', sans-serif; text-anchor: start; fill: #52514e" x="379.566094" y="80.400156" transform="rotate(-0 379.566094 80.400156)">classical robust (FPFH+RANSAC)</text>
     </g>
    </g>
   </g>
  </g>
  <defs>
-  <clipPath id="p8298cab45a">
-   <rect x="53.726484" y="49.597812" width="512.937422" height="234.495508"/>
+  <clipPath id="p8029a3955c">
+   <rect x="53.726484" y="49.597812" width="497.856797" height="234.495508"/>
   </clipPath>
  </defs>
 </svg>

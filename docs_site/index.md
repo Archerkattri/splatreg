@@ -92,7 +92,7 @@ save_ply(apply_transform(b, result.T, result.scale), "b_aligned.ply")
 
 <figure class="sr-figure">
   <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/merge_fusion.gif" alt="Three-stage animation of merging two real overlapping 3DMatch scans: misaligned, registered by SE(3), then fused with the overlap deduped">
-  <figcaption>The 3-line <code>merge</code> on <strong>two real overlapping 3DMatch scans</strong> (<code>7-scenes-redkitchen</code>, ~19k points each): <strong>register</strong> (SE(3), recovered to <strong>0.58° / 17 mm</strong> against the 3DMatch ground truth; the seam gap closes 101 → 18 mm, overlap 0.27 → 0.82), then <strong>fuse + voxel-dedupe</strong> the double-covered seam (<strong>38,059 → 23,502</strong> Gaussians). Every number is measured on this run. Regenerate: <code>examples/make_merge_fusion_gif.py</code>.</figcaption>
+  <figcaption>The 3-line <code>merge</code> on <strong>two real overlapping 3DMatch scans</strong> (<code>7-scenes-redkitchen</code>, ~19k points each): <strong>register</strong> (SE(3), recovered to <strong>0.58° / 17 mm</strong> against the 3DMatch ground truth; the seam gap closes 101 → 18 mm, overlap 0.27 → 0.82), then <strong>fuse + voxel-dedupe</strong> the double-covered seam (<strong>38,059 → 23,564</strong> Gaussians). Every number is measured on this run. Regenerate: <code>examples/make_merge_fusion_gif.py</code>.</figcaption>
 </figure>
 
 ## Capability matrix
