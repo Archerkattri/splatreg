@@ -18,6 +18,11 @@ library. The trade is speed ↔ robustness:
 You can also pass an explicit 4×4 tensor as `init` (e.g. a pose prior from odometry), or
 `None`, which resolves to `"fast"`.
 
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/pipeline.png" alt="splatreg pipeline: two 3DGS splats, six coarse-init seeds (fast/robust/learned/bufferx/mac/global), a multi-residual Levenberg-Marquardt core (ICP + Gaussian-SDF, SE(3)/Sim(3)), outputs of the transform plus recovered scale and pose covariance, feeding the merge / align / track / pose-graph consumers">
+  <figcaption>Where the init seed sits in the pipeline: any one of the six coarse-init seeds feeds the same multi-residual Levenberg–Marquardt refine (ICP + Gaussian-SDF, SE(3)/Sim(3)), which emits the transform, recovered scale, and pose covariance.</figcaption>
+</figure>
+
 ## Picking one
 
 - **Merging two captures of an object / small scene** → keep the default `"fast"`.

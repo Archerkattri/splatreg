@@ -20,6 +20,11 @@ the v1.3 MAC verdict validated 2026-06-10.
 | **Official 3DLoMatch** (hard, 10–30% overlap) | 72.5% mean · **74.4%** pooled | GeoTransformer ~74% · Open3D ~20% |
 | **Registration speed** | **~17 ms** (fast) · 104 ms (learned) | GeoTransformer ~50 ms · Open3D 142 ms |
 
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/merge_fusion.gif" alt="Three-stage animation of merging two real overlapping 3DMatch scans: misaligned, registered by SE(3), then fused with the overlap deduped">
+  <figcaption>The <code>merge</code> pipeline on <strong>two real overlapping 3DMatch scans</strong> (<code>7-scenes-redkitchen</code>): register (SE(3), <strong>0.58° / 17 mm</strong> vs the 3DMatch ground truth; seam gap 101 → 18 mm, overlap 0.27 → 0.82), then fuse + voxel-dedupe the double-covered seam (<strong>38,059 → 23,502</strong> Gaussians). Measured this run. Regenerate: <code>examples/make_merge_fusion_gif.py</code>.</figcaption>
+</figure>
+
 ## Synthetic recovery (known-transform)
 
 `examples/validate_recovery.py`: apply a known Sim(3)/SE(3), recover it.
@@ -128,6 +133,11 @@ PhotoReg positioning: [Photometric refinement](photometric.md); recorded runs:
 Decisive when geometry under-constrains the pose (symmetry / texture-only DoF); neutral when
 dense overlap already pins it; floor set by render resolution (~0.3°). Hence opt-in.
 
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/photometric_refine.gif" alt="Photometric refinement converging: a colour splat knocked 9 degrees out of alignment locks onto the target through the gsplat rasterizer, with rotation and translation error ticking down to zero">
+  <figcaption>A colour splat knocked <strong>9° / 151 mm</strong> out of alignment, polished by the splat-vs-splat photometric LM through the <strong>gsplat</strong> rasterizer down to <strong>0.04° / 0.04 mm</strong> — a real per-iteration trajectory (LM damping raised so the steps are visible). Regenerate: <code>examples/make_photometric_refine_gif.py</code>.</figcaption>
+</figure>
+
 ## SH rotation, exposure compensation, ladder, covariance (v1.2)
 
 Each addition ships with its measured evidence (full detail: `RESULTS.md` §5j):
@@ -139,6 +149,11 @@ Each addition ships with its measured evidence (full detail: `RESULTS.md` §5j):
 | Coarse-to-fine render ladder | from a 6° offset a cold 96 px rung stalls at **5.61°**; the 32→64→96 ladder lands **2.55°** at equal per-stage budget |
 | Pose information / covariance | SPD on well-constrained solves, 2× noise → looser covariance, singular → `None` ([`tests/test_pose_covariance.py`](https://github.com/Archerkattri/splatreg/blob/main/tests/test_pose_covariance.py)) |
 | `validate_recovery.py --fast` | CPU smoke preset: **6/6 cells within gate in ~41 s** (worst rot err 0.16°, worst scale err 0.14%) |
+
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/sh_rotation.png" alt="A view-dependent-coloured Gaussian sphere rotated 90 degrees three ways and rendered by gsplat: naive rotation (wrong colour), splatreg Wigner-D (correct), and an independent ground truth">
+  <figcaption>The SH-rotation row, rendered through <strong>gsplat</strong>: a view-dependent-coloured splat rotated 90° — the <strong>naive</strong> rotation (SH left in the old frame) is <strong>13–15 dB</strong> off an independent ground truth, while the real-basis <strong>Wigner-D</strong> render is <em>pixel-identical</em> to it; coefficient round-trip to <strong>~2e-16</strong> in float64. Regenerate: <code>examples/make_sh_rotation_figure.py</code>.</figcaption>
+</figure>
 
 ## Speed
 

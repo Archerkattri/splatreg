@@ -57,6 +57,11 @@ PLY (gsplat, Nerfstudio/splatfacto, INRIA, SuperSplat) or hands over means/covar
 
 </div>
 
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/sh_rotation.png" alt="A view-dependent-coloured Gaussian sphere rotated 90 degrees three ways and rendered by gsplat: naive rotation (wrong colour), splatreg Wigner-D (correct), and an independent ground truth">
+  <figcaption>Provably correct SH rotation, rendered through <strong>gsplat</strong>. A view-dependent-coloured splat rotated 90°: the <strong>naive</strong> rotation leaves the higher-order SH in the old, world-fixed frame (<strong>13–15 dB</strong> vs an independent ground truth), while splatreg's real-basis <strong>Wigner-D</strong> render is <em>pixel-identical</em> to it. Coefficient round-trip <code>D(R)⁻¹·D(R)·f = f</code> to <strong>~2e-16</strong> in float64. See <a href="ply-interop/">PLY interop</a>.</figcaption>
+</figure>
+
 ## 30 seconds, end to end
 
 ```bash
@@ -85,6 +90,11 @@ save_ply(fused, "fused.ply")        # opens in SuperSplat / any 3DGS viewer
 save_ply(apply_transform(b, result.T, result.scale), "b_aligned.ply")
 ```
 
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/merge_fusion.gif" alt="Three-stage animation of merging two real overlapping 3DMatch scans: misaligned, registered by SE(3), then fused with the overlap deduped">
+  <figcaption>The 3-line <code>merge</code> on <strong>two real overlapping 3DMatch scans</strong> (<code>7-scenes-redkitchen</code>, ~19k points each): <strong>register</strong> (SE(3), recovered to <strong>0.58° / 17 mm</strong> against the 3DMatch ground truth; the seam gap closes 101 → 18 mm, overlap 0.27 → 0.82), then <strong>fuse + voxel-dedupe</strong> the double-covered seam (<strong>38,059 → 23,502</strong> Gaussians). Every number is measured on this run. Regenerate: <code>examples/make_merge_fusion_gif.py</code>.</figcaption>
+</figure>
+
 ## Capability matrix
 
 Honest comparison against the tools people actually use for this job. The accuracy row is
@@ -109,17 +119,10 @@ design (manual transforms, not registration).
 
 ## How it works
 
-```mermaid
-flowchart LR
-    A["splat A<br/>(target)"]:::s --> G
-    B["splat B<br/>(source)"]:::s --> G
-    G["<b>Global aligner</b><br/>super-Fibonacci SO(3) seeds<br/>+ batched trimmed ICP<br/><i>(or FPFH / learned / BUFFER-X / MAC)</i>"]:::g --> L
-    L["<b>Levenberg-Marquardt</b><br/>multi-residual:<br/>ICP + Gaussian-SDF<br/>SE(3) / Sim(3)"]:::l --> T["T*  (4×4)<br/>+ merge / dedupe"]:::o
-    classDef s fill:#e8f6f8,stroke:#17becf,color:#0b3d44;
-    classDef g fill:#fff1ee,stroke:#ff6b5b,color:#5a1a12;
-    classDef l fill:#eef7ee,stroke:#2e8b57,color:#143d22;
-    classDef o fill:#f3eefc,stroke:#7d52c7,color:#2c1654;
-```
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/pipeline.png" alt="splatreg pipeline: two 3DGS splats, six coarse-init seeds (fast/robust/learned/bufferx/mac/global), a multi-residual Levenberg-Marquardt core (ICP + Gaussian-SDF, SE(3)/Sim(3)), outputs of the transform plus recovered scale and pose covariance, feeding the merge / align / track / pose-graph consumers">
+  <figcaption>Two splats → one of six coarse-init seeds → the multi-residual Levenberg–Marquardt core (ICP + the flagship Gaussian-SDF, SE(3)/Sim(3)) → the transform, recovered scale, and pose covariance → the merge / align / track / pose-graph consumers.</figcaption>
+</figure>
 
 1. **Global init**: a coarse pose from a dense super-Fibonacci rotation sweep + batched
    trimmed ICP (no local-minimum trap), with FPFH+RANSAC (`init="robust"`), learned
@@ -142,6 +145,11 @@ flowchart LR
 | Registration speed | **~17 ms** (fast) | Open3D 142 ms |
 
 Full record with reproduce commands: [Benchmarks](benchmarks.md).
+
+<figure class="sr-figure">
+  <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/photometric_refine.gif" alt="Photometric refinement converging: a colour splat knocked 9 degrees out of alignment locks onto the target through the gsplat rasterizer, with rotation and translation error ticking down to zero">
+  <figcaption>The opt-in <strong>photometric refine</strong> for the pose geometry can't see. A colour splat knocked <strong>9° / 151 mm</strong> out of alignment is polished by the PhotoReg-style splat-vs-splat photometric LM (renders source vs target through <strong>gsplat</strong>, no real images) down to <strong>0.04° / 0.04 mm</strong> — a real per-iteration trajectory. See <a href="photometric/">Photometric refinement</a>.</figcaption>
+</figure>
 
 <div class="sr-limits" markdown>
 

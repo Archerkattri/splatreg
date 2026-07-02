@@ -48,6 +48,16 @@ What you get that no other splat registrar ships (each claim traced in
   3DMatch/3DLoMatch, a decisive win in the structured-decoy regime (78° failure vs <0.2°).
 - **Sim(3) scale recovery**, which none of the competing splat tools attempt at all.
 
+<div align="center">
+<img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/sh_rotation.png" alt="A view-dependent-coloured Gaussian sphere rotated 90 degrees: naive rotation leaves the SH in the old frame (wrong colour), splatreg's real-basis Wigner-D rotation is pixel-identical to the independent ground truth" width="86%">
+</div>
+
+<sub>*Provably correct SH rotation, rendered through **gsplat**. A view-dependent-coloured splat is
+rotated 90°: the **naive** rotation (higher-order SH left in place) paints the sheen in the wrong,
+world-fixed direction — **13–15 dB** vs an independent ground truth — while splatreg's **Wigner-D**
+render is **pixel-identical** to it. Coefficient round-trip `D(R)⁻¹·D(R)·f = f` to **~2e-16** in
+float64. Regenerate: [`examples/make_sh_rotation_figure.py`](examples/make_sh_rotation_figure.py).*</sub>
+
 ## Install
 
 ```bash
@@ -72,6 +82,16 @@ from splatreg.io import load_ply, save_ply
 fused = merge([load_ply("a.ply"), load_ply("b.ply")])   # register + fuse + dedupe
 save_ply(fused, "fused.ply")                            # opens in SuperSplat / any viewer
 ```
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/merge_fusion.gif" alt="Three-stage animation of merging two real overlapping 3DMatch scans: misaligned, registered by SE(3), then fused with the overlap deduped" width="72%">
+</div>
+
+<sub>*That 3-line merge on **two real overlapping 3DMatch scans** (`7-scenes-redkitchen`,
+~19k points each): **register** (SE(3), recovered to **0.58° / 17 mm** against the 3DMatch ground
+truth — the seam gap closes 101 → 18 mm, overlap 0.27 → 0.82), then **fuse + voxel-dedupe** the
+double-covered seam (**38,059 → 23,502** Gaussians, 14,557 overlap duplicates dropped). Every number
+is measured on this run; regenerate: [`examples/make_merge_fusion_gif.py`](examples/make_merge_fusion_gif.py).*</sub>
 
 Align without merging (both scans stay separate files, registered into one frame):
 
@@ -234,17 +254,9 @@ missing *registration* half of the Gaussian-splatting toolchain (the splat-to-sp
 alignment SuperSplat / INRIA / geospatial users keep asking for, where today's tooling
 punts to a manual gizmo).
 
-```mermaid
-flowchart LR
-    A["splat A<br/>(target)"]:::s --> G
-    B["splat B<br/>(source)"]:::s --> G
-    G["<b>Global aligner</b><br/>super-Fibonacci SO(3) seeds<br/>+ batched trimmed ICP<br/><i>(or FPFH / learned / MAC)</i>"]:::g --> L
-    L["<b>Levenberg-Marquardt</b><br/>multi-residual:<br/>ICP + Gaussian-SDF<br/>SE(3) / Sim(3)"]:::l --> T["T*  (4×4)<br/>+ merge / dedupe"]:::o
-    classDef s fill:#e8f6f8,stroke:#17becf,color:#0b3d44;
-    classDef g fill:#fff1ee,stroke:#ff6b5b,color:#5a1a12;
-    classDef l fill:#eef7ee,stroke:#2e8b57,color:#143d22;
-    classDef o fill:#f3eefc,stroke:#7d52c7,color:#2c1654;
-```
+<div align="center">
+<img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/pipeline.png" alt="splatreg pipeline: two 3DGS splats, six coarse-init seeds (fast/robust/learned/bufferx/mac/global), a multi-residual Levenberg-Marquardt core (ICP + Gaussian-SDF, SE(3)/Sim(3)), outputs of the transform plus recovered scale and pose covariance, feeding the merge / align / track / pose-graph consumers" width="94%">
+</div>
 
 1. **Global init**: a coarse pose from a dense super-Fibonacci rotation sweep + batched
    trimmed ICP (no local-minimum trap), with FPFH+RANSAC, learned (GeoTransformer), and MAC
