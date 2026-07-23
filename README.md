@@ -7,6 +7,7 @@
 ### Register Gaussian splats: align and merge 3DGS scans into one SE(3)/Sim(3) frame.
 
 [![PyPI](https://img.shields.io/pypi/v/splatreg)](https://pypi.org/project/splatreg/)
+[![Downloads](https://static.pepy.tech/badge/splatreg)](https://pepy.tech/project/splatreg)
 [![CI](https://github.com/Archerkattri/splatreg/actions/workflows/ci.yml/badge.svg)](https://github.com/Archerkattri/splatreg/actions/workflows/ci.yml)
 [![DOI](https://zenodo.org/badge/1260804203.svg)](https://zenodo.org/badge/latestdoi/1260804203)
 [![Paper](https://img.shields.io/badge/engrXiv-10.31224%2F7313-009E73.svg)](https://doi.org/10.31224/7313)
