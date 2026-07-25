@@ -27,4 +27,6 @@ jobs:
       - name: Run test suite (CPU)
         # Optional-backend tests (gsplat/pypose/theseus/gtsam) and the CUDA-only
         # camera-localization tests skip honestly when those deps are absent.
-        run: pytest tests/ -q -n auto
+        # Keep the suite serial: several tests assert real CPU wall-clock budgets,
+        # and xdist workers contend with PyTorch's own thread pool.
+        run: pytest tests/ -q
