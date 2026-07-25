@@ -163,6 +163,7 @@ def test_knn_batch_k_exceeds_count(device):
 
 
 @pytest.mark.parametrize("nq", [4000])
+@pytest.mark.performance
 def test_batch_query_speedup_vs_loop(device, nq):
     """Loop-free batch queries beat the Python per-query loop on a moderate cloud with many queries.
 
@@ -206,6 +207,7 @@ def test_batch_query_speedup_vs_loop(device, nq):
 
 
 @pytest.mark.parametrize("m", [40000])
+@pytest.mark.performance
 def test_dedupe_speedup_on_scene_scale(device, m):
     """On a scene-scale splat the index dedupe beats the O(N^2) brute scan in wall-clock.
 

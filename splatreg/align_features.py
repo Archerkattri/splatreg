@@ -1279,7 +1279,7 @@ def _open3d_fpfh_ransac_seed(
             ],
             o3d.pipelines.registration.RANSACConvergenceCriteria(100000, 0.999),
         )
-        T = torch.as_tensor(_np.asarray(res.transformation), dtype=torch.float64)
+        T = torch.tensor(_np.asarray(res.transformation), dtype=torch.float64)
         return T, int(len(res.correspondence_set))
     except Exception:
         return None, 0
@@ -1316,7 +1316,7 @@ def _open3d_icp_refine(
             o3d.pipelines.registration.TransformationEstimationPointToPlane(),
             o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=int(iters)),
         )
-        return torch.as_tensor(_np.asarray(res.transformation), dtype=torch.float64)
+        return torch.tensor(_np.asarray(res.transformation), dtype=torch.float64)
     except Exception:
         return None
 
@@ -1530,7 +1530,7 @@ def _geotransformer_seed(src: torch.Tensor, tgt: torch.Tensor, device: torch.dev
             out = model(data_dict)
         out = release_cuda(out)
         T = out["estimated_transform"]  # (4, 4) source→target
-        return torch.as_tensor(_np.asarray(T), dtype=torch.float64)
+        return torch.tensor(_np.asarray(T), dtype=torch.float64)
     except Exception:
         return None
 
@@ -1575,13 +1575,13 @@ def _geotransformer_correspondences(
         with torch.no_grad():
             out = model(data_dict)
         out = release_cuda(out)
-        src_corr = torch.as_tensor(_np.asarray(out["src_corr_points"]), dtype=torch.float32)
-        tgt_corr = torch.as_tensor(_np.asarray(out["ref_corr_points"]), dtype=torch.float32)
+        src_corr = torch.tensor(_np.asarray(out["src_corr_points"]), dtype=torch.float32)
+        tgt_corr = torch.tensor(_np.asarray(out["ref_corr_points"]), dtype=torch.float32)
         if src_corr.shape[0] < 3 or src_corr.shape != tgt_corr.shape:
             return None
         T_lgr: torch.Tensor | None = None
         try:
-            T_lgr = torch.as_tensor(_np.asarray(out["estimated_transform"]), dtype=torch.float64)
+            T_lgr = torch.tensor(_np.asarray(out["estimated_transform"]), dtype=torch.float64)
         except Exception:
             T_lgr = None
         return src_corr, tgt_corr, T_lgr

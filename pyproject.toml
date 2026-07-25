@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,8 @@ version = "1.4.0"
 description = "Composable geometry-first SE(3)/Sim(3) registration for 3D Gaussian Splatting, the inverse of gsplat."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "BSD-3-Clause" }
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 authors = [{ name = "Krishi Attri" }]
 keywords = ["gaussian-splatting", "3dgs", "registration", "pose-estimation", "se3", "sim3", "gsplat"]
 dependencies = ["torch>=2.1", "numpy>=1.24"]
@@ -54,6 +55,11 @@ include = ["splatreg*"]
 
 [tool.setuptools.package-data]
 splatreg = ["py.typed"]
+
+[tool.pytest.ini_options]
+markers = [
+    "performance: controlled-host wall-clock benchmarks, excluded from shared-runner CI",
+]
 
 [tool.black]
 line-length = 110

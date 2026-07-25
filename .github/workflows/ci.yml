@@ -29,4 +29,6 @@ jobs:
         # camera-localization tests skip honestly when those deps are absent.
         # Keep the suite serial: several tests assert real CPU wall-clock budgets,
         # and xdist workers contend with PyTorch's own thread pool.
-        run: pytest tests/ -q
+        # The two `performance` tests retain their >=2x / >=1.5x gates for a
+        # controlled host, but shared-runner wall time is not a stable CI signal.
+        run: pytest tests/ -q -m "not performance"
