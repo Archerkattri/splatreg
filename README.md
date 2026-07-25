@@ -86,6 +86,9 @@ fused = merge([load_ply("a.ply"), load_ply("b.ply")])   # register + fuse + dedu
 save_ply(fused, "fused.ply")                            # opens in SuperSplat / any viewer
 ```
 
+`load_ply()` and the CLI prefer CUDA whenever it is available and fall back to CPU only
+when it is not. Pass `device="cpu"` or `--device cpu` only when you intentionally want CPU.
+
 <div align="center">
 <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/merge_fusion.gif" alt="Three-stage animation of merging two real overlapping 3DMatch scans: misaligned, registered by SE(3), then fused with the overlap deduped" width="72%">
 </div>
@@ -316,10 +319,10 @@ correspondences are already consensus-dominated, so the default stays `seed_sele
 Every number is reproducible; full record in [`RESULTS.md`](RESULTS.md).
 
 ```bash
-python -m pytest tests/ -q                        # 155 passing, 8 skipped
+python -m pytest tests/ -q                        # 158 passing, 8 skipped
 python tests/test_jacobians.py                    # analytic vs numerical Jacobian audit
-python examples/validate_recovery.py --fast       # CPU smoke: 6/6 recovery in ~41 s
-SPLATREG_DEVICE=cuda python examples/validate_recovery.py --device cuda   # 36/36 recovery
+python examples/validate_recovery.py --fast       # CUDA-first smoke; CPU fallback
+python examples/validate_recovery.py              # CUDA-first 36/36 recovery
 SPLATREG_DEVICE=cuda python benchmarks/robustness_bench.py --device cuda
 python examples/merge_demo.py                     # real-splat merge demo
 ```

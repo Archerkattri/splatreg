@@ -1,8 +1,8 @@
 """pytest fixtures for splatreg's test suite.
 
 Deterministic seeding before every test (the gsplat/Theseus autouse-seed discipline)
-so failures reproduce, plus a device fixture (CPU default; ``SPLATREG_TEST_DEVICE=cuda``
-to exercise the GPU path).
+so failures reproduce, plus a CUDA-first device fixture with an explicit
+``SPLATREG_TEST_DEVICE`` override.
 """
 
 from __future__ import annotations
@@ -24,8 +24,9 @@ def _deterministic():
 
 @pytest.fixture
 def device():
-    """Test device — CPU unless ``SPLATREG_TEST_DEVICE`` overrides (and CUDA exists)."""
-    want = os.environ.get("SPLATREG_TEST_DEVICE", "cpu")
+    """Test device — CUDA when available, otherwise CPU, unless explicitly overridden."""
+    default = "cuda" if torch.cuda.is_available() else "cpu"
+    want = os.environ.get("SPLATREG_TEST_DEVICE", default)
     if want.startswith("cuda") and not torch.cuda.is_available():
         return "cpu"
     return want

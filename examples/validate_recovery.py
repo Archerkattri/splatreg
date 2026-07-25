@@ -67,10 +67,9 @@ from _example_utils import (  # noqa: E402
 )
 
 # ------------------------------------------------------------------ configuration
-# Device: defaults to CPU (self-contained, no GPU needed). Set ``SPLATREG_DEVICE=cuda`` to run the
-# whole harness on GPU — the Sim(3) autodiff Jacobian is now row-chunked (``solvers/lm.py``) and the
-# default SDF residual point sample is capped (``api.py``), so the GPU path is memory-bounded.
-DEVICE = os.environ.get("SPLATREG_DEVICE", "cpu")
+# Prefer CUDA and fall back to CPU. The Sim(3) autodiff Jacobian is row-chunked
+# (``solvers/lm.py``) and the default SDF sample is capped, so the GPU path is memory-bounded.
+DEVICE = os.environ.get("SPLATREG_DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
 if DEVICE.startswith("cuda") and not torch.cuda.is_available():
     print("SPLATREG_DEVICE=cuda requested but CUDA is unavailable; falling back to CPU.")
     DEVICE = "cpu"
@@ -243,7 +242,11 @@ def main():
         default="full",
         help="quality policy: full|balanced|low|auto|<0..1 float> (default: full)",
     )
-    ap.add_argument("--device", default=DEVICE, help="cpu|cuda (default: $SPLATREG_DEVICE or cpu)")
+    ap.add_argument(
+        "--device",
+        default=DEVICE,
+        help="cpu|cuda (default: $SPLATREG_DEVICE or cuda when available)",
+    )
     ap.add_argument("--n", type=int, default=None, help=f"object anchor count (default {N_POINTS})")
     ap.add_argument("--iters", type=int, default=None, help=f"LM iters (default {MAX_ITERS})")
     ap.add_argument(

@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: pytest (CPU)
+    name: pytest (hosted CPU fallback)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -19,12 +19,12 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install (CPU torch + package)
+      - name: Install (hosted runner has no CUDA)
         run: |
           python -m pip install --upgrade pip
           pip install --index-url https://download.pytorch.org/whl/cpu torch
           pip install -e . pytest pytest-xdist
-      - name: Run test suite (CPU)
+      - name: Run test suite (CPU fallback)
         # Optional-backend tests (gsplat/pypose/theseus/gtsam) and the CUDA-only
         # camera-localization tests skip honestly when those deps are absent.
         # Keep the suite serial: several tests assert real CPU wall-clock budgets,

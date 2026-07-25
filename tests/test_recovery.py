@@ -19,8 +19,8 @@ Two P5 regression gates ride alongside the per-cell checks:
   the per-cell success threshold. A single catastrophic cell (basin escape) would trip this even
   if the median stayed healthy.
 
-Everything runs on CPU (``device`` fixture defaults to CPU; GPU is opt-in via
-``SPLATREG_TEST_DEVICE=cuda``) and is deterministic per cell.
+Everything uses CUDA when available and otherwise falls back to CPU; the
+``SPLATREG_TEST_DEVICE`` override can pin either device. Each cell is deterministic.
 """
 
 from __future__ import annotations

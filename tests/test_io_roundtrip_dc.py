@@ -2,8 +2,23 @@
 (previously double-encoded: load returned raw SH-DC in the RGB slot)."""
 import torch
 
-from splatreg.io import load_ply, save_ply, rgb_to_sh_dc
+from splatreg.io import _resolve_device, load_ply, save_ply, rgb_to_sh_dc
 from splatreg.core.types import Gaussians
+
+
+def test_default_device_prefers_cuda_when_available(monkeypatch):
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    assert _resolve_device(None) == torch.device("cuda")
+
+
+def test_default_device_falls_back_to_cpu(monkeypatch):
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    assert _resolve_device(None) == torch.device("cpu")
+
+
+def test_explicit_device_is_preserved(monkeypatch):
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    assert _resolve_device("cpu") == torch.device("cpu")
 
 
 def _mk(n=64):
@@ -15,7 +30,7 @@ def _mk(n=64):
         opacities=torch.rand(n, generator=g),
         colors=torch.rand(n, 3, generator=g),  # RGB
         log_scales=True,
-    )
+    ).to(_resolve_device(None))
 
 
 def test_dc_only_roundtrip_preserves_rgb(tmp_path):
@@ -34,9 +49,9 @@ def test_dc_only_roundtrip_preserves_rgb(tmp_path):
 def test_full_sh_roundtrip_still_bitexact(tmp_path):
     g0 = _mk()
     K = 16
-    sh = torch.zeros(g0.means.shape[0], K, 3)
+    sh = torch.zeros(g0.means.shape[0], K, 3, device=g0.device)
     sh[:, 0, :] = rgb_to_sh_dc(g0.colors)
-    sh[:, 1:, :] = torch.randn(g0.means.shape[0], K - 1, 3) * 0.01
+    sh[:, 1:, :] = torch.randn(g0.means.shape[0], K - 1, 3, device=g0.device) * 0.01
     g0 = Gaussians(means=g0.means, quats=g0.quats, scales=g0.scales,
                    opacities=g0.opacities, colors=sh, log_scales=True)
     p = tmp_path / "sh.ply"

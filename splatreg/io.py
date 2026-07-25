@@ -204,6 +204,15 @@ def _write_ply_vertex(path: _PathLike, columns: "list[tuple[str, np.ndarray]]") 
 # --------------------------------------------------------------------------------------
 # Public PLY API
 # --------------------------------------------------------------------------------------
+def _resolve_device(
+    device: Optional[Union[str, torch.device]],
+) -> torch.device:
+    """Prefer CUDA by default and use CPU only when CUDA is unavailable."""
+    if device is not None:
+        return torch.device(device)
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
 def load_ply(
     path: _PathLike,
     device: Optional[Union[str, torch.device]] = None,
@@ -219,7 +228,7 @@ def load_ply(
 
     Args:
         path: Path to the ``.ply`` file.
-        device: Target device for the tensors (default: CPU).
+        device: Target device for the tensors (default: CUDA when available, otherwise CPU).
         dtype: Floating dtype for the tensors (default: ``float32``).
 
     Returns:
@@ -274,7 +283,7 @@ def load_ply(
         # made a load->save round-trip double-encode DC-only files.
         colors_np = sh_dc_to_rgb(torch.from_numpy(dc)).numpy()  # (N, 3) RGB
 
-    t_kw = dict(device=device, dtype=dtype)
+    t_kw = dict(device=_resolve_device(device), dtype=dtype)
     return Gaussians(
         means=torch.as_tensor(means, **t_kw),
         quats=torch.as_tensor(quats, **t_kw),

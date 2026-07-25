@@ -70,7 +70,7 @@ from _example_utils import (  # noqa: E402
     sim3_matrix,
 )
 
-DEVICE = os.environ.get("SPLATREG_DEVICE", "cpu")
+DEVICE = os.environ.get("SPLATREG_DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
 if DEVICE.startswith("cuda") and not torch.cuda.is_available():
     print("SPLATREG_DEVICE=cuda requested but CUDA is unavailable; falling back to CPU.")
     DEVICE = "cpu"
@@ -270,7 +270,11 @@ def main():
     # looser (~9 deg vs ~2 deg) — partial overlap + a scale DoF is the hard case; see the report.
     ap.add_argument("--overlap-lo", type=float, default=0.30, help="B starts above this percentile")
     ap.add_argument("--overlap-hi", type=float, default=0.70, help="A ends below this percentile")
-    ap.add_argument("--device", default=DEVICE, help="cpu|cuda (default: $SPLATREG_DEVICE or cpu)")
+    ap.add_argument(
+        "--device",
+        default=DEVICE,
+        help="cpu|cuda (default: $SPLATREG_DEVICE or cuda when available)",
+    )
     args = ap.parse_args()
 
     DEVICE = args.device
