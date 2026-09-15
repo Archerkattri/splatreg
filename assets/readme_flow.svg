@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 198" role="img" aria-labelledby="title desc">
+  <title id="title">splatreg architecture</title>
+  <desc id="desc">Gaussian-splat registration and fusion</desc>
+  <rect width="900" height="198" rx="18" fill="#020617"/>
+  <text x="28" y="36" fill="#f8fafc" font-family="Inter,Segoe UI,sans-serif" font-size="22" font-weight="700">splatreg</text>
+  <text x="28" y="62" fill="#94a3b8" font-family="Inter,Segoe UI,sans-serif" font-size="13">Gaussian-splat registration and fusion</text>
+  <path d="M212 131h22m-8-6 8 6-8 6" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M432 131h22m-8-6 8 6-8 6" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M652 131h22m-8-6 8 6-8 6" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="translate(28 94)">
+    <rect width="184" height="74" rx="12" fill="#111827" stroke="#06b6d4" stroke-width="1.5"/>
+    <text x="92" y="31" text-anchor="middle" fill="#f8fafc" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700">INPUT SPLATS</text>
+    <text x="92" y="53" text-anchor="middle" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10">STAGE 1</text>
+  </g>
+  <g transform="translate(248 94)">
+    <rect width="184" height="74" rx="12" fill="#111827" stroke="#06b6d4" stroke-width="1.5"/>
+    <text x="92" y="31" text-anchor="middle" fill="#f8fafc" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700">COARSE SEEDS</text>
+    <text x="92" y="53" text-anchor="middle" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10">STAGE 2</text>
+  </g>
+  <g transform="translate(468 94)">
+    <rect width="184" height="74" rx="12" fill="#111827" stroke="#06b6d4" stroke-width="1.5"/>
+    <text x="92" y="31" text-anchor="middle" fill="#f8fafc" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700">SE(3) / SIM(3) SOLVE</text>
+    <text x="92" y="53" text-anchor="middle" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10">STAGE 3</text>
+  </g>
+  <g transform="translate(688 94)">
+    <rect width="184" height="74" rx="12" fill="#111827" stroke="#06b6d4" stroke-width="1.5"/>
+    <text x="92" y="31" text-anchor="middle" fill="#f8fafc" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="700">ALIGN / FUSE</text>
+    <text x="92" y="53" text-anchor="middle" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10">STAGE 4</text>
+  </g>
+</svg>
+

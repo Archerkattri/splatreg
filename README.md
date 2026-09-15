@@ -22,6 +22,11 @@
 </div>
 
 ---
+## Architecture at a glance
+
+![splatreg architecture](assets/readme_flow.svg)
+
+Registration is staged: initialize from multiple coarse seeds, refine a shared SE(3)/Sim(3) residual objective, then expose the transform to alignment and fusion.
 
 gsplat renders your Gaussians; **splatreg registers them**. Two 3DGS scans of the same scene
 go in, one SE(3) or Sim(3) transform comes out, and (optionally) one fused, deduped splat.
