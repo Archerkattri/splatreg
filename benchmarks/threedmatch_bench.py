@@ -42,12 +42,14 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from scipy.spatial import cKDTree
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from splatreg import register  # noqa: E402
+from splatreg.align_features import feature_align  # noqa: E402
 from splatreg.core.types import Gaussians  # noqa: E402
 from splatreg.io import _read_ply_vertex  # noqa: E402
 
@@ -78,6 +80,14 @@ def voxel_downsample(pts: np.ndarray, voxel: float) -> np.ndarray:
     return pts[np.sort(idx)]
 
 
+def cap_points(pts: np.ndarray, max_points: int | None) -> np.ndarray:
+    """Deterministically cap a cloud for CPU runs while preserving scene coverage."""
+    if max_points is None or pts.shape[0] <= max_points:
+        return pts
+    idx = np.linspace(0, pts.shape[0] - 1, int(max_points), dtype=np.int64)
+    return pts[idx]
+
+
 def points_to_gaussians(pts: np.ndarray, device, dtype=torch.float32) -> Gaussians:
     """Wrap a plain point cloud as a :class:`Gaussians` (means = points; neutral other fields)."""
     m = torch.as_tensor(pts, device=device, dtype=dtype)
@@ -99,10 +109,8 @@ def rot_err_deg(Ra: np.ndarray, Rb: np.ndarray) -> float:
 def overlap_ratio(src: np.ndarray, tgt: np.ndarray, T_gt: np.ndarray, thresh: float) -> float:
     """Fraction of source points landing within ``thresh`` of a target point under the GT transform."""
     s = (src @ T_gt[:3, :3].T) + T_gt[:3, 3]
-    st = torch.as_tensor(s, dtype=torch.float32)
-    tt = torch.as_tensor(tgt, dtype=torch.float32)
-    d = torch.cdist(st, tt).min(dim=1).values
-    return float((d < thresh).float().mean().item())
+    d, _ = cKDTree(tgt).query(s, k=1, workers=-1)
+    return float(np.mean(d < thresh))
 
 
 def correspondence_rmse(
@@ -116,14 +124,12 @@ def correspondence_rmse(
     keeps the overlap aligned (low RMSE) and a wrong pose scatters it (high RMSE).
     """
     s_gt = (src @ T_gt[:3, :3].T) + T_gt[:3, 3]
-    st = torch.as_tensor(s_gt, dtype=torch.float32)
-    tt = torch.as_tensor(tgt, dtype=torch.float32)
-    d, nn = torch.cdist(st, tt).min(dim=1)
+    d, nn = cKDTree(tgt).query(s_gt, k=1, workers=-1)
     m = d < band
-    if int(m.sum().item()) < 3:
+    if int(np.count_nonzero(m)) < 3:
         return float("inf")
-    src_corr = src[m.cpu().numpy()]
-    tgt_corr = tgt[nn[m].cpu().numpy()]
+    src_corr = src[m]
+    tgt_corr = tgt[nn[m]]
     s_est = (src_corr @ T_est[:3, :3].T) + T_est[:3, 3]
     return float(np.sqrt(np.mean(np.sum((s_est - tgt_corr) ** 2, axis=1))))
 
@@ -164,33 +170,86 @@ def open3d_fpfh_ransac(src: np.ndarray, tgt: np.ndarray, voxel: float) -> np.nda
 
 
 # ----------------------------------------------------------------------- pair selection
+def read_gt_log(path: str) -> dict[tuple[int, int], np.ndarray]:
+    """Read the official 3DMatch ``gt.log`` pair transforms.
+
+    The released scene-fragment archive is flat (``cloud_bin_*.ply``), while
+    ``gt.log`` stores the pairwise source-to-target transforms in four-line
+    blocks prefixed by ``source target number_of_matches``.
+    """
+    with open(path, encoding="utf-8") as f:
+        lines = [ln.strip() for ln in f if ln.strip()]
+    transforms: dict[tuple[int, int], np.ndarray] = {}
+    cursor = 0
+    while cursor < len(lines):
+        header = lines[cursor].split()
+        if len(header) < 2:
+            raise ValueError(f"malformed gt.log header at line {cursor + 1}: {lines[cursor]!r}")
+        source, target = int(header[0]), int(header[1])
+        if cursor + 4 >= len(lines):
+            raise ValueError(f"truncated gt.log block at line {cursor + 1}")
+        mat = np.asarray(
+            [[float(x) for x in lines[cursor + row].split()] for row in range(1, 5)],
+            dtype=np.float64,
+        )
+        if mat.shape != (4, 4):
+            raise ValueError(f"invalid gt.log transform shape {mat.shape} at line {cursor + 1}")
+        transforms[(source, target)] = mat
+        cursor += 5
+    return transforms
+
+
 def gather_pairs(
-    data_root: str, voxel: float, overlap_thresh: float, min_overlap: float, n_pairs: int, seed: int
+    data_root: str,
+    voxel: float,
+    overlap_thresh: float,
+    min_overlap: float,
+    n_pairs: int,
+    seed: int,
+    gt_log: str | None = None,
 ):
     """Sample ~``n_pairs`` overlapping fragment pairs across all test scenes (deterministic)."""
     rng = random.Random(seed)
-    scenes = sorted(p for p in Path(data_root).iterdir() if (p / "fragments").is_dir())
+    root = Path(data_root)
+    scenes = sorted(p for p in root.iterdir() if (p / "fragments").is_dir())
     candidates = []  # (scene, i, j)
+    if not scenes and list(root.glob("cloud_bin_*.ply")):
+        if gt_log is None:
+            raise ValueError(
+                "flat 3DMatch fragment directory detected; pass --gt-log pointing to the "
+                "official evaluation gt.log"
+            )
+        transforms = read_gt_log(gt_log)
+        fragments = sorted(root.glob("cloud_bin_*.ply"), key=lambda p: int(p.stem.split("_")[-1]))
+        by_index = {int(p.stem.split("_")[-1]): p for p in fragments}
+        for (i, j), transform in transforms.items():
+            if i not in by_index or j not in by_index:
+                continue
+            candidates.append((root, i, j, fragments, transform))
     for sc in scenes:
         frags = sorted((sc / "fragments").glob("cloud_bin_*.ply"), key=lambda p: int(p.stem.split("_")[-1]))
         n = len(frags)
         # Adjacent + near-adjacent pairs are the overlapping ones in a sequential scan.
         for i in range(n):
             for j in range(i + 1, min(i + 4, n)):
-                candidates.append((sc, i, j, frags))
+                candidates.append((sc, i, j, frags, None))
     rng.shuffle(candidates)
     pairs = []
-    for sc, i, j, frags in candidates:
+    for sc, i, j, frags, logged_transform in candidates:
         if len(pairs) >= n_pairs:
             break
         try:
             pi = read_points(str(frags[i]))
             pj = read_points(str(frags[j]))
-            posei = read_pose(str(sc / "poses" / f"{frags[i].stem}.txt"))
-            posej = read_pose(str(sc / "poses" / f"{frags[j].stem}.txt"))
+            if logged_transform is not None:
+                T_gt = logged_transform
+            else:
+                posei = read_pose(str(sc / "poses" / f"{frags[i].stem}.txt"))
+                posej = read_pose(str(sc / "poses" / f"{frags[j].stem}.txt"))
         except Exception:
             continue
-        T_gt = np.linalg.inv(posej) @ posei  # maps i's points into j's frame
+        if logged_transform is None:
+            T_gt = np.linalg.inv(posej) @ posei  # maps i's points into j's frame
         di = voxel_downsample(pi, voxel)
         dj = voxel_downsample(pj, voxel)
         ov = overlap_ratio(di, dj, T_gt, voxel * 2.0)
@@ -204,11 +263,29 @@ def gather_pairs(
 def main():
     ap = argparse.ArgumentParser(description="splatreg vs Open3D on the 3DMatch test split.")
     ap.add_argument("--data-root", default=DEFAULT_DATA)
+    ap.add_argument(
+        "--gt-log",
+        default=None,
+        help="official 3DMatch gt.log for a flat scene-fragment archive",
+    )
     ap.add_argument("--n-pairs", type=int, default=60)
     ap.add_argument("--voxel", type=float, default=0.05, help="downsample voxel (m)")
     ap.add_argument("--min-overlap", type=float, default=0.3, help="min GT overlap to keep a pair")
     ap.add_argument("--rmse-thresh", type=float, default=0.2, help="RR RMSE threshold (m)")
     ap.add_argument("--corr-band", type=float, default=0.1, help="GT-correspondence band (m)")
+    ap.add_argument(
+        "--max-points",
+        type=int,
+        default=None,
+        help="optional deterministic per-cloud cap after voxel filtering (useful for CPU smoke runs)",
+    )
+    ap.add_argument("--quality", default="full", choices=["full", "balanced", "low"])
+    ap.add_argument("--max-iters", type=int, default=None, help="optional LM iteration cap")
+    ap.add_argument(
+        "--no-basin-sweep",
+        action="store_true",
+        help="skip the expensive global recoverer for bounded CPU diagnostics",
+    )
     ap.add_argument("--device", default=os.environ.get("SPLATREG_DEVICE", "cpu"))
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-open3d", action="store_true")
@@ -229,7 +306,13 @@ def main():
 
     print(f"Sampling overlapping pairs (voxel={args.voxel} m, min_overlap={args.min_overlap}) ...")
     pairs = gather_pairs(
-        args.data_root, args.voxel, args.voxel * 2.0, args.min_overlap, args.n_pairs, args.seed
+        args.data_root,
+        args.voxel,
+        args.voxel * 2.0,
+        args.min_overlap,
+        args.n_pairs,
+        args.seed,
+        args.gt_log,
     )
     print(
         f"  -> {len(pairs)} pairs across "
@@ -249,7 +332,9 @@ def main():
     o3 = {"rre": [], "rte": [], "rmse": [], "ms": []}
 
     for k, p in enumerate(pairs):
-        src, tgt, T_gt = p["src"], p["tgt"], p["T_gt"]
+        src = cap_points(p["src"], args.max_points)
+        tgt = cap_points(p["tgt"], args.max_points)
+        T_gt = p["T_gt"]
 
         # splatreg (init="fast"): registers source onto target -> T maps src into tgt frame.
         gs_src = points_to_gaussians(src, device)
@@ -257,11 +342,22 @@ def main():
         if device.startswith("cuda"):
             torch.cuda.synchronize()
         t0 = time.perf_counter()
-        res = register(gs_tgt, gs_src, init=args.init, transform="se3")
+        if args.no_basin_sweep:
+            T_est, _ = feature_align(gs_tgt, gs_src, transform="se3", basin_sweep=False)
+        else:
+            res = register(
+                gs_tgt,
+                gs_src,
+                init=args.init,
+                transform="se3",
+                quality=args.quality,
+                max_iters=args.max_iters,
+            )
+            T_est = res.T
         if device.startswith("cuda"):
             torch.cuda.synchronize()
         sr["ms"].append((time.perf_counter() - t0) * 1000.0)
-        T_est = res.T.detach().cpu().numpy().astype(np.float64)
+        T_est = T_est.detach().cpu().numpy().astype(np.float64)
         sr["rre"].append(rot_err_deg(T_gt[:3, :3], T_est[:3, :3]))
         sr["rte"].append(float(np.linalg.norm(T_gt[:3, 3] - T_est[:3, 3])))
         sr["rmse"].append(correspondence_rmse(src, tgt, T_gt, T_est, args.corr_band))

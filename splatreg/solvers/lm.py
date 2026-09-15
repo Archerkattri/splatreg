@@ -277,6 +277,8 @@ def run_lm(
         exact, the shipped analytic Jacobians are SE(3)-only and would drop it).
     solver : optional :class:`Solver` for the linear step; built from ``damping`` if omitted.
     n_iters, damping, max_trans_step, max_rot_step, convergence_tol : LM hyper-parameters.
+        ``n_iters`` must be a positive integer. A zero-iteration request is rejected explicitly;
+        there is no defined registration result without at least one linearization/update.
     jac_row_chunk : row-chunk for the Sim(3) autodiff Jacobian (``jacrev`` reverse pass). Bounds
         peak autodiff memory to ``~jac_row_chunk x target-anchors`` with a result numerically
         identical to the unchunked Jacobian, quality is unaffected. Threaded from the quality
@@ -300,6 +302,9 @@ def run_lm(
     the full similarity ``[[s*R, t], [0, 1]]`` and ``scale`` is the recovered ``s``; the SE(3)
     path keeps ``scale == 1``.
     """
+    if not isinstance(n_iters, int) or n_iters < 1:
+        raise ValueError("n_iters must be a positive integer; use at least one LM iteration")
+
     dof = _DOF.get(transform)
     if dof is None:
         raise ValueError(f"transform must be one of {sorted(_DOF)}, got {transform!r}")
@@ -325,6 +330,7 @@ def run_lm(
     converged = False
     iters_done = n_iters
     last_cost = float("nan")
+    problem = None
     for i in range(n_iters):
         problem = _assemble(T, residuals, target, source, dof, exp_fn, jac_row_chunk)
         if problem is None:
@@ -358,27 +364,36 @@ def run_lm(
     # Materialise the costs to Python floats ONCE, after the loop — `solve` now returns the cost as
     # an on-device tensor so the iteration never pays a `.item()` sync. (A single sync here is fine.)
     cost_history = [float(c.item()) if torch.is_tensor(c) else float(c) for c in cost_history]
-    last_cost = cost_history[-1] if cost_history else float("nan")
+    # Re-evaluate the returned transform so diagnostics describe the transform
+    # the caller actually receives.  The per-iteration history intentionally
+    # remains the cost at each pre-update linearisation; ``cost`` below is the
+    # post-update final cost.
+    final_problem = None
+    if iters_done > 0:
+        final_problem = _assemble(T, residuals, target, source, dof, exp_fn, jac_row_chunk)
+    if final_problem is not None:
+        final_wr = final_problem.weight.reshape(-1) * final_problem.r
+        last_cost = float((0.5 * (final_wr * final_wr).sum()).item())
 
     rmse = float("nan")
     information = None
     covariance = None
-    if problem is not None:
-        wr = problem.weight.reshape(-1) * problem.r
+    if final_problem is not None:
+        wr = final_problem.weight.reshape(-1) * final_problem.r
         rmse = float((wr * wr).mean().clamp_min(0.0).sqrt().item()) if wr.numel() else float("nan")
-        # Pose information / covariance from the FINAL ACCEPTED LINEARISATION (the last assembled
-        # JᵀWJ — at convergence the linearisation point and the returned T differ by a step below
-        # `convergence_tol`, so this is the Gauss-Newton information at the solution without
-        # paying an extra residual+Jacobian pass in the hot loop). `information` is the UNDAMPED
+        # Pose information / covariance at the returned transform. This final
+        # assembly is deliberate: after a non-converged last update, the
+        # previous iteration's linearisation is not a diagnostic of returned T.
+        # `information` is the UNDAMPED
         # JᵀWJ (dof×dof; 6 for SE(3), 7 for Sim(3) with the log-scale channel last);
         # `covariance` is its inverse scaled by the unbiased residual-variance estimate
         # σ̂² = ||Wr||² / (R − dof) — the classic nonlinear-least-squares pose covariance, so
         # noisier data honestly reports a looser covariance. `covariance` is None when the
         # system is singular (under-constrained problem: trust `information`'s null space).
         if wr.numel():
-            Jw = problem.J * problem.weight.reshape(-1, 1)
+            Jw = final_problem.J * final_problem.weight.reshape(-1, 1)
             information = Jw.transpose(-1, -2) @ Jw
-            n_rows = int(problem.r.shape[0])
+            n_rows = int(final_problem.r.shape[0])
             sigma2 = float((wr * wr).sum().item()) / max(n_rows - dof, 1)
             try:
                 covariance = sigma2 * torch.linalg.inv(information)
@@ -398,6 +413,7 @@ def run_lm(
         "rmse": rmse,
         "dof": dof,
         "transform": transform,
+        "diagnostics_at": "returned_transform" if final_problem is not None else "unavailable",
         "information": information,
         "covariance": covariance,
     }

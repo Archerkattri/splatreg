@@ -50,8 +50,7 @@ Zenodo archives each GitHub release and mints a citable DOI. ~30 minutes once:
    - a **version DOI** for that specific release.
 4. Copy the concept DOI into:
    - `CITATION.cff` → uncomment and fill the `doi:` line;
-   - `README.md` → add the badge
-     `[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)`.
+   - `README.md` → add a badge using the concept DOI minted for the release.
 5. (Optional) On the Zenodo record page, hit **Edit** to polish the metadata —
    Zenodo pre-fills title/authors from `CITATION.cff`, so it should already be
    correct.

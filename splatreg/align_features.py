@@ -1352,7 +1352,7 @@ def robust_feature_align(
 
     Returns:
         ``(T_4x4, info)``, estimated 4×4 (source→target, source device/dtype) and an ``info`` dict
-        (``voxel``, ``n_corr``, ``seed_rre`` placeholder, ``used_open3d``, ``confidence``).
+        (``voxel``, ``n_corr``, ``used_open3d`` and ``confidence``).
     """
     if transform not in ("se3", "sim3"):
         raise ValueError(f"transform must be 'se3' or 'sim3', got {transform!r}")
@@ -2083,6 +2083,7 @@ def feature_align(
     min_inliers: int = _FS_MIN_INLIERS,
     verbose: bool = False,
     batched_ransac: bool = True,
+    basin_sweep: bool = True,
 ) -> tuple[torch.Tensor, dict]:
     """Feature-based coarse global init (partial-overlap robust) + ambiguity diagnostics.
 
@@ -2104,6 +2105,8 @@ def feature_align(
         min_matches: minimum correspondences before attempting RANSAC.
         min_inliers: inliers below this → low confidence / flagged ambiguous.
         verbose: print match / inlier / ambiguity diagnostics.
+        basin_sweep: whether to run the expensive geometry-only basin recoverer when FPFH is weak.
+            Disable only for bounded CPU diagnostics; the production default remains enabled.
 
     Returns:
         ``(T_4x4, info)``, the estimated 4×4 transform (``source``'s device/dtype) and an ``info``
@@ -2185,7 +2188,7 @@ def feature_align(
     # super-Fibonacci basin sweep (target->source ICP per seed) — it recovers the pose from geometry
     # alone, robust to partial overlap.  Keep whichever lands the observed target on the source best.
     info["used_basin_sweep"] = False
-    if feat_resid > _FS_AMBIG_RESID:
+    if basin_sweep and feat_resid > _FS_AMBIG_RESID:
         if verbose:
             print(f"[feature_align] FPFH fit weak (resid={feat_resid:.4f}) — overlap basin sweep")
         T_sweep = _overlap_basin_sweep(src_full, tgt_full, with_scale=with_scale)

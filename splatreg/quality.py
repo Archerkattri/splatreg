@@ -171,11 +171,41 @@ def _free_bytes(device: torch.device) -> tuple[Optional[int], str]:
         return avail, f"cpu psutil avail={avail / 2**30:.1f}GiB"
     except Exception:
         pass
-    try:
-        avail = int(os.sysconf("SC_AVPHYS_PAGES") * os.sysconf("SC_PAGE_SIZE"))
-        return avail, f"cpu sysconf avail={avail / 2**30:.1f}GiB"
-    except (ValueError, OSError):  # pragma: no cover - platform without sysconf
-        return None, "cpu(unknown-ram)"
+    if hasattr(os, "sysconf"):
+        try:
+            avail = int(os.sysconf("SC_AVPHYS_PAGES") * os.sysconf("SC_PAGE_SIZE"))
+            return avail, f"cpu sysconf avail={avail / 2**30:.1f}GiB"
+        except (AttributeError, ValueError, OSError):  # pragma: no cover - partial POSIX
+            pass
+    # Windows has no sysconf.  Keep psutil optional, but use the documented
+    # read-only GlobalMemoryStatusEx API when it is unavailable so quality='auto'
+    # degrades to a bounded policy instead of crashing on a supported platform.
+    if os.name == "nt":
+        try:  # pragma: no cover - exercised on Windows CI/hosts without psutil
+            import ctypes
+            from ctypes import wintypes
+
+            class _MemoryStatus(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", wintypes.DWORD),
+                    ("dwMemoryLoad", wintypes.DWORD),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            status = _MemoryStatus()
+            status.dwLength = ctypes.sizeof(_MemoryStatus)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+                avail = int(status.ullAvailPhys)
+                return avail, f"windows GlobalMemoryStatusEx avail={avail / 2**30:.1f}GiB"
+        except (AttributeError, OSError, TypeError):
+            pass
+    return None, "cpu(unknown-ram)"
 
 
 # When the target anchor count is unknown (no Gaussians handed in), assume a mid-size splat so a

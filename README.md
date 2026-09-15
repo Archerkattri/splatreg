@@ -50,6 +50,12 @@ What you get that no other splat registrar ships (each claim traced in
   maximal-clique seed (`init="mac"`, Zhang et al. CVPR 2023) handles contaminated
   correspondence sets — each reported with its honest measured verdict below.
 - **Sim(3) scale recovery**, which none of the competing splat tools attempt at all.
+- **Ambiguity-aware fusion evidence.** `cluster_hypotheses()` preserves distinct
+  pose modes, while `decide_fusion()` evaluates source→target geometry on an
+  alternating held-out anchor set and returns an auditable fuse/no-fuse decision.
+  It abstains when multiple pose clusters fit equally well or the held-out tail
+  exceeds the caller's calibrated policy threshold; it never turns optimizer
+  covariance into a false rendering guarantee.
 
 <div align="center">
 <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/sh_rotation.png" alt="A view-dependent-coloured Gaussian sphere rotated 90 degrees: naive rotation leaves the SH in the old frame (wrong colour), splatreg's real-basis Wigner-D rotation is pixel-identical to the independent ground truth" width="86%">
@@ -134,6 +140,26 @@ result = estimate_object_pose(model_splat, observation_splat)    # ADD / ADD-S /
 result = localize_camera(scene_splat, frame, init_T_WC=T_init)   # needs splatreg[render]
 T_coarse = coarse_localize_camera(scene_splat, frame)            # prior-free CPU seed
 ```
+
+For an independently reconstructed pair, keep the registration alternatives
+instead of forcing a single covariance-shaped answer:
+
+```python
+from splatreg import decide_fusion
+
+decision = decide_fusion(
+    source.means, target.means, candidate_transforms,
+    max_heldout_p95=0.02,       # calibrated on separate scenes
+)
+if decision.fuse:
+    chosen = candidate_transforms[decision.selected]
+else:
+    print("keep assets separate:", decision.reason)
+```
+
+The score is geometric held-out evidence, not a formal probability guarantee;
+calibrate the threshold by scene and keep complete scenes independent between
+development, calibration and test.
 
 ## Capability matrix
 
@@ -394,3 +420,12 @@ BSD 3-Clause: permissive, composes with the gsplat / Theseus / GTSAM ecosystem.
 `spatial_index`, `core/lie`, `geometry/gaussian_sdf`, `residuals/`, `solvers/lm`, `cli`),
 plus `tests/`, `benchmarks/`, `examples/`, `docs_site/`. Full validation record:
 [`RESULTS.md`](RESULTS.md).
+
+## Current release status
+
+The current checkout includes ambiguity-aware hypothesis fusion, held-out
+evidence scoring and the official flat-archive 3DMatch benchmark path. The full
+suite passes 164 tests with 8 skips. A ten-pair, one-scene red-kitchen CPU slice
+beats the matched Open3D baseline on median RRE, RTE and latency, but both
+methods score 0% registration recall under the bounded CPU configuration; this
+is not a full leaderboard or learned-SOTA result.

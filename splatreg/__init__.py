@@ -13,6 +13,15 @@ from .core.types import Gaussians, Frame, RegisterResult, LinearizedProblem, SE3
 from .residuals.base import Residual
 from .solvers.base import Solver
 from .quality import QualityConfig, resolve_quality
+from .hypotheses import (
+    FusionDecision,
+    HypothesisScore,
+    PoseCluster,
+    calibrate_p95_threshold,
+    cluster_hypotheses,
+    decide_fusion,
+    score_hypotheses,
+)
 
 # The high-level pipeline (splatreg.api) is added by the carve; tolerate its absence pre-build.
 try:
@@ -76,6 +85,13 @@ __all__ = [
     "Solver",
     "QualityConfig",
     "resolve_quality",
+    "PoseCluster",
+    "HypothesisScore",
+    "FusionDecision",
+    "cluster_hypotheses",
+    "score_hypotheses",
+    "decide_fusion",
+    "calibrate_p95_threshold",
     "Gaussians",
     "Frame",
     "RegisterResult",

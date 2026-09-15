@@ -5,6 +5,18 @@ the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
 
 ## Unreleased
 
+### Added
+
+- Ambiguity-aware pose clustering and held-out geometric fuse/no-fuse decisions
+  in `splatreg.hypotheses`, with auditable alternatives and a finite-sample
+  calibration-threshold helper.
+
+### Fixed
+
+- `quality="auto"` no longer crashes on Windows when optional `psutil` is not
+  installed; it uses a read-only Windows memory query or a conservative unknown
+  memory fallback.
+
 ## v1.4.0 — 2026-07-02
 
 ### Added

@@ -91,7 +91,7 @@ class RegisterResult:
     carries diagnostics (per-iter cost, rmse, overlap, n_iters, timings, residual breakdown,
     and for the feature initializers the honest ``info["ambiguous"]`` / ``info["confidence"]``
     flags). Builtin-LM solves also fill ``info["information"]`` (the undamped ``JᵀWJ`` at the
-    final accepted linearisation, (6, 6) SE(3) / (7, 7) Sim(3), tangent order ``[t, r,
+    returned transform, (6, 6) SE(3) / (7, 7) Sim(3), tangent order ``[t, r,
     (log_s)]``) and ``info["covariance"]`` (its inverse scaled by the residual-variance
     estimate; ``None`` if singular, never faked) for pose-graph / loop-closure weighting,
     see :func:`splatreg.solvers.lm.run_lm`.

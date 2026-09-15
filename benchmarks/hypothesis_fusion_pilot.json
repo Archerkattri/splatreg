@@ -1,0 +1,91 @@
+{
+  "protocol": "synthetic_asymmetric_and_symmetric_pose_alternatives",
+  "real_dataset": false,
+  "source_digest": "03c84167c6415d87332f4745cdd6841dd57f31df3ad2d79ab0b01f299da1c800",
+  "asymmetric": {
+    "fuse": true,
+    "selected": 0,
+    "reason": "single_pose_cluster_passes_heldout_geometry",
+    "ambiguity": false,
+    "clusters": [
+      {
+        "members": [
+          0
+        ],
+        "representative": 0
+      },
+      {
+        "members": [
+          1
+        ],
+        "representative": 1
+      }
+    ],
+    "scores": [
+      {
+        "index": 0,
+        "fit_mean": 0.0,
+        "heldout_mean": 0.0,
+        "heldout_p95": 0.0,
+        "heldout_inlier_rate": 1.0,
+        "n_fit": 4,
+        "n_heldout": 4,
+        "cluster": 0
+      },
+      {
+        "index": 1,
+        "fit_mean": 0.5034735631304773,
+        "heldout_mean": 0.6488626175795205,
+        "heldout_p95": 0.9418932814455947,
+        "heldout_inlier_rate": 0.0,
+        "n_fit": 4,
+        "n_heldout": 4,
+        "cluster": 1
+      }
+    ],
+    "max_heldout_p95": 0.03
+  },
+  "symmetric": {
+    "fuse": false,
+    "selected": null,
+    "reason": "multiple_pose_clusters_fit_heldout_evidence",
+    "ambiguity": true,
+    "clusters": [
+      {
+        "members": [
+          0
+        ],
+        "representative": 0
+      },
+      {
+        "members": [
+          1
+        ],
+        "representative": 1
+      }
+    ],
+    "scores": [
+      {
+        "index": 0,
+        "fit_mean": 0.0,
+        "heldout_mean": 0.0,
+        "heldout_p95": 0.0,
+        "heldout_inlier_rate": 1.0,
+        "n_fit": 2,
+        "n_heldout": 2,
+        "cluster": 0
+      },
+      {
+        "index": 1,
+        "fit_mean": 1.2246468525851679e-16,
+        "heldout_mean": 1.2246468525851679e-16,
+        "heldout_p95": 1.2246468525851679e-16,
+        "heldout_inlier_rate": 1.0,
+        "n_fit": 2,
+        "n_heldout": 2,
+        "cluster": 1
+      }
+    ],
+    "max_heldout_p95": 0.03
+  }
+}

@@ -594,7 +594,7 @@ class SplatPhotometric(Residual):
       is stable across perturbed evaluations.
     * ``"autodiff"``, return ``None`` so the solver's ``jacrev`` fallback (row-chunked via
       ``jac_row_chunk``) differentiates through the render. Requires a pure-torch,
-      ``torch.func``-compatible ``render_fn`` (e.g. a test mock); gsplat's CUDA rasterizer is not.
+      ``torch.func``-compatible ``render_fn`` (for example, a test renderer); gsplat's CUDA rasterizer is not.
 
     Parameters
     ----------
