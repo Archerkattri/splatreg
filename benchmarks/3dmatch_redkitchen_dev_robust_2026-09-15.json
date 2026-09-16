@@ -1,0 +1,109 @@
+{
+  "config": {
+    "basin_sweep": true,
+    "corr_band_m": 0.1,
+    "data_root": "C:\\Users\\krishi\\Documents\\research\\datasets\\3dmatch\\redkitchen\\extracted\\7-scenes-redkitchen",
+    "device": "cpu",
+    "gt_log": "C:\\Users\\krishi\\Documents\\research\\datasets\\3dmatch\\redkitchen\\evaluation\\7-scenes-redkitchen-evaluation\\gt.log",
+    "max_iters": 3,
+    "max_points": 4096,
+    "min_overlap": 0.3,
+    "n_pairs": 3,
+    "pair_offset": 0,
+    "quality": "low",
+    "rmse_threshold_m": 0.2,
+    "seed": 0,
+    "voxel_m": 0.05
+  },
+  "pairs": [
+    {
+      "open3d": {
+        "corr_rmse_m": 0.04861854234979656,
+        "rre_deg": 2.2083415932741124,
+        "rte_m": 0.05268401949188055,
+        "time_ms": 466.9878999998218
+      },
+      "overlap": 0.8416863841686384,
+      "scene": "7-scenes-redkitchen",
+      "source": 38,
+      "splatreg": {
+        "ambiguous": false,
+        "confidence": 0.9431468266515113,
+        "corr_rmse_m": 0.03598345363691155,
+        "rre_deg": 0.8690064840019708,
+        "rte_m": 0.025226344656523594,
+        "time_ms": 609.7067999999126
+      },
+      "target": 37
+    },
+    {
+      "open3d": {
+        "corr_rmse_m": 0.4840707838087983,
+        "rre_deg": 18.6290300097098,
+        "rte_m": 0.39173603253332206,
+        "time_ms": 622.1702000002551
+      },
+      "overlap": 0.6925908145303249,
+      "scene": "7-scenes-redkitchen",
+      "source": 54,
+      "splatreg": {
+        "ambiguous": false,
+        "confidence": 0.9437953996346645,
+        "corr_rmse_m": 0.058167730929407954,
+        "rre_deg": 1.2451249172842576,
+        "rte_m": 0.06502660666945059,
+        "time_ms": 641.8345000001864
+      },
+      "target": 8
+    },
+    {
+      "open3d": {
+        "corr_rmse_m": 0.12803645124250873,
+        "rre_deg": 7.571096054198814,
+        "rte_m": 0.24579708191874217,
+        "time_ms": 528.067899999769
+      },
+      "overlap": 0.47358712057689084,
+      "scene": "7-scenes-redkitchen",
+      "source": 37,
+      "splatreg": {
+        "ambiguous": false,
+        "confidence": 0.9282881226183934,
+        "corr_rmse_m": 0.055850329589983455,
+        "rre_deg": 1.6832588158329551,
+        "rte_m": 0.0647516981178826,
+        "time_ms": 637.6101999999264
+      },
+      "target": 6
+    }
+  ],
+  "protocol": "bounded-3dmatch-diagnostic",
+  "schema_version": "1.0",
+  "summaries": {
+    "open3d": {
+      "median_rre_deg_all": 7.571096054198814,
+      "median_rte_m_all": 0.24579708191874217,
+      "median_time_ms": 528.067899999769,
+      "recall": 0.6666666666666666,
+      "recall_wilson_95": [
+        0.2076596008020477,
+        0.9385080552796037
+      ],
+      "successes": 2,
+      "total": 3
+    },
+    "splatreg": {
+      "median_rre_deg_all": 1.2451249172842576,
+      "median_rte_m_all": 0.0647516981178826,
+      "median_time_ms": 637.6101999999264,
+      "recall": 1.0,
+      "recall_wilson_95": [
+        0.4385029682449546,
+        1.0
+      ],
+      "successes": 3,
+      "total": 3
+    }
+  },
+  "transform_convention": "gt.log matrix maps second/header source into first/header target"
+}

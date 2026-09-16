@@ -425,7 +425,9 @@ plus `tests/`, `benchmarks/`, `examples/`, `docs_site/`. Full validation record:
 
 The current checkout includes ambiguity-aware hypothesis fusion, held-out
 evidence scoring and the official flat-archive 3DMatch benchmark path. The full
-suite passes 164 tests with 8 skips. A ten-pair, one-scene red-kitchen CPU slice
-beats the matched Open3D baseline on median RRE, RTE and latency, but both
-methods score 0% registration recall under the bounded CPU configuration; this
-is not a full leaderboard or learned-SOTA result.
+suite passes 166 tests with 8 skips. A corrected one-scene CPU recovery audit
+freezes the robust configuration on three development pairs, then obtains 5/7
+held-out recall (71.4%, 95% Wilson 35.9–91.8%) for both splatreg and the matched
+Open3D control; splatreg reduces median pose error at a small latency cost. This
+bounded audit is not a new full-leaderboard or learned-SOTA result; see
+[`benchmarks/3dmatch_redkitchen_cpu_2026-09-15.md`](benchmarks/3dmatch_redkitchen_cpu_2026-09-15.md).

@@ -1,0 +1,189 @@
+{
+  "config": {
+    "basin_sweep": true,
+    "corr_band_m": 0.1,
+    "data_root": "C:\\Users\\krishi\\Documents\\research\\datasets\\3dmatch\\redkitchen\\extracted\\7-scenes-redkitchen",
+    "device": "cpu",
+    "gt_log": "C:\\Users\\krishi\\Documents\\research\\datasets\\3dmatch\\redkitchen\\evaluation\\7-scenes-redkitchen-evaluation\\gt.log",
+    "max_iters": 3,
+    "max_points": 4096,
+    "min_overlap": 0.3,
+    "n_pairs": 7,
+    "pair_offset": 3,
+    "quality": "low",
+    "rmse_threshold_m": 0.2,
+    "seed": 0,
+    "voxel_m": 0.05
+  },
+  "pairs": [
+    {
+      "open3d": {
+        "corr_rmse_m": 1.4620868199095463,
+        "rre_deg": 135.24810117324884,
+        "rte_m": 3.688857057429173,
+        "time_ms": 377.6749000003292
+      },
+      "overlap": 0.3537779419915019,
+      "scene": "7-scenes-redkitchen",
+      "source": 41,
+      "splatreg": {
+        "ambiguous": false,
+        "confidence": 0.8058647119995508,
+        "corr_rmse_m": 1.3129371326416426,
+        "rre_deg": 154.5656964921846,
+        "rte_m": 5.049081915127438,
+        "time_ms": 562.779700000192
+      },
+      "target": 30
+    },
+    {
+      "open3d": {
+        "corr_rmse_m": 0.1056959194697662,
+        "rre_deg": 4.836303983057024,
+        "rte_m": 0.11659887367753162,
+        "time_ms": 398.72849999983373
+      },
+      "overlap": 0.6373571783407849,
+      "scene": "7-scenes-redkitchen",
+      "source": 59,
+      "splatreg": {
+        "ambiguous": false,
+        "confidence": 0.8715895560022024,
+        "corr_rmse_m": 0.05338196223344773,
+        "rre_deg": 1.6875951359636425,
+        "rte_m": 0.08030350408732358,
+        "time_ms": 450.96960000000763
+      },
+      "target": 24
+    },
+    {
+      "open3d": {
+        "corr_rmse_m": 0.12106099964943046,
+        "rre_deg": 9.54529634654594,
+        "rte_m": 0.19797199026912518,
+        "time_ms": 653.776900000139
+      },
+      "overlap": 0.41995123933360423,
+      "scene": "7-scenes-redkitchen",
+      "source": 5,
+      "splatreg": {
+        "ambiguous": false,
+        "confidence": 0.7549292002019091,
+        "corr_rmse_m": 0.051793940403603446,
+        "rre_deg": 1.869472420868741,
+        "rte_m": 0.052500890745345946,
+        "time_ms": 610.24019999968
+      },
+      "target": 1
+    },
+    {
+      "open3d": {
+        "corr_rmse_m": 0.09969470853864047,
+        "rre_deg": 5.194515159531223,
+        "rte_m": 0.15224827179323716,
+        "time_ms": 625.921599999856
+      },
+      "overlap": 0.4595482546201232,
+      "scene": "7-scenes-redkitchen",
+      "source": 10,
+      "splatreg": {
+        "ambiguous": false,
+        "confidence": 0.8110407663905033,
+        "corr_rmse_m": 0.039126550737720596,
+        "rre_deg": 1.1660014233718532,
+        "rte_m": 0.03480774379870496,
+        "time_ms": 522.6528999996845
+      },
+      "target": 3
+    },
+    {
+      "open3d": {
+        "corr_rmse_m": 0.08623104072414159,
+        "rre_deg": 0.9489986255266507,
+        "rte_m": 0.05587279962213505,
+        "time_ms": 764.5290000000386
+      },
+      "overlap": 0.8702807357212003,
+      "scene": "7-scenes-redkitchen",
+      "source": 18,
+      "splatreg": {
+        "ambiguous": false,
+        "confidence": 0.9664008570998254,
+        "corr_rmse_m": 0.05331375043042158,
+        "rre_deg": 0.41229028667432194,
+        "rte_m": 0.03390565723252942,
+        "time_ms": 584.7358000000895
+      },
+      "target": 17
+    },
+    {
+      "open3d": {
+        "corr_rmse_m": 2.0646850961273326,
+        "rre_deg": 89.36486397982905,
+        "rte_m": 3.400633787550138,
+        "time_ms": 526.9803000001048
+      },
+      "overlap": 0.38267644362969755,
+      "scene": "7-scenes-redkitchen",
+      "source": 36,
+      "splatreg": {
+        "ambiguous": false,
+        "confidence": 0.875334624283858,
+        "corr_rmse_m": 1.5827126732417218,
+        "rre_deg": 20.93550681958663,
+        "rte_m": 1.826406592491004,
+        "time_ms": 638.3937999999034
+      },
+      "target": 5
+    },
+    {
+      "open3d": {
+        "corr_rmse_m": 0.050715372379796744,
+        "rre_deg": 3.0498478425049385,
+        "rte_m": 0.10565275988319661,
+        "time_ms": 549.7947000003478
+      },
+      "overlap": 0.559838056680162,
+      "scene": "7-scenes-redkitchen",
+      "source": 23,
+      "splatreg": {
+        "ambiguous": false,
+        "confidence": 0.8192159442550051,
+        "corr_rmse_m": 0.04240313386503365,
+        "rre_deg": 0.9982670871705235,
+        "rte_m": 0.0213446037853407,
+        "time_ms": 661.559699999998
+      },
+      "target": 8
+    }
+  ],
+  "protocol": "bounded-3dmatch-diagnostic",
+  "schema_version": "1.0",
+  "summaries": {
+    "open3d": {
+      "median_rre_deg_all": 5.194515159531223,
+      "median_rte_m_all": 0.15224827179323716,
+      "median_time_ms": 549.7947000003478,
+      "recall": 0.7142857142857143,
+      "recall_wilson_95": [
+        0.35893445183261935,
+        0.9177810759959433
+      ],
+      "successes": 5,
+      "total": 7
+    },
+    "splatreg": {
+      "median_rre_deg_all": 1.6875951359636425,
+      "median_rte_m_all": 0.052500890745345946,
+      "median_time_ms": 584.7358000000895,
+      "recall": 0.7142857142857143,
+      "recall_wilson_95": [
+        0.35893445183261935,
+        0.9177810759959433
+      ],
+      "successes": 5,
+      "total": 7
+    }
+  },
+  "transform_convention": "gt.log matrix maps second/header source into first/header target"
+}
