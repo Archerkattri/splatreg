@@ -3,7 +3,7 @@
 All notable changes to splatreg. Every claim below is backed by a recorded run or a test;
 the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
 
-## Unreleased
+## v1.5.0 - 2026-09-17
 
 ### Added
 
@@ -16,6 +16,10 @@ the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
 - `quality="auto"` no longer crashes on Windows when optional `psutil` is not
   installed; it uses a read-only Windows memory query or a conservative unknown
   memory fallback.
+
+- BUFFER-X setup references repointed to the tracked modern-CUDA build
+  doc; stale `docs/BUFFERX_*.md` paths removed. The zero-shot provenance
+  gap (no rerun JSON on this machine) is now stated explicitly.
 
 ## v1.4.0 — 2026-07-02
 
@@ -51,6 +55,9 @@ the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
 - `tests/test_cli.py::test_console_script_registered` now **skips** (was a hard failure) when the
   `splatreg` console-script entry point is not installed in the environment, with a note to run
   `pip install -e .`; the assertion still runs and is meaningful once the package is installed.
+
+- README registration demo redrawn so sub-mm overlap reads as lock-on;
+  suite at 166 passed, 8 skipped.
 
 ### Verified
 
