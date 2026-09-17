@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -771,25 +771,25 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span>splatreg<span class="w">            </span><span class="c1"># torch + numpy only</span>
 </code></pre></div>
 <p>Optional extras:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;splatreg[render]&quot;</span><span class="w">  </span><span class="c1"># gsplat, camera localization + photometric residual</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;splatreg[mac]&quot;</span><span class="w">     </span><span class="c1"># networkx, the init=&quot;mac&quot; maximal-clique seed</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;splatreg[pypose]&quot;</span><span class="w">  </span><span class="c1"># PyPose solver backend</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;splatreg[theseus]&quot;</span><span class="w"> </span><span class="c1"># Theseus solver backend</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"splatreg[render]"</span><span class="w">  </span><span class="c1"># gsplat, camera localization + photometric residual</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"splatreg[mac]"</span><span class="w">     </span><span class="c1"># networkx, the init="mac" maximal-clique seed</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"splatreg[pypose]"</span><span class="w">  </span><span class="c1"># PyPose solver backend</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"splatreg[theseus]"</span><span class="w"> </span><span class="c1"># Theseus solver backend</span>
 </code></pre></div>
 <p>Development install:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Archerkattri/splatreg.git
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">cd</span><span class="w"> </span>splatreg
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[test]&quot;</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">".[test]"</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-q
 </code></pre></div>
 <h2 id="register-two-splats">Register two splats<a class="headerlink" href="#register-two-splats" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg</span><span class="w"> </span><span class="kn">import</span> <span class="n">register</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_ply</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">target</span> <span class="o">=</span> <span class="n">load_ply</span><span class="p">(</span><span class="s2">&quot;scan_a.ply&quot;</span><span class="p">)</span>   <span class="c1"># the reference, stays fixed</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">source</span> <span class="o">=</span> <span class="n">load_ply</span><span class="p">(</span><span class="s2">&quot;scan_b.ply&quot;</span><span class="p">)</span>   <span class="c1"># gets aligned onto the target</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">target</span> <span class="o">=</span> <span class="n">load_ply</span><span class="p">(</span><span class="s2">"scan_a.ply"</span><span class="p">)</span>   <span class="c1"># the reference, stays fixed</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">source</span> <span class="o">=</span> <span class="n">load_ply</span><span class="p">(</span><span class="s2">"scan_b.ply"</span><span class="p">)</span>   <span class="c1"># gets aligned onto the target</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">result</span> <span class="o">=</span> <span class="n">register</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="s2">&quot;sim3&quot;</span><span class="p">)</span>   <span class="c1"># or &quot;se3&quot; for rigid</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="n">result</span> <span class="o">=</span> <span class="n">register</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="s2">"sim3"</span><span class="p">)</span>   <span class="c1"># or "se3" for rigid</span>
 </code></pre></div>
 <p><code>result</code> is a <a class="autorefs autorefs-internal" title="splatreg.core.types.RegisterResult
 
@@ -803,16 +803,16 @@
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span>       <span class="c1"># diagnostics: rmse, n_iters, cost, ambiguous/confidence (feature inits)</span>
 </code></pre></div>
 <p>Builtin-LM solves also expose the pose uncertainty for pose-graph / loop-closure weighting:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;information&quot;</span><span class="p">]</span>   <span class="c1"># undamped JᵀWJ at the optimum: (6,6) se3 / (7,7) sim3</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;covariance&quot;</span><span class="p">]</span>    <span class="c1"># its scaled inverse; None when singular, never faked</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">"information"</span><span class="p">]</span>   <span class="c1"># undamped JᵀWJ at the optimum: (6,6) se3 / (7,7) sim3</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">"covariance"</span><span class="p">]</span>    <span class="c1"># its scaled inverse; None when singular, never faked</span>
 </code></pre></div>
 <p>The default <code>init="fast"</code> (FPFH + GPU-batched RANSAC seed, ~17 ms) suits objects and
 full-overlap captures. For real metre-scale scans use <code>init="robust"</code> or <code>init="learned"</code>;
 see <a href="../init-modes/">Init modes</a>.</p>
 <p>If the shape under-constrains the pose (rotational symmetry, texture-carried detail), add the
 opt-in photometric stage (geometric residuals can't see color, this stage can):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">register</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="s2">&quot;se3&quot;</span><span class="p">,</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>                  <span class="n">refine</span><span class="o">=</span><span class="s2">&quot;photometric&quot;</span><span class="p">)</span>    <span class="c1"># needs `pip install &quot;splatreg[render]&quot;`</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">register</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="s2">"se3"</span><span class="p">,</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>                  <span class="n">refine</span><span class="o">=</span><span class="s2">"photometric"</span><span class="p">)</span>    <span class="c1"># needs `pip install "splatreg[render]"`</span>
 </code></pre></div>
 <p>Measured: on a rotation-symmetric colored sphere the geometric solve <em>worsens</em> 6.0°→11.2°
 while the photometric stage lands 2.2° (0.36° with the real gsplat rasterizer); on
@@ -827,7 +827,7 @@ are Wigner-rotated so view-dependent colour turns with the splat
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">save_ply</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">aligned</span> <span class="o">=</span> <span class="n">apply_transform</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="n">save_ply</span><span class="p">(</span><span class="n">aligned</span><span class="p">,</span> <span class="s2">&quot;source_aligned.ply&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="n">save_ply</span><span class="p">(</span><span class="n">aligned</span><span class="p">,</span> <span class="s2">"source_aligned.ply"</span><span class="p">)</span>
 <a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1"># target.ply stays untouched; the two files now sit registered in any viewer.</span>
 </code></pre></div>
 <p>Same thing from the shell: <code>splatreg align target.ply source.ply -o source_aligned.ply</code>.</p>
@@ -836,7 +836,7 @@ are Wigner-rotated so view-dependent colour turns with the splat
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splatreg.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">save_ply</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">fused</span> <span class="o">=</span> <span class="n">merge</span><span class="p">([</span><span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">])</span>     <span class="c1"># registers everything onto splats[ref] (default 0),</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">save_ply</span><span class="p">(</span><span class="n">fused</span><span class="p">,</span> <span class="s2">&quot;fused.ply&quot;</span><span class="p">)</span>        <span class="c1"># fuses, and dedupes the double-density overlap</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">save_ply</span><span class="p">(</span><span class="n">fused</span><span class="p">,</span> <span class="s2">"fused.ply"</span><span class="p">)</span>        <span class="c1"># fuses, and dedupes the double-density overlap</span>
 </code></pre></div>
 <p><code>merge</code> is <strong>not a naive cat</strong>: each non-reference splat is registered (Sim(3) by default, so
 scale differences between captures are absorbed), the transform is baked into its
@@ -855,7 +855,7 @@ available) so the seam collapses to single density.</p>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># 6-DoF pose of a known object splat in a new observation (ADD / ADD-S / AUC out of the box)</span>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">result</span> <span class="o">=</span> <span class="n">estimate_object_pose</span><span class="p">(</span><span class="n">model_splat</span><span class="p">,</span> <span class="n">observation_splat</span><span class="p">)</span>
 <a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="c1"># Refine a camera pose against a scene splat through gsplat&#39;s differentiable rasteriser</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="c1"># Refine a camera pose against a scene splat through gsplat's differentiable rasteriser</span>
 <a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="n">result</span> <span class="o">=</span> <span class="n">localize_camera</span><span class="p">(</span><span class="n">scene_splat</span><span class="p">,</span> <span class="n">frame</span><span class="p">,</span> <span class="n">init_T_WC</span><span class="o">=</span><span class="n">T_init</span><span class="p">)</span>   <span class="c1"># needs splatreg[render]</span>
 <a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
 <a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="c1"># Wide-baseline / prior-free coarse seed (CPU-only, no rasteriser)</span>
@@ -948,7 +948,7 @@ directly from the target Gaussians (no mesh, no marching cubes):</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "content.code.annotate", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

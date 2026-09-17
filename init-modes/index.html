@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -934,7 +934,7 @@ splat registrar should not need a per-scene/per-sensor trained model to align tw
 <p>BUFFER-X is optional and lazily loaded (its CUDA neighbour/subsampling extensions + Hugging Face
 checkpoints are not shipped). When absent — always the case on a CPU box — <code>"bufferx"</code> transparently
 falls back to the classical <code>"robust"</code> seed with a logged note. Setup (clone + build + weights) is in
-<a href="https://github.com/Archerkattri/splatreg"><code>splatreg/third_party_models/README-BUFFERX.md</code></a>.</p>
+<a href="https://github.com/Archerkattri/splatreg/blob/main/docs/BUFFERX_BUILD_MODERN_CUDA.md"><code>docs/BUFFERX_BUILD_MODERN_CUDA.md</code></a>.</p>
 <h3 id="validated-on-real-3dmatch">Validated on real 3DMatch<a class="headerlink" href="#validated-on-real-3dmatch" title="Permanent link">&para;</a></h3>
 <p>Both seeds are pushed through the <em>identical</em> splatreg refine, so the comparison isolates the seed
 rather than the pipeline. On the <strong>complete official <code>gt.log</code> pair set</strong> (3DMatch, 8/8 scenes,
@@ -983,10 +983,10 @@ pose off-target), so with the default residuals these modes return their own
 registration <strong>directly</strong> and skip the LM. Pass an explicit overlap-safe <code>residuals=[...]</code>
 if you want the LM to run on top of the feature init.</p>
 <p>They also return honest diagnostics:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">register</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="s2">&quot;features&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;ambiguous&quot;</span><span class="p">]</span>    <span class="c1"># True when the overlap does NOT constrain the pose</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;confidence&quot;</span><span class="p">]</span>   <span class="c1"># 0..1 grade</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;feature&quot;</span><span class="p">]</span>      <span class="c1"># the full per-stage diagnostic dict</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">register</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="s2">"features"</span><span class="p">)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">"ambiguous"</span><span class="p">]</span>    <span class="c1"># True when the overlap does NOT constrain the pose</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">"confidence"</span><span class="p">]</span>   <span class="c1"># 0..1 grade</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">result</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">"feature"</span><span class="p">]</span>      <span class="c1"># the full per-stage diagnostic dict</span>
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Ambiguity is flagged, not hidden</p>
@@ -1071,7 +1071,7 @@ quality loss. See <a class="autorefs autorefs-internal" title="splatreg.quality.
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "content.code.annotate", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
