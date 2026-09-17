@@ -425,7 +425,7 @@ def register(
           generalist model that generalises across sensors/scales with NO per-dataset training —
           then the SAME overlap-aware ICP (+ Sim(3) scale) refine as ``"robust"``.  Falls back to
           ``"robust"`` (then identity) when BUFFER-X's module / built CUDA-ext / pretrained weights
-          are unavailable (see ``splatreg/third_party_models/README-BUFFERX.md``).
+          are unavailable (see ``docs/BUFFERX_BUILD_MODERN_CUDA.md``).
         * ``"mac"``, MAC maximal-clique registrar (:func:`splatreg.mac.mac_feature_align`;
           Zhang et al., CVPR 2023): instead of RANSAC minimal samples, hypotheses come from the
           **maximal cliques** of an SC²-weighted rigidity-compatibility graph over the FPFH

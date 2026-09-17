@@ -26,7 +26,7 @@ slot 1 (blue, BUFFER-X) and slot 8 (orange, classical) -- the same pairing as
 ``assets/bufferx_recall.*`` so the two figures read as one system.
 
 Requires the BUFFER-X backend + weights to be built (see
-``third_party_models/README-BUFFERX.md``); run under the GPU venv. Example::
+``docs/BUFFERX_BUILD_MODERN_CUDA.md``); run under the GPU venv. Example::
 
     CUDA_VISIBLE_DEVICES=0 OMP_NUM_THREADS=2 \\
       python examples/make_lowoverlap_gif.py
@@ -144,7 +144,7 @@ def main() -> str:
     if not info_b.get("used_bufferx", False):
         raise RuntimeError(
             "BUFFER-X backend unavailable (fell back to classical seed); build it first "
-            "(third_party_models/README-BUFFERX.md) and run under the GPU venv."
+            "(docs/BUFFERX_BUILD_MODERN_CUDA.md) and run under the GPU venv."
         )
 
     rre_r, rte_r = _rre_rte(T_robust, T_gt)

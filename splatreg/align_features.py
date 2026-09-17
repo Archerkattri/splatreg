@@ -1866,7 +1866,7 @@ def _bufferx_paths() -> tuple[str, str] | None:
 
     BUFFER-X ("Towards Zero-Shot Point Cloud Registration in Diverse Scenes", ICCV 2025,
     MIT-SPARK/BUFFER-X) lives under ``splatreg/third_party_models/BUFFER-X`` (gitignored, cloned +
-    built by the Tier-2 setup; see ``third_party_models/README-BUFFERX.md``).  We discover it
+    built by the Tier-2 setup; see ``docs/BUFFERX_BUILD_MODERN_CUDA.md``).  We discover it
     relative to this file so the path is robust to the caller's CWD.  Returns ``None`` (→ caller
     falls back to ``init="robust"``) when the repo, its downloaded pretrained checkpoints, or its
     built CUDA neighbour/subsampling extensions are absent.
@@ -2024,7 +2024,7 @@ def bufferx_feature_align(
         _logging.getLogger("splatreg").info(
             "init='bufferx' requested but BUFFER-X (module / built CUDA-ext / pretrained weights) is "
             "unavailable; falling back to the classical 'robust' seed. See "
-            "splatreg/third_party_models/README-BUFFERX.md to enable it."
+            "docs/BUFFERX_BUILD_MODERN_CUDA.md to enable it."
         )
         T, rinfo = robust_feature_align(
             target, source, transform=transform, voxel=voxel, refine_iters=refine_iters

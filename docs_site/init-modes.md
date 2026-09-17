@@ -96,7 +96,7 @@ splat registrar should not need a per-scene/per-sensor trained model to align tw
 BUFFER-X is optional and lazily loaded (its CUDA neighbour/subsampling extensions + Hugging Face
 checkpoints are not shipped). When absent — always the case on a CPU box — `"bufferx"` transparently
 falls back to the classical `"robust"` seed with a logged note. Setup (clone + build + weights) is in
-[`splatreg/third_party_models/README-BUFFERX.md`](https://github.com/Archerkattri/splatreg).
+[`docs/BUFFERX_BUILD_MODERN_CUDA.md`](https://github.com/Archerkattri/splatreg/blob/main/docs/BUFFERX_BUILD_MODERN_CUDA.md).
 
 ### Validated on real 3DMatch
 

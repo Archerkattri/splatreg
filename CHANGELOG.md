@@ -25,9 +25,9 @@ the full evidence trail lives in [`RESULTS.md`](RESULTS.md).
   that registers across sensors/scales with no per-dataset training — refined by the same
   overlap-aware ICP (+ Sim(3) scale) as `"learned"`/`"robust"`. Optional and lazily loaded
   (mirrors the GeoTransformer backend); falls back to `"robust"` with a logged note when its
-  built CUDA extensions / Hugging Face weights are absent. Setup:
-  `splatreg/third_party_models/README-BUFFERX.md`; full modern-stack build recipe
-  (CUDA 12.8 / sm_120 / torch 2.11 / numpy 2.x) in `docs/BUFFERX_BUILD_MODERN_CUDA.md`. Added to
+  built CUDA extensions / Hugging Face weights are absent. Setup (clone location,
+  weights, and full modern-stack build recipe, CUDA 12.8 / sm_120 / torch 2.11 /
+  numpy 2.x): `docs/BUFFERX_BUILD_MODERN_CUDA.md`. Added to
   the `register`/`splatreg align --init` choices.
 - `register(init="learned", seed_gate=True)`: an opt-in (default off) Decision-PCR-style
   (arXiv 2507.14965) confidence gate that scores the learned seed (mutual-NN inlier ratio + SC²

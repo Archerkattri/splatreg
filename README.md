@@ -9,6 +9,7 @@
 [![PyPI](https://img.shields.io/pypi/v/splatreg)](https://pypi.org/project/splatreg/)
 [![Downloads](https://static.pepy.tech/badge/splatreg)](https://pepy.tech/project/splatreg)
 [![CI](https://github.com/Archerkattri/splatreg/actions/workflows/ci.yml/badge.svg)](https://github.com/Archerkattri/splatreg/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-166%20passing-16a34a.svg)](tests/)
 [![DOI](https://zenodo.org/badge/1260804203.svg)](https://zenodo.org/badge/latestdoi/1260804203)
 [![Paper](https://img.shields.io/badge/engrXiv-10.31224%2F7313-009E73.svg)](https://doi.org/10.31224/7313)
 [![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
@@ -244,9 +245,9 @@ in Diverse Scenes", ICCV 2025) — a single generalist model that registers acro
 with no per-dataset training. Both learned backends are optional and lazily loaded; when their
 weights / CUDA extensions are absent they fall back to `"robust"` with a logged note. BUFFER-X
 weights come from Hugging Face `Hyungtae-Lim/BUFFER-X`; a native build on a modern stack
-(CUDA 12.8 / sm_120 / torch 2.11 / numpy 2.x) is nontrivial, with the full sudo-free recipe in
-[`docs/BUFFERX_BUILD_MODERN_CUDA.md`](docs/BUFFERX_BUILD_MODERN_CUDA.md) and setup notes in
-[`third_party_models/README-BUFFERX.md`](third_party_models/README-BUFFERX.md).
+(CUDA 12.8 / sm_120 / torch 2.11 / numpy 2.x) is nontrivial; the full sudo-free recipe
+(clone location, weights, and build) is in
+[`docs/BUFFERX_BUILD_MODERN_CUDA.md`](docs/BUFFERX_BUILD_MODERN_CUDA.md).
 
 Per-dataset-trained backbones like **PSReg** and **DiffusionPCR** now top the 3DMatch leaderboard
 (95%+ registration recall), above the ~91.5% GeoTransformer seed splatreg wraps. splatreg
@@ -345,7 +346,7 @@ correspondences are already consensus-dominated, so the default stays `seed_sele
 Every number is reproducible; full record in [`RESULTS.md`](RESULTS.md).
 
 ```bash
-python -m pytest tests/ -q                        # 158 passing, 8 skipped
+python -m pytest tests/ -q                        # 166 passing, 8 skipped
 python tests/test_jacobians.py                    # analytic vs numerical Jacobian audit
 python examples/validate_recovery.py --fast       # CUDA-first smoke; CPU fallback
 python examples/validate_recovery.py              # CUDA-first 36/36 recovery

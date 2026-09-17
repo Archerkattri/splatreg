@@ -536,6 +536,35 @@ runs richer sets. **`init="learned"` keeps `seed_selector="lgr"` as the default*
 recall, ~35 % faster); `"mac"` stays available as the contaminated-correspondence tool it was
 validated to be, not as a 3DLoMatch booster.
 
+## 5l. BUFFER-X zero-shot seed on official 3DMatch/3DLoMatch (previously reported — no run JSON)
+
+The v1.4.0 BUFFER-X numbers below are carried over from
+[`docs_site/init-modes.md`](docs_site/init-modes.md) (§"Validated on real 3DMatch") and the
+hardcoded data in `examples/make_bufferx_figure.py` (`BUFFERX = [0.962, 0.777]`,
+`ROBUST = [0.630, 0.122]`, rendered to `assets/bufferx_recall.png`): both seeds
+through the identical refine, recall at RRE < 15° and RTE < 0.3 m.
+
+| split (official gt.log pairs) | BUFFER-X seed | classical robust seed |
+|---|---|---|
+| 3DMatch (n=1619) | **0.962** (median RRE 1.46°) | 0.630 (2.12°) |
+| 3DLoMatch (n=1781) | **0.777** (2.77°) | 0.122 (103.4°) |
+
+An earlier GT-derived low-overlap run (overlap 0.10–0.30, n=400) shows the same
+pattern (0.752 vs 0.092).
+
+**Provenance gap (explicit, not a pass):** no machine-readable run JSON was
+preserved for these runs and no committed benchmark script drives BUFFER-X
+(`benchmarks/` has no bufferx references; `threedmatch_official_bench.py --init`
+offers no bufferx arm), so these numbers are NOT independently re-verified in
+the current tree — treat them as previously-reported, not fresh evidence. The
+low-overlap GIF (`examples/make_lowoverlap_gif.py`, redkitchen 35→46, classical
+RRE 151.5° vs BUFFER-X 2.0°) is a single-pair illustration, not a benchmark. To
+regenerate machine-readable evidence: set up the Tier-2 backend per
+`docs/BUFFERX_BUILD_MODERN_CUDA.md`, obtain the 3DMatch/3DLoMatch data, add a
+bufferx arm to the official bench (or drive `bufferx_feature_align` per pair
+over the official gt.log sets) under the GPU venv, and preserve the per-pair
+JSON. Requires GPU + weights + data; not runnable on this CPU box.
+
 ## 6. Honest limitations (no overstating)
 
 - **Partial overlap (6/9 solved + 3 flagged, 0 silent-wrong).** The `init="features"` aligner —
