@@ -57,9 +57,9 @@ TEAL, CORAL = "#17becf", "#ff6b5b"
 fig = plt.figure(figsize=(12.5, 5.6), facecolor="white")
 
 
-def panel(ax, p1, c1, l1, p2, c2, l2, title):
-    ax.scatter(p1[:, 0], p1[:, 1], p1[:, 2], s=5, c=c1, alpha=0.55, label=l1, edgecolors="none")
-    ax.scatter(p2[:, 0], p2[:, 1], p2[:, 2], s=5, c=c2, alpha=0.55, label=l2, edgecolors="none")
+def panel(ax, p1, c1, l1, p2, c2, l2, title, s1=5, a1=0.55, s2=5, a2=0.55):
+    ax.scatter(p1[:, 0], p1[:, 1], p1[:, 2], s=s1, c=c1, alpha=a1, label=l1, edgecolors="none")
+    ax.scatter(p2[:, 0], p2[:, 1], p2[:, 2], s=s2, c=c2, alpha=a2, label=l2, edgecolors="none")
     ax.set_title(title, fontsize=12.5, fontweight="bold", pad=8)
     ax.set_axis_off()
     ax.legend(loc="upper right", fontsize=9, framealpha=0.0, markerscale=2.0)
@@ -82,15 +82,22 @@ panel(
     "splat B  (unknown SE(3))",
     "Before  —  two splats, unknown relative pose",
 )
+# After: the clouds coincide to sub-mm, so equal-weight blending would render
+# mud.  B is drawn as a faint context cloud with the registered A crisp on
+# top; any visible halo is the true residual, not an overplot artifact.
 panel(
     fig.add_subplot(122, projection="3d"),
     Bm,
-    CORAL,
+    "#cfcfcf",
     "splat B",
     ABm,
     TEAL,
     "A registered into B",
     f"After splatreg  —  rot {rot_err:.2f}° · trans {trans_mm:.1f} mm · Chamfer {cham:.2f} mm",
+    s1=4,
+    a1=0.30,
+    s2=8,
+    a2=0.85,
 )
 plt.tight_layout()
 
