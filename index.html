@@ -767,31 +767,25 @@ PLY (gsplat, Nerfstudio/splatfacto, INRIA, SuperSplat) or hands over means/covar
 </figure>
 
 <h2 id="what-you-get-that-no-other-splat-registrar-ships">What you get that no other splat registrar ships<a class="headerlink" href="#what-you-get-that-no-other-splat-registrar-ships" title="Permanent link">&para;</a></h2>
-<div class="grid cards">
-<ul>
-<li>
-<p><strong>Provably correct SH rotation</strong></p>
-<p>Higher-order spherical-harmonic bands (<code>f_rest</code>) are mixed by the real-basis Wigner-D
-matrix, so glossy highlights turn <em>with</em> the splat. Test-locked to <strong>~2.4e-15</strong> in float64.</p>
-</li>
-<li>
-<p><strong>Align without merging</strong></p>
-<p><code>apply_transform()</code> / <code>splatreg align</code> bakes the recovered pose into the source and writes
-it as its own PLY — both scans stay separate files, now in one frame.</p>
-</li>
-<li>
-<p><strong>Sim(3) scale recovery</strong></p>
-<p>Native scale estimation, which none of the competing splat tools attempt at all — plus
-photometric refinement (exposure compensation + coarse-to-fine ladder) for the poses
-geometry cannot see.</p>
-</li>
-<li>
-<p><strong>Honest diagnostics</strong></p>
-<p>Pose covariance on every builtin-LM solve for pose-graph weighting (<code>None</code> when singular,
-never faked), and ambiguous overlaps are <em>flagged</em> — never silently wrong-posed.</p>
-</li>
-</ul>
-</div>
+<dl class="sr-spec">
+  <div class="sr-spec__row">
+    <dt><span class="sr-spec__num">01</span>Provably correct SH rotation</dt>
+    <dd>Higher-order spherical-harmonic bands (<code>f_rest</code>) are mixed by the real-basis Wigner-D matrix, so glossy highlights turn <em>with</em> the splat. Test-locked to <strong>~2.4e-15</strong> in float64.</dd>
+  </div>
+  <div class="sr-spec__row">
+    <dt><span class="sr-spec__num">02</span>Align without merging</dt>
+    <dd><code>apply_transform()</code> / <code>splatreg align</code> bakes the recovered pose into the source and writes it as its own PLY. Both scans stay separate files, now in one frame.</dd>
+  </div>
+  <div class="sr-spec__row">
+    <dt><span class="sr-spec__num">03</span>Sim(3) scale recovery</dt>
+    <dd>Native scale estimation, which none of the competing splat tools attempt at all, plus photometric refinement (exposure compensation + coarse-to-fine ladder) for the poses geometry cannot see.</dd>
+  </div>
+  <div class="sr-spec__row">
+    <dt><span class="sr-spec__num">04</span>Honest diagnostics</dt>
+    <dd>Pose covariance on every builtin-LM solve for pose-graph weighting (<code>None</code> when singular, never faked), and ambiguous overlaps are <em>flagged</em>, never silently wrong-posed.</dd>
+  </div>
+</dl>
+
 <figure class="sr-figure">
   <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/sh_rotation.png" alt="A view-dependent-coloured Gaussian sphere rotated 90 degrees three ways and rendered by gsplat: naive rotation (wrong colour), splatreg Wigner-D (correct), and an independent ground truth">
   <figcaption>Provably correct SH rotation, rendered through <strong>gsplat</strong>. A view-dependent-coloured splat rotated 90°: the <strong>naive</strong> rotation leaves the higher-order SH in the old, world-fixed frame (<strong>13–15 dB</strong> vs an independent ground truth), while splatreg's real-basis <strong>Wigner-D</strong> render is <em>pixel-identical</em> to it. Coefficient round-trip <code>D(R)⁻¹·D(R)·f = f</code> to <strong>~2e-16</strong> in float64. See <a href="ply-interop/">PLY interop</a>.</figcaption>
@@ -912,6 +906,7 @@ design (manual transforms, not registration).</p>
   <figcaption>Two splats → one of six coarse-init seeds → the multi-residual Levenberg–Marquardt core (ICP + the flagship Gaussian-SDF, SE(3)/Sim(3)) → the transform, recovered scale, and pose covariance → the merge / align / track / pose-graph consumers.</figcaption>
 </figure>
 
+<div class="sr-steps">
 <ol>
 <li><strong>Global init</strong>: a coarse pose from a dense super-Fibonacci rotation sweep + batched
    trimmed ICP (no local-minimum trap), with FPFH+RANSAC (<code>init="robust"</code>), learned
@@ -923,6 +918,7 @@ design (manual transforms, not registration).</p>
    Jacobian), solving the full SE(3) or Sim(3) tangent and exposing the pose
    information/covariance at the optimum.</li>
 </ol>
+</div>
 <h2 id="more-headline-numbers">More headline numbers<a class="headerlink" href="#more-headline-numbers" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -985,20 +981,14 @@ design (manual transforms, not registration).</p>
 <a href="https://github.com/Archerkattri/splatreg/blob/main/RESULTS.md"><code>RESULTS.md</code></a>.</p>
 </div>
 <h2 id="where-next">Where next<a class="headerlink" href="#where-next" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="quickstart/">Quickstart</a>: install + the core workflows in Python.</li>
-<li><a href="cli/">CLI guide</a>: <code>splatreg align / merge / info</code> from the shell.</li>
-<li><a href="init-modes/">Init modes</a>: speed vs robustness — <code>fast</code>, <code>robust</code>, <code>learned</code>, the
-  zero-shot <strong><code>bufferx</code></strong> seed, <code>mac</code>, <code>global</code> — with the honest measured 3DMatch/3DLoMatch
-  verdicts.</li>
-<li><a href="photometric/">Photometric refinement</a>: the opt-in stage for poses geometry can't see
-  (symmetry / texture-only DoF), with the measured when-and-why table, per-pair <strong>exposure
-  compensation</strong> (default ON), and the <strong>coarse-to-fine render ladder</strong>.</li>
-<li><a href="ply-interop/">PLY interop</a>: splatfacto / INRIA / SuperSplat round-trip, and what happens
-  to spherical harmonics under a recovered rotation (higher-order SH bands are <strong>Wigner-rotated
-  with the splat</strong>; Ivanic-Ruedenberg, test-locked math).</li>
-<li><a href="benchmarks/">Benchmarks</a>: every number with its reproduce command.</li>
-<li><a href="api/">API reference</a>: every public function, autodoc'd.</li>
+<ul class="sr-next">
+  <li><a href="quickstart/">Quickstart</a>: install + the core workflows in Python.</li>
+  <li><a href="cli/">CLI guide</a>: <code>splatreg align / merge / info</code> from the shell.</li>
+  <li><a href="init-modes/">Init modes</a>: speed vs robustness across <code>fast</code>, <code>robust</code>, <code>learned</code>, the zero-shot <strong><code>bufferx</code></strong> seed, <code>mac</code>, <code>global</code>, with the honest measured 3DMatch/3DLoMatch verdicts.</li>
+  <li><a href="photometric/">Photometric refinement</a>: the opt-in stage for poses geometry can't see (symmetry / texture-only DoF), with the measured when-and-why table, per-pair <strong>exposure compensation</strong> (default ON), and the <strong>coarse-to-fine render ladder</strong>.</li>
+  <li><a href="ply-interop/">PLY interop</a>: splatfacto / INRIA / SuperSplat round-trip, and what happens to spherical harmonics under a recovered rotation (higher-order SH bands are <strong>Wigner-rotated with the splat</strong>; Ivanic-Ruedenberg, test-locked math).</li>
+  <li><a href="benchmarks/">Benchmarks</a>: every number with its reproduce command.</li>
+  <li><a href="api/">API reference</a>: every public function, autodoc'd.</li>
 </ul>
 
 
