@@ -1,21 +1,24 @@
 # Security Policy
 
-## Supported Versions
-
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
-
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+Do **not** open a public issue for security vulnerabilities. Report them
+privately via [private vulnerability reporting](https://github.com/Archerkattri/splatreg/security/advisories/new).
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Please include:
+
+- Affected version, tag, or commit
+- Description of the issue and its impact
+- Steps to reproduce, exploit, or proof of concept (if available)
+
+## What to Expect
+
+- Acknowledgement of your report within 7 days.
+- A fix or mitigation on a best-effort timeline; credit in the release notes
+  if you want it.
+- Please do not disclose the issue publicly until a fix is released.
+
+## Supported Versions
+
+Security fixes are provided for the latest release on the default branch.
+Older releases are supported on a best-effort basis only.
