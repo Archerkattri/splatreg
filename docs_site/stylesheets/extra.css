@@ -1,49 +1,38 @@
 /* ============================================================================
-   splatreg docs — landing chrome
-   Refined technical aesthetic: a dark "instrument" hero, point-cloud dot grid,
-   IBM Plex Mono wordmark, teal accent with a deep-orange spark. Works in both
-   the mkdocs-material light (default) and dark (slate) schemes.
+   splatreg docs — instrument-panel chrome
+   Flat "lab datasheet" aesthetic: solid surfaces, hairline rules, sharp
+   corners, mono kickers, ledger rows. Deliberately no gradients, no blob
+   shapes, no glassmorphism, no soft shadows, no card grids.
+   Both mkdocs-material schemes (default light / slate dark) are fully styled;
+   scheme-adaptive parts use --md-* variables so they follow the toggle.
    ========================================================================== */
 
 :root {
   --sr-teal:        #0f8b96;
   --sr-teal-bright: #2fd6e0;
   --sr-orange:      #ff6b3d;
+  --sr-orange-dim:  #b84a24;
   --sr-ink:         #0b1417;
-  --sr-hero-a:      #0a2229;
-  --sr-hero-b:      #071519;
+  --sr-ink-line:    #23434a;
 }
 
-/* keep the material accent coherent with the hero */
+/* keep the material accent coherent with the site */
 [data-md-color-scheme="default"] { --md-typeset-a-color: #0f8b96; }
 [data-md-color-scheme="slate"]   { --md-typeset-a-color: #2fd6e0; }
 
-/* ---- Hero ---------------------------------------------------------------- */
+/* figure numbering: FIG. 1, FIG. 2, ... per page */
+.md-typeset { counter-reset: sr-fig; }
+
+/* ---- Hero: flat dark instrument panel ------------------------------------ */
 .sr-hero {
-  position: relative;
-  overflow: hidden;
-  border-radius: 18px;
-  padding: 3rem 2.6rem 2.4rem;
-  margin: 0 0 2.2rem;
+  background: var(--sr-ink);
+  border: 1px solid var(--sr-ink-line);
+  border-top: 3px solid var(--sr-teal-bright);
+  border-radius: 3px;
+  padding: 2.4rem 2.2rem 2rem;
+  margin: 0 0 2rem;
   color: #eafcff;
-  background:
-    radial-gradient(120% 130% at 12% -10%, rgba(47, 214, 224, 0.20), transparent 55%),
-    radial-gradient(90% 120% at 98% 115%, rgba(255, 107, 61, 0.14), transparent 52%),
-    linear-gradient(158deg, var(--sr-hero-a) 0%, var(--sr-hero-b) 100%);
-  box-shadow: 0 24px 60px -32px rgba(4, 22, 26, 0.75);
-  border: 1px solid rgba(47, 214, 224, 0.18);
 }
-.sr-hero::before {                /* point-cloud dot grid, fading downward */
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.4px);
-  background-size: 22px 22px;
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
-  mask-image: linear-gradient(180deg, #000 0%, transparent 78%);
-  pointer-events: none;
-}
-.sr-hero > * { position: relative; z-index: 1; }
 
 .sr-hero__eyebrow {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
@@ -87,30 +76,31 @@
   background: rgba(47, 214, 224, 0.14);
   color: #b9f4fa;
   padding: 0.05em 0.4em;
-  border-radius: 5px;
+  border-radius: 3px;
   font-size: 0.9em;
 }
 
-/* install chip */
+/* install strip: flat terminal key */
 .sr-install {
   display: inline-flex;
   align-items: center;
   gap: 0.7rem;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 0.95rem;
-  background: rgba(3, 14, 17, 0.55);
-  border: 1px solid rgba(47, 214, 224, 0.28);
-  border-radius: 10px;
+  background: #030e11;
+  border: 1px solid var(--sr-ink-line);
+  border-left: 3px solid var(--sr-orange);
+  border-radius: 0 3px 3px 0;
   padding: 0.6rem 0.95rem;
   color: #eafcff;
   margin-bottom: 1.5rem;
 }
 .sr-install .sr-prompt { color: var(--sr-teal-bright); user-select: none; }
 
-/* CTA buttons */
-.sr-cta { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-bottom: 1.9rem; }
+/* CTA row: flat squared keys, one solid primary */
+.sr-cta { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-bottom: 0.4rem; }
 .sr-cta .md-button {
-  border-radius: 10px;
+  border-radius: 3px;
   border-color: rgba(234, 252, 255, 0.35);
   color: #eafcff;
 }
@@ -126,45 +116,151 @@
 }
 .sr-cta .md-button:hover { background: rgba(47, 214, 224, 0.16); border-color: var(--sr-teal-bright); color: #eafcff; }
 
-/* stat chips */
+/* readout strip: ruled ledger, not stat cards */
 .sr-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.9rem;
-  padding-top: 1.4rem;
-  border-top: 1px solid rgba(234, 252, 255, 0.14);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem 0;
+  margin-top: 1.6rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid rgba(234, 252, 255, 0.16);
 }
+.sr-stat {
+  padding: 0 1.1rem;
+  border-left: 1px solid rgba(234, 252, 255, 0.16);
+}
+.sr-stat:first-child { border-left: none; padding-left: 0; }
 .sr-stat__value {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.35rem;
   font-weight: 600;
   color: var(--sr-teal-bright);
   line-height: 1.1;
 }
 .sr-stat__label {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   line-height: 1.35;
   color: rgba(226, 246, 249, 0.72);
   margin-top: 0.25rem;
 }
 
-/* ---- Headline figure ----------------------------------------------------- */
-.sr-figure {
-  border-radius: 14px;
-  padding: 0.6rem 0.6rem 0.2rem;
-  background: #fcfcfb;
-  border: 1px solid rgba(11, 20, 23, 0.10);
-  box-shadow: 0 10px 30px -20px rgba(4, 22, 26, 0.5);
+/* ---- Capability ledger (replaces the card grid) --------------------------- */
+.sr-spec {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 2.2rem;
+  margin: 1.4rem 0 1.6rem;
 }
-.sr-figure img { display: block; width: 100%; border-radius: 8px; }
+.sr-spec__row {
+  border-top: 2px solid var(--md-default-fg-color--lightest);
+  padding: 0.85rem 0 1rem;
+}
+.sr-spec dt {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin: 0 0 0.3rem;
+}
+.sr-spec__num {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-weight: 400;
+  font-size: 0.8em;
+  color: var(--sr-teal);
+  margin-right: 0.65em;
+}
+[data-md-color-scheme="slate"] .sr-spec__num { color: var(--sr-teal-bright); }
+.sr-spec dd {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--md-default-fg-color--light);
+}
+@media (max-width: 700px) { .sr-spec { grid-template-columns: 1fr; } }
+
+/* ---- Numbered runbook steps ---------------------------------------------- */
+.sr-steps ol {
+  list-style: none;
+  counter-reset: sr-step;
+  padding: 0;
+  margin-left: 0;
+}
+.sr-steps ol > li {
+  counter-increment: sr-step;
+  position: relative;
+  padding: 0.9rem 0 0.9rem 3.2rem;
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+  margin: 0;
+}
+.sr-steps ol > li:last-child {
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+}
+.sr-steps ol > li::before {
+  content: counter(sr-step, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 1.05rem;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.95rem;
+  color: var(--sr-teal);
+}
+[data-md-color-scheme="slate"] .sr-steps ol > li::before { color: var(--sr-teal-bright); }
+
+/* ---- Section index (replaces the bullet link list) ------------------------ */
+.sr-next {
+  list-style: none;
+  padding: 0;
+  margin-left: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 2.2rem;
+}
+.sr-next li {
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+  padding: 0.6rem 0;
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--md-default-fg-color--light);
+}
+.sr-next li > a:first-child { font-weight: 600; }
+.sr-next li > a:first-child::before {
+  content: "\2192\00a0";
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--sr-teal);
+}
+[data-md-color-scheme="slate"] .sr-next li > a:first-child::before { color: var(--sr-teal-bright); }
+@media (max-width: 700px) { .sr-next { grid-template-columns: 1fr; } }
+
+/* ---- Datasheet figures: hairline frame, FIG. tag, no shadow -------------- */
+.sr-figure {
+  counter-increment: sr-fig;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 3px;
+  overflow: hidden;
+  padding: 0;
+  background: var(--md-default-bg-color);
+}
+.sr-figure img {
+  display: block;
+  width: 100%;
+  border-radius: 0;
+}
 .sr-figure figcaption {
   font-size: 0.78rem;
   line-height: 1.5;
-  color: #52514e;
-  padding: 0.7rem 0.6rem 0.6rem;
+  color: var(--md-default-fg-color--light);
+  padding: 0.7rem 0.9rem 0.8rem;
+  border-top: 1px solid var(--md-default-fg-color--lightest);
 }
-[data-md-color-scheme="slate"] .sr-figure { background: #101416; border-color: rgba(255,255,255,0.10); }
-[data-md-color-scheme="slate"] .sr-figure figcaption { color: #b7c3c5; }
+.sr-figure figcaption::before {
+  content: "FIG. " counter(sr-fig);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: var(--sr-orange-dim);
+  margin-right: 0.55em;
+  white-space: nowrap;
+}
+[data-md-color-scheme="slate"] .sr-figure figcaption::before { color: var(--sr-orange); }
 
 /* ---- Capability matrix --------------------------------------------------- */
 .sr-matrix table { font-size: 0.84rem; }
@@ -172,14 +268,14 @@
 .sr-matrix td:nth-child(2) { font-weight: 600; }
 .sr-matrix tbody, .sr-matrix tbody tr:nth-child(odd) { background: transparent; }
 
-/* ---- Honest edges (the signature) --------------------------------------- */
+/* ---- Honest edges (the signature): flat panel, orange rule --------------- */
 .sr-limits {
-  border-radius: 14px;
-  padding: 1.3rem 1.5rem 0.6rem;
-  margin: 1.6rem 0;
-  background: linear-gradient(180deg, rgba(255, 107, 61, 0.07), transparent 70%);
-  border: 1px solid rgba(255, 107, 61, 0.28);
+  border: 1px solid var(--md-default-fg-color--lightest);
   border-left: 4px solid var(--sr-orange);
+  border-radius: 0 3px 3px 0;
+  padding: 1.2rem 1.4rem 0.5rem;
+  margin: 1.6rem 0;
+  background: var(--md-default-bg-color);
 }
 .sr-limits h2, .sr-limits h3 { margin-top: 0.2rem; }
 .sr-limits .sr-limits__kicker {
@@ -187,9 +283,6 @@
   font-size: 0.72rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--sr-orange);
+  color: var(--sr-orange-dim);
 }
-
-/* grid cards accent */
-.md-typeset .grid.cards > ul > li { border-radius: 12px; }
-.md-typeset .grid.cards > ul > li:hover { border-color: var(--md-typeset-a-color); }
+[data-md-color-scheme="slate"] .sr-limits .sr-limits__kicker { color: var(--sr-orange); }

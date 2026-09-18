@@ -32,30 +32,24 @@ PLY (gsplat, Nerfstudio/splatfacto, INRIA, SuperSplat) or hands over means/covar
 
 ## What you get that no other splat registrar ships
 
-<div class="grid cards" markdown>
-
--   __Provably correct SH rotation__
-
-    Higher-order spherical-harmonic bands (`f_rest`) are mixed by the real-basis Wigner-D
-    matrix, so glossy highlights turn *with* the splat. Test-locked to **~2.4e-15** in float64.
-
--   __Align without merging__
-
-    `apply_transform()` / `splatreg align` bakes the recovered pose into the source and writes
-    it as its own PLY — both scans stay separate files, now in one frame.
-
--   __Sim(3) scale recovery__
-
-    Native scale estimation, which none of the competing splat tools attempt at all — plus
-    photometric refinement (exposure compensation + coarse-to-fine ladder) for the poses
-    geometry cannot see.
-
--   __Honest diagnostics__
-
-    Pose covariance on every builtin-LM solve for pose-graph weighting (`None` when singular,
-    never faked), and ambiguous overlaps are *flagged* — never silently wrong-posed.
-
-</div>
+<dl class="sr-spec">
+  <div class="sr-spec__row">
+    <dt><span class="sr-spec__num">01</span>Provably correct SH rotation</dt>
+    <dd>Higher-order spherical-harmonic bands (<code>f_rest</code>) are mixed by the real-basis Wigner-D matrix, so glossy highlights turn <em>with</em> the splat. Test-locked to <strong>~2.4e-15</strong> in float64.</dd>
+  </div>
+  <div class="sr-spec__row">
+    <dt><span class="sr-spec__num">02</span>Align without merging</dt>
+    <dd><code>apply_transform()</code> / <code>splatreg align</code> bakes the recovered pose into the source and writes it as its own PLY. Both scans stay separate files, now in one frame.</dd>
+  </div>
+  <div class="sr-spec__row">
+    <dt><span class="sr-spec__num">03</span>Sim(3) scale recovery</dt>
+    <dd>Native scale estimation, which none of the competing splat tools attempt at all, plus photometric refinement (exposure compensation + coarse-to-fine ladder) for the poses geometry cannot see.</dd>
+  </div>
+  <div class="sr-spec__row">
+    <dt><span class="sr-spec__num">04</span>Honest diagnostics</dt>
+    <dd>Pose covariance on every builtin-LM solve for pose-graph weighting (<code>None</code> when singular, never faked), and ambiguous overlaps are <em>flagged</em>, never silently wrong-posed.</dd>
+  </div>
+</dl>
 
 <figure class="sr-figure">
   <img src="https://raw.githubusercontent.com/Archerkattri/splatreg/main/assets/sh_rotation.png" alt="A view-dependent-coloured Gaussian sphere rotated 90 degrees three ways and rendered by gsplat: naive rotation (wrong colour), splatreg Wigner-D (correct), and an independent ground truth">
@@ -124,6 +118,8 @@ design (manual transforms, not registration).
   <figcaption>Two splats → one of six coarse-init seeds → the multi-residual Levenberg–Marquardt core (ICP + the flagship Gaussian-SDF, SE(3)/Sim(3)) → the transform, recovered scale, and pose covariance → the merge / align / track / pose-graph consumers.</figcaption>
 </figure>
 
+<div class="sr-steps" markdown>
+
 1. **Global init**: a coarse pose from a dense super-Fibonacci rotation sweep + batched
    trimmed ICP (no local-minimum trap), with FPFH+RANSAC (`init="robust"`), learned
    GeoTransformer (`init="learned"`), zero-shot BUFFER-X (`init="bufferx"`), and MAC
@@ -133,6 +129,8 @@ design (manual transforms, not registration).
    distance field derived directly from the target Gaussians, with a closed-form, audited
    Jacobian), solving the full SE(3) or Sim(3) tangent and exposing the pose
    information/covariance at the optimum.
+
+</div>
 
 ## More headline numbers
 
@@ -176,16 +174,12 @@ Full detail, including the failure analyses, is in
 
 ## Where next
 
-- [Quickstart](quickstart.md): install + the core workflows in Python.
-- [CLI guide](cli.md): `splatreg align / merge / info` from the shell.
-- [Init modes](init-modes.md): speed vs robustness — `fast`, `robust`, `learned`, the
-  zero-shot **`bufferx`** seed, `mac`, `global` — with the honest measured 3DMatch/3DLoMatch
-  verdicts.
-- [Photometric refinement](photometric.md): the opt-in stage for poses geometry can't see
-  (symmetry / texture-only DoF), with the measured when-and-why table, per-pair **exposure
-  compensation** (default ON), and the **coarse-to-fine render ladder**.
-- [PLY interop](ply-interop.md): splatfacto / INRIA / SuperSplat round-trip, and what happens
-  to spherical harmonics under a recovered rotation (higher-order SH bands are **Wigner-rotated
-  with the splat**; Ivanic-Ruedenberg, test-locked math).
-- [Benchmarks](benchmarks.md): every number with its reproduce command.
-- [API reference](api.md): every public function, autodoc'd.
+<ul class="sr-next">
+  <li><a href="quickstart/">Quickstart</a>: install + the core workflows in Python.</li>
+  <li><a href="cli/">CLI guide</a>: <code>splatreg align / merge / info</code> from the shell.</li>
+  <li><a href="init-modes/">Init modes</a>: speed vs robustness across <code>fast</code>, <code>robust</code>, <code>learned</code>, the zero-shot <strong><code>bufferx</code></strong> seed, <code>mac</code>, <code>global</code>, with the honest measured 3DMatch/3DLoMatch verdicts.</li>
+  <li><a href="photometric/">Photometric refinement</a>: the opt-in stage for poses geometry can't see (symmetry / texture-only DoF), with the measured when-and-why table, per-pair <strong>exposure compensation</strong> (default ON), and the <strong>coarse-to-fine render ladder</strong>.</li>
+  <li><a href="ply-interop/">PLY interop</a>: splatfacto / INRIA / SuperSplat round-trip, and what happens to spherical harmonics under a recovered rotation (higher-order SH bands are <strong>Wigner-rotated with the splat</strong>; Ivanic-Ruedenberg, test-locked math).</li>
+  <li><a href="benchmarks/">Benchmarks</a>: every number with its reproduce command.</li>
+  <li><a href="api/">API reference</a>: every public function, autodoc'd.</li>
+</ul>
