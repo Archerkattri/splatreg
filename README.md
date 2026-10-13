@@ -10,7 +10,7 @@
 [![Downloads](https://static.pepy.tech/badge/splatreg)](https://pepy.tech/project/splatreg)
 [![CI](https://github.com/Archerkattri/splatreg/actions/workflows/ci.yml/badge.svg)](https://github.com/Archerkattri/splatreg/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-166%20passing-16a34a.svg)](tests/)
-[![DOI](https://zenodo.org/badge/1260804203.svg)](https://zenodo.org/badge/latestdoi/1260804203)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22820933.svg)](https://doi.org/10.5281/zenodo.22820933)
 [![Paper](https://img.shields.io/badge/engrXiv-10.31224%2F7313-009E73.svg)](https://doi.org/10.31224/7313)
 [![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
