@@ -2,7 +2,7 @@
 """REAL-GEOMETRY multi-capture bundle benchmark (v0.3) — loop-consistency win on real splats.
 
 ``bundle_register(splats, pairs="auto")`` registers ``N`` overlapping splats JOINTLY (a pose-graph
-Gauss-Newton over all absolute poses) instead of the sequential merge-to-ref chain. The unit test
+Gauss-Newton over all absolute poses) instead of the sequential merge-to-ref chain. It was validated
 proves the loop-consistency win on a synthetic ring; this file builds the SAME ring out of a **real
 GaussianFeels object splat** so the win is measured on real geometry.
 

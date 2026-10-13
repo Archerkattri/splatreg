@@ -61,7 +61,8 @@ Sim(3): MAC's rigidity constraint is SE(3)-only, so the scale is estimated **fir
 of correspondence pairwise-distance ratios), the source de-scaled, SE(3) MAC run, and a
 residual scale refit on the consensus inliers.
 
-Measured on synthetic contaminated correspondence sets (CPU, `tests/test_mac.py`): at 30/60/90 %
+Measured on synthetic contaminated correspondence sets (CPU; historical results in
+[`RESULTS.md` §5k](https://github.com/Archerkattri/splatreg/blob/main/RESULTS.md)): at 30/60/90 %
 random outliers MAC matches the fast-init RANSAC engine (rot err ≤ 0.2°); on a 90 %-contaminated
 set with a *structured* decoy cluster (reflection-consistent, it out-degrees the true inliers)
 the greedy-prefilter+RANSAC engine fails at ~78° while MAC stays **< 0.2°**; an all-outlier set
@@ -142,10 +143,9 @@ scores the candidate learned seed with two cheap signals over mutual-NN correspo
 **inlier ratio** (fraction landing within tolerance after the seed transform) and an **SC² spatial
 consistency** term (the same rigidity-graph machinery `init="mac"` uses) — and *rejects and reseeds*
 a low-confidence hypothesis from the classical `"robust"` path (keeping whichever scores higher)
-instead of blindly refining a bad seed. The scores land in `result.info["seed_gate"]`. On synthetic
-known-transform pairs the gate never rejects a correct seed and rejects a planted decoy
-([`tests/test_bufferx_seedgate.py`](https://github.com/Archerkattri/splatreg)); full retraining of
-the classification head is out of scope.
+instead of blindly refining a bad seed. The scores land in `result.info["seed_gate"]`. Earlier
+synthetic known-transform checks for the gate are not part of the retained integration suite; full
+retraining of the classification head is out of scope.
 
 ## Partial overlap: the honest contract
 

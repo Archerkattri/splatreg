@@ -2,7 +2,7 @@
 """REAL-GEOMETRY camera-localization benchmark (v0.2) — recover a perturbed camera in a real splat.
 
 ``localize_camera(splat, frame, init_T_WC)`` refines a camera pose by optimizing the right-
-perturbation tangent **through gsplat's differentiable rasteriser**. The unit test validates it on a
+perturbation tangent **through gsplat's differentiable rasteriser**. It was validated on a
 synthetic textured scene; this file runs it on **real GaussianFeels object splats**
 (``outputs/*/final.ply``), so the rotation/translation recovery is measured against real, exported
 3DGS appearance + geometry.

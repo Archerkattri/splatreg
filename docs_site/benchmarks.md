@@ -37,8 +37,8 @@ the v1.3 MAC verdict validated 2026-06-10.
 
 ## Jacobian audit
 
-Every analytic Jacobian is checked against a tangent-space numerical one
-(`tests/test_jacobians.py`, float64), the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS`
+Every analytic Jacobian was checked against a tangent-space numerical one in the
+original float64 audit, following the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS`
 discipline. The audit **found and fixed a real bug**: the Gaussian-SDF gradient had dropped
 the first-order `∂q̃/∂p` term; it is now an exact closed-form field gradient (max
 |analytic − numerical| ≈ 1e-8). ICP point-to-point ~3e-9, point-to-plane ~4e-11; SE(3)/Sim(3)
@@ -144,10 +144,10 @@ Each addition ships with its measured evidence (full detail: `RESULTS.md` §5j):
 
 | Addition | Evidence |
 |---|---|
-| SH (`f_rest`) Wigner rotation | rotated coefficients evaluated at `d` equal the originals at `R⁻¹d`, measured **~2.4e-15** in float64 (gate < 1e-5); `D(R₁R₂) = D(R₁)D(R₂)` exact; PLY round-trip exact ([`tests/test_sh_rotation.py`](https://github.com/Archerkattri/splatreg/blob/main/tests/test_sh_rotation.py)) |
+| SH (`f_rest`) Wigner rotation | rotated coefficients evaluated at `d` equal the originals at `R⁻¹d`, measured **~2.4e-15** in float64 (gate < 1e-5); `D(R₁R₂) = D(R₁)D(R₂)` exact; PLY round-trip exact ([`RESULTS.md` §5j](https://github.com/Archerkattri/splatreg/blob/main/RESULTS.md)) |
 | Exposure compensation (default ON) | a ×1.3 + 0.05 source tint absorbs into the Sim(3) scale without it (0.10% → **3.99%** scale error); with it: **0.47%**, fitted gain ≈ 1/1.3; clean pair 0.01% (harmless) |
 | Coarse-to-fine render ladder | from a 6° offset a cold 96 px rung stalls at **5.61°**; the 32→64→96 ladder lands **2.55°** at equal per-stage budget |
-| Pose information / covariance | SPD on well-constrained solves, 2× noise → looser covariance, singular → `None` ([`tests/test_pose_covariance.py`](https://github.com/Archerkattri/splatreg/blob/main/tests/test_pose_covariance.py)) |
+| Pose information / covariance | SPD on well-constrained solves, 2× noise → looser covariance, singular → `None` ([`RESULTS.md` §5j](https://github.com/Archerkattri/splatreg/blob/main/RESULTS.md)) |
 | `validate_recovery.py --fast` | CPU smoke preset: **6/6 cells within gate in ~41 s** (worst rot err 0.16°, worst scale err 0.14%) |
 
 <figure class="sr-figure">
@@ -180,9 +180,12 @@ Full detail, including the failure analyses: [`RESULTS.md`](https://github.com/A
 ```bash
 git clone https://github.com/Archerkattri/splatreg.git && cd splatreg
 pip install -e ".[test]"
-python -m pytest tests/ -q                          # the suite (incl. Jacobian audit)
+python -m pytest tests/test_backends.py tests/test_cli.py tests/test_io_roundtrip_dc.py tests/test_photometric_refine.py -q
 SPLATREG_DEVICE=cuda python examples/validate_recovery.py --device cuda
 SPLATREG_DEVICE=cuda python benchmarks/robustness_bench.py --device cuda
 SPLATREG_DEVICE=cuda python benchmarks/icp_baseline_bench.py --device cuda
 SPLATREG_DEVICE=cuda python benchmarks/threedmatch_official_bench.py --split 3DMatch --init learned
 ```
+
+The pytest command covers retained backend, CLI, PLY round-trip, and photometric integration
+checks; it does not run the official 3DMatch dataset benchmark. That is the separate final command.

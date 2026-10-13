@@ -25,8 +25,8 @@ on the soft surface. The second return ``n~(p)`` is the unit surface **normal** 
 query, a useful direction, but **NOT** the exact spatial gradient of ``d``: the kernel-weighted
 centroid ``q~(p)`` and normal ``n~(p)`` themselves depend on ``p``, and ``∂q~/∂p`` is a
 *first-order* term (it does not vanish as ``p`` approaches the surface). A numerical Jacobian
-audit (``splatreg/tests/test_jacobians.py``) confirmed that treating ``n~`` as the gradient
-gives a materially wrong Jacobian, so the SDF residual uses the EXACT gradient ``∇d``, in
+audit confirmed that treating ``n~`` as the gradient gives a materially wrong Jacobian, so the
+SDF residual uses the EXACT gradient ``∇d``, in
 CLOSED FORM via :func:`gaussian_sdf_grad` (the field is also fully differentiable w.r.t.
 ``points``, so autodiff through ``d(p)`` agrees). Use ``n~`` as the surface normal; use
 ``gaussian_sdf_grad`` (or autodiff ``∇d``) as the gradient.
@@ -266,7 +266,7 @@ def gaussian_sdf_grad(
 
     EXACT (~1e-8 vs central-difference numerical) wherever the field has anchor support, the
     entire regime where the SDF is meaningful and where the registration residual operates
-    (residual audit ``tests/test_jacobians.py`` 8/8). At degenerate far queries (the weight-sum
+    (the original residual audit passed 8/8 cases). At degenerate far queries (the weight-sum
     clamp activates, the field itself is undefined) it falls back to the bounded surface normal
     ``n~`` rather than the blown-up un-clamped expression. Returns ``(sdf (N,), grad (N, 3))``
     where ``grad`` is ``∇_p d``, NOT the surface normal ``n~``.

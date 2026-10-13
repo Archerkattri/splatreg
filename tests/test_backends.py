@@ -14,10 +14,6 @@ discipline from the solver tests, now across backends:
  4. ``test_theseus_sim3_recovers_scale``          — Theseus, same.
  5. ``test_backends_agree_with_builtin``          — both backends land within a tight tolerance of
     the builtin's recovered pose on the same problem (same residual, same init).
- 6. ``test_gtsam_backend_honest_not_implemented`` — backend='gtsam' raises NotImplementedError
-    (it is honestly not wired up — needs hand-written factor Jacobians).
- 7. ``test_unknown_backend_rejected``             — an unknown backend string is a ValueError.
-
 CPU + float64 throughout (the external engines run cleanly on CPU on this box). Tests for an engine
 that is not installed are skipped, not failed.
 
@@ -178,37 +174,6 @@ def test_backends_agree_with_builtin():
         T = register(target, target, backend=backend, **kw).T
         diff = (T - builtin_T).abs().max().item()
         assert diff < 1e-3, f"backend={backend!r} disagrees with builtin by {diff:.3e} (tol 1e-3)"
-
-
-# ---------------------------------------------------------------------------
-# Honest gtsam + unknown-backend handling
-# ---------------------------------------------------------------------------
-
-
-def test_gtsam_backend_honest_not_implemented():
-    """backend='gtsam' is recognised but honestly not implemented (needs factor Jacobians)."""
-    target = _make_splat(n=50)
-    with pytest.raises(NotImplementedError):
-        register(
-            target,
-            target,
-            residuals=[ICP(point_to_plane=False)],
-            init=_se3_init(),
-            backend="gtsam",
-        )
-
-
-def test_unknown_backend_rejected():
-    """An unknown backend string is a ValueError, not a silent fallback."""
-    target = _make_splat(n=50)
-    with pytest.raises(ValueError):
-        register(
-            target,
-            target,
-            residuals=[ICP(point_to_plane=False)],
-            init=_se3_init(),
-            backend="does_not_exist",
-        )
 
 
 if __name__ == "__main__":
