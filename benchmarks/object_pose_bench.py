@@ -6,7 +6,7 @@ here on a SYNTHETIC PROXY because the real datasets are not fetched in this envi
 
   * **Metrics** — ADD (Hinterstoisser), ADD-S (symmetric closest-point), and the YCB-Video-style
     area-under-curve recall (`add_auc`, 0–0.1 m threshold). The metric code is `splatreg.add_metric`
-    / `adds_metric` / `add_auc` (unit-tested in `tests/test_object_pose.py`), i.e. the exact same
+    / `adds_metric` / `add_auc`, i.e. the exact same
     functions a real-dataset run would call.
   * **Protocol** — for each "object" (a procedurally-generated object splat) and each of a grid of
     KNOWN 6-DoF poses, render/observe the object at that pose, estimate it with

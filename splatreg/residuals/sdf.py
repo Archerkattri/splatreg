@@ -27,8 +27,8 @@ Under the right-perturbation ``T @ exp(xi)`` the transformed point moves (to fir
 ``dp_k = R . (v + w x s_k)`` where ``R`` is ``T``'s rotation and ``xi = [v | w]``. The chain rule
 then needs the SDF's TRUE spatial gradient ``g_k = ∇_p d(p_k)``, which is **not** the proxy
 surface normal ``n~`` that ``gaussian_sdf`` also returns: ``n~`` drops the first-order
-``∂q~/∂p`` term of the kernel-weighted centroid (a numerical audit, ``tests/test_jacobians.py``,
-measured ``max|Δ|≈10.8`` from using ``n~``). The exact ``g_k`` is computed in CLOSED FORM by
+``∂q~/∂p`` term of the kernel-weighted centroid (a numerical audit measured ``max|Δ|≈10.8``
+from using ``n~``). The exact ``g_k`` is computed in CLOSED FORM by
 ``gaussian_sdf_grad`` (non-truncated path, one fused pass, no autograd graph; the fast SE(3)
 path) or by autodiff (truncated path). Chaining it through the pose Jacobian::
 
@@ -198,7 +198,7 @@ class SDF(Residual):
         # normal n~ that gaussian_sdf also returns is only a first-order *proxy* for this
         # gradient — it drops the ∂q~/∂p term of the kernel-weighted centroid, which is itself
         # first-order (NOT curvature). Using n~ gave a materially wrong Jacobian (numerically
-        # audited, tests/test_jacobians.py: max|Δ|≈10 vs numerical); autodiff is exact.
+        # audited against numerical differences, with max|Δ|≈10); autodiff is exact.
         # CLOSED-FORM gradient on BOTH paths — one fused pass, no autograd graph + no second forward.
         # ``gaussian_sdf_grad`` now carries the same per-query top-k truncation as ``gaussian_sdf``,
         # computing the EXACT analytic gradient of the *truncated* proxy over the k nearest anchors

@@ -5,9 +5,10 @@ permissions:
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'wip/**']
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -28,8 +29,8 @@ jobs:
           pip install --index-url https://download.pytorch.org/whl/cpu torch
           pip install -e . pytest pytest-xdist scipy
       - name: Run test suite (CPU fallback)
-        # Optional-backend tests (gsplat/pypose/theseus/gtsam) and the CUDA-only
-        # camera-localization tests skip honestly when those deps are absent.
+        # Optional-backend tests (gsplat/pypose/theseus) skip honestly when
+        # those dependencies or CUDA hardware are absent.
         # Keep the suite serial: several tests assert real CPU wall-clock budgets,
         # and xdist workers contend with PyTorch's own thread pool.
         # The two `performance` tests retain their >=2x / >=1.5x gates for a

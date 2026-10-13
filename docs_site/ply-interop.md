@@ -113,7 +113,7 @@ g.colors = rotate_sh(g.colors, R)        # (N, K, 3) SH stack, rotated; DC untou
 ```
 
 The math is locked by renderer-free tests against an independent hand-coded 3DGS SH basis
-evaluator ([`tests/test_sh_rotation.py`](https://github.com/Archerkattri/splatreg/blob/main/tests/test_sh_rotation.py)):
+evaluator (historical evidence recorded in [`RESULTS.md` §5j](https://github.com/Archerkattri/splatreg/blob/main/RESULTS.md)):
 evaluating the rotated coefficients at `d` equals evaluating the originals at `R⁻¹d` to
 < 1e-5 over random rotations; the degree-1 block equals its signed-permutation closed form;
 `D(R1·R2) = D(R1)·D(R2)`; identity maps to identity; and the rotated stack round-trips

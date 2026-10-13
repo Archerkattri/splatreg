@@ -14,7 +14,7 @@ Update the version in **three** places (keep them in sync):
 ## 2. Local gate
 
 ```bash
-python -m pytest tests/ -q          # full suite must pass
+python -m pytest tests/ -q          # retained integration/backend suite must pass
 mkdocs build --strict               # docs must build clean (pip install -e ".[docs]")
 ```
 

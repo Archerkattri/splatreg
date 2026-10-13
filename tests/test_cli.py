@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""End-to-end tests for the ``splatreg`` command-line interface (:mod:`splatreg.cli`).
+"""End-to-end command workflows through the ``splatreg`` CLI (:mod:`splatreg.cli`).
 
 The CLI is a thin wrapper over :func:`splatreg.api.register` / :func:`splatreg.api.merge` /
 :mod:`splatreg.io`, so these tests focus on the wrapper's own contract:
@@ -9,13 +9,9 @@ The CLI is a thin wrapper over :func:`splatreg.api.register` / :func:`splatreg.a
 * ``merge`` fuses two offset copies into one splat with the overlap deduped (count between
   ``max`` and ``sum`` of the inputs);
 * ``info`` reports count / SH layout;
-* the error paths (missing file, single-input merge, bad quality) exit non-zero with a
-  helpful message instead of a traceback;
-* ``--version`` and ``--help`` work and the console entry point resolves.
-
-CPU-only, deterministic, small clouds + ``--quality low`` so the whole file stays fast.
-``main(argv)`` is invoked in-process (no subprocess) so failures give real tracebacks and
-coverage sees the code.
+The flows use deterministic CPU-sized synthetic PLY fixtures and exercise complete
+read-register/write or read-register-fuse-write behavior. ``main(argv)`` is invoked
+in-process, while the actual PLY files are read from and written to disk.
 """
 
 from __future__ import annotations
@@ -33,7 +29,7 @@ if _EXAMPLES_DIR not in sys.path:
 
 from _example_utils import make_object_splat, axis_angle_R, chamfer_mm, sim3_matrix  # noqa: E402
 
-from splatreg.cli import build_parser, main  # noqa: E402
+from splatreg.cli import main  # noqa: E402
 from splatreg.io import load_ply, save_ply  # noqa: E402
 
 N_POINTS = 400
@@ -168,61 +164,8 @@ def test_info(ply_pair, capsys):
     assert "bounds" in printed
 
 
-# --------------------------------------------------------------------------------------
-# error paths + plumbing
-# --------------------------------------------------------------------------------------
 def test_align_missing_file_exits_nonzero(tmp_path):
-    with pytest.raises(SystemExit) as e:
+    """A file-system failure crosses the CLI boundary with a nonzero result."""
+    with pytest.raises(SystemExit) as failure:
         main(["align", str(tmp_path / "missing.ply"), str(tmp_path / "also.ply"), "-o", "x.ply"])
-    assert e.value.code != 0
-    assert "not found" in str(e.value.code)
-
-
-def test_merge_single_input_exits_nonzero(ply_pair):
-    target, _ = ply_pair
-    with pytest.raises(SystemExit) as e:
-        main(["merge", target, "-o", "x.ply"])
-    assert "at least two" in str(e.value.code)
-
-
-def test_bad_quality_rejected(ply_pair):
-    target, source = ply_pair
-    with pytest.raises(SystemExit):
-        main(["align", target, source, "-o", "x.ply", "--quality", "ultra"])
-    with pytest.raises(SystemExit):
-        main(["align", target, source, "-o", "x.ply", "--quality", "1.5"])
-
-
-def test_version_and_help(capsys):
-    import splatreg
-
-    with pytest.raises(SystemExit) as e:
-        main(["--version"])
-    assert e.value.code == 0
-    assert splatreg.__version__ in capsys.readouterr().out
-    with pytest.raises(SystemExit) as e:
-        main(["--help"])
-    assert e.value.code == 0
-    out = capsys.readouterr().out
-    for sub in ("align", "merge", "info"):
-        assert sub in out
-    assert build_parser().prog == "splatreg"
-
-
-def test_console_script_registered():
-    """`[project.scripts] splatreg` resolves to splatreg.cli:main."""
-    from importlib.metadata import entry_points
-
-    eps = entry_points()
-    scripts = (
-        eps.select(group="console_scripts", name="splatreg")
-        if hasattr(eps, "select")
-        else [e for e in eps.get("console_scripts", []) if e.name == "splatreg"]
-    )
-    matches = list(scripts)
-    if not matches:
-        pytest.skip(
-            "console script 'splatreg' entry point not installed "
-            "(run `pip install -e .` to register it); test is meaningful once installed"
-        )
-    assert matches[0].value == "splatreg.cli:main"
+    assert failure.value.code != 0

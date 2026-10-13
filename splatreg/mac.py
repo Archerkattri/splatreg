@@ -44,8 +44,8 @@ degrades, the honest ``success`` flag covers that case.
 Honesty
 -------
 The MAC paper reports lifting GeoTransformer's 3DLoMatch registration recall ~71 % -> ~78 %
-when MAC replaces its hypothesis generation. splatreg's implementation is validated here on
-synthetic correspondence sets (see ``tests/test_mac.py``); the 3DLoMatch number requires the
+when MAC replaces its hypothesis generation. splatreg's implementation was validated on
+synthetic correspondence sets (historical details in ``RESULTS.md`` §5k); the 3DLoMatch number requires the
 GeoTransformer features + dataset on a GPU box and is **pending**, we cite the paper for the
 expectation and do not claim the number.
 

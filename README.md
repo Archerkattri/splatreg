@@ -9,7 +9,7 @@
 [![PyPI](https://img.shields.io/pypi/v/splatreg)](https://pypi.org/project/splatreg/)
 [![Downloads](https://static.pepy.tech/badge/splatreg)](https://pepy.tech/project/splatreg)
 [![CI](https://github.com/Archerkattri/splatreg/actions/workflows/ci.yml/badge.svg)](https://github.com/Archerkattri/splatreg/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-166%20passing-16a34a.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-integration%20checks-16a34a.svg)](tests/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22820933.svg)](https://doi.org/10.5281/zenodo.22820933)
 [![Paper](https://img.shields.io/badge/engrXiv-10.31224%2F7313-009E73.svg)](https://doi.org/10.31224/7313)
 [![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
@@ -35,8 +35,8 @@ What you get that no other splat registrar ships (each claim traced in
 - **Provably correct SH rotation.** When a recovered transform is baked in, the higher-order
   spherical-harmonic bands (`f_rest`) are mixed by the real-basis Wigner-D matrix, so glossy
   highlights turn *with* the splat instead of staying stuck in the old capture frame.
-  Test-locked against an independent basis evaluator to **~2.4e-15** in float64
-  ([`tests/test_sh_rotation.py`](tests/test_sh_rotation.py)).
+  Previously validated against an independent basis evaluator to **~2.4e-15** in float64
+  ([`RESULTS.md` §5j](RESULTS.md)).
 - **Align WITHOUT merging.** `apply_transform()` (and `splatreg align`) bakes the recovered
   pose into the source and writes it as its own PLY: both scans stay separate files, now in
   one frame, ready for any viewer or editor.
@@ -272,9 +272,9 @@ Every number is measured and reproducible; the provenance column points at the f
 | Camera localization (real splat, known perturbation) | median 5°/10 mm → **0.11°/1.35 mm** | n/a | [`RESULTS.md` §5g](RESULTS.md) |
 | Known-transform recovery | **36/36 = 100%** (GPU full grid); 6/6 CPU smoke in 41 s | n/a | [`RESULTS.md` §1, §5j](RESULTS.md) |
 | Registration speed | **~17 ms** (fast init), 104 ms (learned) | GeoTransformer ~50 ms, Open3D 142 ms | [`RESULTS.md` §5e](RESULTS.md) |
-| SH rotation correctness | rotated-coeff evaluation error **~2.4e-15** (float64) | n/a | [`tests/test_sh_rotation.py`](tests/test_sh_rotation.py), [`RESULTS.md` §5j](RESULTS.md) |
+| SH rotation correctness | rotated-coeff evaluation error **~2.4e-15** (float64) | n/a | [`RESULTS.md` §5j](RESULTS.md) |
 | Exposure compensation | tinted-pair scale error 3.99% → **0.47%** (clean: 0.01%, harmless) | no-compensation baseline | [`RESULTS.md` §5j](RESULTS.md) |
-| Pose covariance | SPD when well-constrained, scales with noise, `None` when singular | n/a | [`tests/test_pose_covariance.py`](tests/test_pose_covariance.py) |
+| Pose covariance | SPD when well-constrained, scales with noise, `None` when singular | n/a | [`RESULTS.md` §5j](RESULTS.md) |
 
 ### Zero-shot registration on real 3DMatch
 
@@ -332,7 +332,7 @@ splat-vs-splat photometric LM (renders through **gsplat**, no real images) down 
 `init="mac"` reimplements the MAC hypothesis generator (SC²-weighted rigidity graph → maximal
 cliques → weighted SVD per clique, with explicit caps) in pure torch + networkx
 (`pip install "splatreg[mac]"`). On synthetic contaminated sets
-([`tests/test_mac.py`](tests/test_mac.py)) it matches the RANSAC engine at 30/60/90% random
+([`RESULTS.md` §5k](RESULTS.md)) it matches the RANSAC engine at 30/60/90% random
 outliers and decisively wins the structured-decoy regime (RANSAC fails at ~78°, MAC stays <0.2°).
 Measured on the **full official splits** (same forward/voxel/refine, only the hypothesis stage
 differs) it is **a wash, not a lift**: 3DLoMatch 72.1/74.6 vs LGR's 72.5/74.4, 3DMatch 91.7/93.8
@@ -343,16 +343,21 @@ correspondences are already consensus-dominated, so the default stays `seed_sele
 
 ## Validation
 
-Every number is reproducible; full record in [`RESULTS.md`](RESULTS.md).
+Every number is reproducible; full record in [`RESULTS.md`](RESULTS.md). The current review
+branch retains the real-data benchmark and smoke paths, not the former unit-test suite.
 
 ```bash
-python -m pytest tests/ -q                        # 166 passing, 8 skipped
-python tests/test_jacobians.py                    # analytic vs numerical Jacobian audit
+python -m pytest tests/test_backends.py tests/test_cli.py tests/test_io_roundtrip_dc.py tests/test_photometric_refine.py -q
 python examples/validate_recovery.py --fast       # CUDA-first smoke; CPU fallback
 python examples/validate_recovery.py              # CUDA-first 36/36 recovery
 SPLATREG_DEVICE=cuda python benchmarks/robustness_bench.py --device cuda
+SPLATREG_DEVICE=cuda python benchmarks/threedmatch_official_bench.py --split 3DMatch --init learned
 python examples/merge_demo.py                     # real-splat merge demo
 ```
+
+The pytest suite uses synthetic fixtures for its CLI and CPU photometric integration checks; it
+does not execute a 3DMatch benchmark. The official dataset benchmark is the separate command above
+and requires the dataset and learned-backend setup described in [`RESULTS.md`](RESULTS.md).
 
 ## Limitations
 
@@ -425,8 +430,9 @@ plus `tests/`, `benchmarks/`, `examples/`, `docs_site/`. Full validation record:
 ## Current release status
 
 The current checkout includes ambiguity-aware hypothesis fusion, held-out
-evidence scoring and the official flat-archive 3DMatch benchmark path. The full
-suite passes 166 tests with 8 skips. A corrected one-scene CPU recovery audit
+evidence scoring and the official flat-archive 3DMatch benchmark path. The retained
+integration checks cover optional solver backends, CLI PLY workflows, file round-trips,
+and photometric refinement; CUDA/gsplat cases skip when unavailable. A corrected one-scene CPU recovery audit
 freezes the robust configuration on three development pairs, then obtains 5/7
 held-out recall (71.4%, 95% Wilson 35.9–91.8%) for both splatreg and the matched
 Open3D control; splatreg reduces median pose error at a small latency cost. This

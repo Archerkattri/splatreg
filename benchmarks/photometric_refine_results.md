@@ -57,6 +57,6 @@ under-constrains the pose (case 1/2) — which is why it ships opt-in.
 ## Reproduce
 
 ```bash
-python -m pytest tests/test_photometric_refine.py -q     # 21 tests (CPU; gsplat cases auto-skip without CUDA)
+python -m pytest tests/test_photometric_refine.py -q     # CPU integrations; gsplat cases skip without CUDA
 python benchmarks/photometric_refine_bench.py            # case 3 (needs GPU + the capture PLY; --ply to point elsewhere)
 ```

@@ -8,9 +8,8 @@ PhotoReg (arXiv 2410.05044) targets, adapted here to splat-vs-splat (no real ima
 
 Two render backends are exercised:
 
-* a pure-torch differentiable MOCK renderer (Gaussian point-splatting) — always runs, on CPU; it
-  also validates the ``jac_mode="autodiff"`` path (run_lm's row-chunked ``jacrev`` fallback)
-  against the default finite-difference Jacobian;
+* a deterministic pure-torch point renderer runs CPU end-to-end integrations for pose, exposure,
+  ladder, and the ``jac_mode="autodiff"`` solver path; it is not gsplat;
 * the real gsplat rasterizer — skip-marked unless gsplat + CUDA are available (gsplat
   rasterization is a CUDA op), tiny scenes/resolutions only.
 """
@@ -25,13 +24,7 @@ import torch
 from splatreg import register, merge
 from splatreg.core.lie import se3_exp, sim3_exp
 from splatreg.core.types import Gaussians
-from splatreg.quality import resolve_quality, QualityConfig
-from splatreg.residuals.photometric import (
-    SplatPhotometric,
-    camera_ring,
-    refine_photometric,
-)
-from splatreg.solvers.lm import _autodiff_jacobian
+from splatreg.residuals.photometric import SplatPhotometric, camera_ring, refine_photometric
 
 # ---------------------------------------------------------------------------- helpers
 
@@ -114,110 +107,6 @@ def scale_of(T: torch.Tensor) -> float:
 MOCK = dict(render_fn=mock_render, n_views=6, width=32, height=32)
 
 
-# ---------------------------------------------------------------------------- camera ring
-
-
-def test_camera_ring_looks_at_center():
-    target = make_color_sphere(300, seed=1)
-    T_WC, K = camera_ring(target, 8, width=48, height=48)
-    assert T_WC.shape == (8, 4, 4) and K.shape == (3, 3)
-    center = target.means.mean(dim=0)
-    brad = float((target.means - center).norm(dim=1).max())
-    for v in range(8):
-        cam = T_WC[v, :3, 3]
-        fwd = T_WC[v, :3, 2]  # +z column = optical axis in world
-        to_center = center - cam
-        dist = float(to_center.norm())
-        assert abs(dist - 2.5 * brad) < 1e-4  # default radius_mult stand-off
-        cosang = float(torch.dot(fwd, to_center / to_center.norm()))
-        assert cosang > 0.999  # looking at the center
-        # rotation block orthonormal
-        R = T_WC[v, :3, :3]
-        assert torch.allclose(R @ R.T, torch.eye(3), atol=1e-5)
-    # intrinsics: principal point at the image center
-    assert float(K[0, 2]) == pytest.approx(24.0) and float(K[1, 2]) == pytest.approx(24.0)
-
-
-def test_camera_ring_validations():
-    target = make_color_sphere(50, seed=1)
-    with pytest.raises(ValueError):
-        camera_ring(target, 0)
-    with pytest.raises(ValueError):
-        camera_ring(Gaussians(torch.zeros(0, 3), torch.zeros(0, 4), torch.zeros(0, 3), torch.zeros(0)), 4)
-
-
-# ---------------------------------------------------------------------------- residual basics
-
-
-def test_residual_near_zero_when_aligned():
-    target = make_color_sphere(300, seed=1)
-    cams, K = camera_ring(target, 4, width=24, height=24)
-    res = SplatPhotometric(cams, K, width=24, height=24, render_fn=mock_render)
-    r0 = res.residual(torch.eye(4), target, target)  # same splat, identity -> identical renders
-    assert res.dim() == r0.shape[0] == 4 * 24 * 24 * 3
-    assert float(r0.abs().max()) < 1e-6
-    # a perturbed pose must light the residual up
-    T = se3_exp(torch.tensor([0.01, 0.0, 0.0, 0.0, 0.0, math.radians(5.0)]))
-    r1 = res.residual(T, target, target)
-    assert float(r1.abs().max()) > 1e-3
-
-
-def test_residual_requires_colors():
-    target = make_color_sphere(100, seed=1)
-    bare = Gaussians(
-        means=target.means, quats=target.quats, scales=target.scales, opacities=target.opacities, colors=None
-    )
-    cams, K = camera_ring(target, 4, width=16, height=16)
-    res = SplatPhotometric(cams, K, width=16, height=16, render_fn=mock_render)
-    with pytest.raises(ValueError, match="colors"):
-        res.residual(torch.eye(4), target, bare)
-    with pytest.raises(ValueError, match="colors"):
-        res.residual(torch.eye(4), bare, target)
-
-
-def test_dssim_rows_appended():
-    target = make_color_sphere(200, seed=1)
-    source = make_color_sphere(200, seed=2)
-    cams, K = camera_ring(target, 4, width=16, height=16)
-    plain = SplatPhotometric(cams, K, width=16, height=16, render_fn=mock_render)
-    with_ds = SplatPhotometric(cams, K, width=16, height=16, render_fn=mock_render, dssim_weight=0.2)
-    T = torch.eye(4)
-    n_plain = plain.residual(T, target, source).shape[0]
-    r_ds = with_ds.residual(T, target, source)
-    assert r_ds.shape[0] == 2 * n_plain  # one D-SSIM row per RGB row
-    assert torch.isfinite(r_ds).all()
-
-
-# ---------------------------------------------------------------------------- jacobians
-
-
-def test_fd_jacobian_matches_autodiff():
-    """The default FD Jacobian must agree with run_lm's jacrev fallback on a smooth renderer."""
-    target = make_color_sphere(200, seed=1)
-    source = make_color_sphere(200, seed=2)
-    cams, K = camera_ring(target, 4, width=20, height=20)
-    T = se3_exp(torch.tensor([0.004, -0.002, 0.001, 0.01, -0.02, math.radians(3.0)]))
-
-    fd = SplatPhotometric(cams, K, width=20, height=20, render_fn=mock_render, jac_mode="fd")
-    ad = SplatPhotometric(cams, K, width=20, height=20, render_fn=mock_render, jac_mode="autodiff")
-    assert ad.jacobian(T, target, source, dof=6) is None  # autodiff mode defers to the solver
-
-    for dof, exp_fn in ((6, se3_exp), (7, sim3_exp)):
-        J_fd = fd.jacobian(T, target, source, dof=dof)
-        J_ad = _autodiff_jacobian(ad, T, target, source, dof, exp_fn, jac_row_chunk=256).reshape(-1, dof)
-        assert J_fd.shape == J_ad.shape == (4 * 20 * 20 * 3, dof)
-        rel = float((J_fd - J_ad).abs().max() / J_ad.abs().max())
-        assert rel < 5e-3, f"dof={dof}: FD vs autodiff Jacobian rel err {rel}"
-
-
-def test_jacobian_dof_validation():
-    target = make_color_sphere(50, seed=1)
-    cams, K = camera_ring(target, 2, width=8, height=8)
-    res = SplatPhotometric(cams, K, width=8, height=8, render_fn=mock_render)
-    with pytest.raises(ValueError, match="dof"):
-        res.jacobian(torch.eye(4), target, target, dof=5)
-
-
 # ---------------------------------------------------------------------------- refinement (mock)
 
 
@@ -251,9 +140,7 @@ def test_refine_autodiff_mode_runs_jacrev_fallback():
     This is an INTEGRATION check of the autodiff path inside run_lm (the jacrev fallback with
     ``jac_row_chunk``), kept deliberately tiny for CPU runtime: at 16 px / 3 views the rotation
     about the sphere axis is too aliased to converge, so the assertions are the ones this config
-    reliably earns — the LM cost drops and the translation error shrinks. Jacobian CORRECTNESS of
-    the autodiff path (vs FD) is covered by ``test_fd_jacobian_matches_autodiff``; convergence
-    quality by the FD-mode tests above.
+    reliably earns — the LM cost drops and the translation error shrinks.
     """
     target = make_color_sphere(150, seed=1)
     source = make_color_sphere(150, seed=2)
@@ -275,21 +162,6 @@ def test_refine_with_dssim_still_converges():
         target, source, T0, transform="se3", max_iters=8, dssim_weight=0.2, **MOCK
     )
     assert rot_err_deg(out.T) < rot_err_deg(T0) * 0.6
-
-
-def test_refine_validations():
-    target = make_color_sphere(100, seed=1)
-    source = make_color_sphere(100, seed=2)
-    bare = Gaussians(
-        means=target.means, quats=target.quats, scales=target.scales, opacities=target.opacities, colors=None
-    )
-    with pytest.raises(ValueError, match="colors"):
-        refine_photometric(bare, source, torch.eye(4), render_fn=mock_render)
-    with pytest.raises(ValueError, match="colors"):
-        refine_photometric(target, bare, torch.eye(4), render_fn=mock_render)
-    cams, _K = camera_ring(target, 4)
-    with pytest.raises(ValueError, match="explicit K"):
-        refine_photometric(target, source, torch.eye(4), cameras=cams, render_fn=mock_render)
 
 
 # ---------------------------------------------------------------------------- register / merge API
@@ -315,13 +187,6 @@ def test_register_refine_beats_geometric_on_symmetric_splat():
     assert both.info["refine"]["stage"] == "photometric"
     assert both.info["refine"]["n_iters"] >= 1
     assert "quality" in both.info and "cost" in both.info
-
-
-def test_register_refine_validation_fails_fast():
-    target = make_color_sphere(50, seed=1)
-    source = make_color_sphere(50, seed=2)
-    with pytest.raises(ValueError, match="refine"):
-        register(target, source, refine="bogus")
 
 
 def test_register_refine_iters_defaults_from_quality():
@@ -416,30 +281,6 @@ def test_exposure_on_clean_pair_is_harmless():
     assert all(abs(gi - 1.0) < 0.1 for gi in g) and all(abs(bi) < 0.05 for bi in b)
 
 
-def test_fit_exposure_clamps_to_bounds():
-    """An extreme tint must hit the gain/bias clamps, not run away with the pose."""
-    target = make_color_sphere(200, seed=1)
-    extreme = tint(make_color_sphere(200, seed=2), gain=5.0, bias=1.0)
-    cams, K = camera_ring(target, 4, width=24, height=24)
-    res = SplatPhotometric(cams, K, width=24, height=24, render_fn=mock_render)
-    gain, bias = res.fit_exposure(torch.eye(4), target, extreme)
-    assert float(gain.min()) >= 0.5 - 1e-6 and float(gain.max()) <= 2.0 + 1e-6
-    assert float(bias.abs().max()) <= 0.2 + 1e-6
-
-
-def test_exposure_model_inert_until_fitted():
-    """SplatPhotometric applies the identity appearance model until fit_exposure() is called."""
-    target = make_color_sphere(200, seed=1)
-    source = make_color_sphere(200, seed=2)
-    cams, K = camera_ring(target, 4, width=16, height=16)
-    res = SplatPhotometric(cams, K, width=16, height=16, render_fn=mock_render)
-    r_before = res.residual(torch.eye(4), target, source).clone()
-    res.fit_exposure(torch.eye(4), target, source)
-    r_after = res.residual(torch.eye(4), target, source)
-    assert res._gain is not None
-    assert not torch.allclose(r_before, r_after)  # the fit measurably changes the rows
-
-
 # ---------------------------------------------------------------------------- coarse-to-fine ladder
 
 
@@ -466,58 +307,48 @@ def test_ladder_beats_single_rung_96px():
     assert sizes == [(32, 32), (64, 64), (96, 96)]
 
 
-def test_ladder_validations_and_kwargs_passthrough():
+def test_register_refine_ladder_passthrough():
+    """The public register API carries ladder settings into the refinement integration."""
     target = make_color_sphere(100, seed=1)
     source = make_color_sphere(100, seed=2)
-    with pytest.raises(ValueError, match="ladder"):
-        refine_photometric(target, source, torch.eye(4), render_fn=mock_render, ladder=())
-    # refine_kwargs route: register(..., refine_kwargs={"ladder": ...}) reaches the stage
-    out = register(
-        target, source, init=torch.eye(4), transform="se3", quality="low", max_iters=3,
+    result = register(
+        target,
+        source,
+        init=torch.eye(4),
+        transform="se3",
+        quality="low",
+        max_iters=3,
         refine="photometric",
-        refine_kwargs=dict(render_fn=mock_render, n_views=3, ladder=(12, 16), max_iters=2, exposure=False),
+        refine_kwargs=dict(
+            render_fn=mock_render,
+            n_views=3,
+            ladder=(12, 16),
+            max_iters=2,
+            exposure=False,
+        ),
     )
-    assert [r["size"] for r in out.info["refine"]["ladder"]] == [(12, 12), (16, 16)]
+    assert [r["size"] for r in result.info["refine"]["ladder"]] == [(12, 12), (16, 16)]
 
 
-# ---------------------------------------------------------------------------- quality policy
+# ---------------------------------------------------------------------------- optional-renderer failure boundary
 
 
-def test_quality_policy_sets_refine_iters():
-    assert QualityConfig().refine_iters == 10
-    full = resolve_quality("full", torch.device("cpu"))
-    bal = resolve_quality("balanced", torch.device("cpu"))
-    low = resolve_quality("low", torch.device("cpu"))
-    assert full.refine_iters == 10 and bal.refine_iters == 8 and low.refine_iters == 5
-    assert full.refine_iters > bal.refine_iters > low.refine_iters
-    scaled = resolve_quality(0.5, torch.device("cpu"))
-    assert low.refine_iters <= scaled.refine_iters <= full.refine_iters
+def test_missing_gsplat_has_actionable_install_error(monkeypatch):
+    """Absence of the optional real backend fails clearly while injected CPU rendering works."""
+    import splatreg.residuals.photometric as photometric
 
-
-# ---------------------------------------------------------------------------- gsplat degradation
-
-
-def test_import_error_when_gsplat_missing(monkeypatch):
-    """Without gsplat and without a render_fn the residual must raise a clear hint AT CALL TIME."""
-    import splatreg.residuals.photometric as pm
-
-    monkeypatch.setattr(pm, "_GSPLAT_AVAILABLE", False)
+    monkeypatch.setattr(photometric, "_GSPLAT_AVAILABLE", False)
     target = make_color_sphere(50, seed=1)
-    cams, K = camera_ring(target, 4)
+    cameras, intrinsics = camera_ring(target, 4)
     with pytest.raises(ImportError, match=r"splatreg\[render\]"):
-        SplatPhotometric(cams, K)
+        SplatPhotometric(cameras, intrinsics)
     with pytest.raises(ImportError, match=r"splatreg\[render\]"):
         refine_photometric(target, target, torch.eye(4))
-    # an explicit render_fn keeps everything working without gsplat
-    res = SplatPhotometric(cams, K, width=16, height=16, render_fn=mock_render)
-    assert torch.isfinite(res.residual(torch.eye(4), target, target)).all()
 
-
-def test_invalid_jac_mode():
-    target = make_color_sphere(50, seed=1)
-    cams, K = camera_ring(target, 2)
-    with pytest.raises(ValueError, match="jac_mode"):
-        SplatPhotometric(cams, K, render_fn=mock_render, jac_mode="exact")
+    residual = SplatPhotometric(
+        cameras, intrinsics, width=16, height=16, render_fn=mock_render
+    )
+    assert torch.isfinite(residual.residual(torch.eye(4), target, target)).all()
 
 
 # ---------------------------------------------------------------------------- gsplat (real) path

@@ -32,14 +32,14 @@ recovery at 36/36 and improved SE(3) convergence: seed-1 cells now solve in 1 it
 ## 2. Jacobian correctness — the audit that found a real bug
 
 The discipline every serious geometric-optimisation library enforces: check each analytic
-Jacobian against a tangent-space numerical one. `tests/test_jacobians.py` (float64).
+Jacobian against a tangent-space numerical one in the original float64 audit.
 
 | Residual / op | Result |
 |---|---|
 | ICP point-to-point | ✅ correct, max\|Δ\| ~3e-9 |
 | ICP point-to-plane | ✅ correct, max\|Δ\| ~4e-11 |
 | **SDF** | ❌→✅ **found wrong (max\|Δ\|=10.8), fixed** — now an exact **closed-form** gradient, ~1e-8 |
-| SE(3)/Sim(3) exp·log, invariants, near-π, `so3_project`, LM solver | ✅ all correct (`tests/test_lie.py` + `test_solver.py`) |
+| SE(3)/Sim(3) exp·log, invariants, near-π, `so3_project`, LM solver | ✅ passed the original numerical audit |
 
 **The SDF bug (found + fixed):** the Gaussian-SDF returned the surface *normal* `n~` as its
 gradient, but the true gradient of `d(p)=(p−q~(p))·n~(p)` includes a **first-order** `∂q~/∂p`
@@ -77,13 +77,15 @@ is scale + implicit-field robustness, and it costs ~80× in SE(3) (see limitatio
 | Symmetric (sphere) | **9/9 = 100%** (a global-init convergence fix lands the featureless sphere correctly at all poses) |
 | **Partial overlap** (20–60% removed) | **4/9 solved + 5 flagged-ambiguous** (0 silent-wrong) — mild + some moderate crops solve at 0.00°; the rest honestly flagged |
 
-## 5. Test suite (library-bar rigor)
+## 5. Retired unit-test suite (historical snapshot)
 
-`pytest tests/` → **143 passing** (Jacobian audit + Lie ops + LM solver + io round-trip + CLI +
+Before pure unit tests were removed from the review branch, `pytest tests/` produced
+**143 passing** (Jacobian audit + Lie ops + LM solver + io round-trip + CLI +
 photometric/exposure/ladder + SH Wigner rotation + pose covariance + MAC maximal-clique seed). `tests/conftest.py` (deterministic
 seed fixture), `splatreg/testing.py` (a shippable `assert_residual_jacobian` so every future
 residual gets the numerical audit — the GTSAM `EXPECT_CORRECT_FACTOR_JACOBIANS` equivalent).
-`black` + `mypy` are clean and `splatreg/py.typed` ships.
+This is historical evidence, not the current integration-suite count. `black` + `mypy` were clean
+and `splatreg/py.typed` shipped in that run.
 
 ## 5b. Official 3DMatch / 3DLoMatch (canonical Choi/Zeng protocol)
 
@@ -610,9 +612,7 @@ JSON. Requires GPU + weights + data; not runnable on this CPU box.
 
 ```bash
 cd third_party/splatreg
-PYTHONPATH=. python tests/test_jacobians.py     # the Jacobian audit
-PYTHONPATH=. python tests/test_lie.py           # Lie-group ops
-PYTHONPATH=. pytest tests/ -q                   # the suite
+PYTHONPATH=. python -m pytest tests/test_backends.py tests/test_cli.py tests/test_io_roundtrip_dc.py tests/test_photometric_refine.py -q  # retained integration checks; synthetic fixtures only
 SPLATREG_DEVICE=cuda PYTHONPATH=. python examples/validate_recovery.py --device cuda
 SPLATREG_DEVICE=cuda PYTHONPATH=. python benchmarks/robustness_bench.py --device cuda
 SPLATREG_DEVICE=cuda PYTHONPATH=. python benchmarks/icp_baseline_bench.py --device cuda
