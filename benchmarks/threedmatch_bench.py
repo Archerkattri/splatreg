@@ -33,15 +33,19 @@ Run (GPU 1 only)::
 from __future__ import annotations
 
 import argparse
+import hashlib
+import importlib.metadata
 import json
 import math
 import os
+import platform
 import random
 import sys
 import time
 from pathlib import Path
 
 import numpy as np
+import scipy
 import torch
 from scipy.spatial import cKDTree
 
@@ -50,11 +54,48 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from splatreg import register
-from splatreg.align_features import feature_align
+from splatreg.align_features import (
+    _cloud_voxel,
+    _open3d_fpfh_ransac_seed,
+    _open3d_icp_refine,
+    feature_align,
+)
 from splatreg.core.types import Gaussians
 from splatreg.io import _read_ply_vertex
 
 DEFAULT_DATA = os.path.join(_REPO_ROOT, "data", "3dmatch", "3dmatch", "test")
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def point_digest(points: np.ndarray) -> str:
+    """Hash the float32 geometry supplied to splatreg and matched controls."""
+    values = np.ascontiguousarray(points, dtype="<f4")
+    return hashlib.sha256(str(values.shape).encode() + values.tobytes()).hexdigest()
+
+
+def matched_open3d_controls(src: np.ndarray, tgt: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
+    """Expose the robust path's shared coarse seed and raw point-to-plane refine.
+
+    These are stage diagnostics, not independent algorithms. The splatreg robust
+    path additionally accepts refinement only when its overlap residual improves.
+    """
+    source = torch.as_tensor(src, dtype=torch.float32)
+    target = torch.as_tensor(tgt, dtype=torch.float32)
+    voxel = min(_cloud_voxel(source), _cloud_voxel(target))
+    seed, _ = _open3d_fpfh_ransac_seed(source, target, voxel, rng_seed=42)
+    if seed is None:
+        raise RuntimeError("matched Open3D coarse control unavailable")
+    refined = _open3d_icp_refine(source, target, seed, voxel, iters=30)
+    if refined is None:
+        raise RuntimeError("matched Open3D local control unavailable")
+    return seed.numpy(), refined.numpy(), float(voxel)
 
 
 # ----------------------------------------------------------------------- IO + geometry
@@ -139,6 +180,9 @@ def correspondence_rmse(
 def open3d_fpfh_ransac(src: np.ndarray, tgt: np.ndarray, voxel: float) -> np.ndarray:
     """Classical FPFH + RANSAC global registration via Open3D -> estimated 4x4 (source->target)."""
     import open3d as o3d
+    # Isolate this control from the global RNG consumed by splatreg's robust
+    # seed. The historical artifact did not independently reset this RNG.
+    o3d.utility.random.seed(42)
 
     def make(p):
         pc = o3d.geometry.PointCloud()
@@ -272,6 +316,8 @@ def gather_pairs(
                 "tgt": dj,
                 "T_gt": T_gt,
                 "overlap": ov,
+                "source_path": source_path,
+                "target_path": target_path,
             }
         )
     return pairs
@@ -289,7 +335,7 @@ def wilson_interval(successes: int, total: int, z: float = 1.959963984540054) ->
 
 
 # ----------------------------------------------------------------------- main
-def main():
+def main(argv: list[str] | None = None):
     ap = argparse.ArgumentParser(description="splatreg vs Open3D on the 3DMatch test split.")
     ap.add_argument("--data-root", default=DEFAULT_DATA)
     ap.add_argument(
@@ -325,6 +371,10 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-open3d", action="store_true")
     ap.add_argument(
+        "--matched-controls", action="store_true",
+        help="also report the robust path's identical coarse seed and raw ICP refine (stage diagnostics)",
+    )
+    ap.add_argument(
         "--oracle-diagnostic",
         action="store_true",
         help="start only the local LM at ground truth to separate refinement from initialization failure",
@@ -338,7 +388,11 @@ def main():
         "SOTA), 'robust' (Open3D FPFH+RANSAC seed + splatreg refine, scale-correct for real indoor "
         "scans), or 'fast' (pure-splatreg object-tuned FPFH).",
     )
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
+    if args.matched_controls and (args.init != "robust" or args.no_basin_sweep):
+        ap.error("--matched-controls requires --init robust without --no-basin-sweep")
+    if args.no_basin_sweep and args.init != "features":
+        ap.error("--no-basin-sweep requires --init features (the evaluated feature_align path)")
 
     device = args.device
     if device.startswith("cuda") and not torch.cuda.is_available():
@@ -384,7 +438,7 @@ def main():
         tgt = cap_points(p["tgt"], args.max_points)
         T_gt = p["T_gt"]
 
-        # splatreg (init="fast"): registers source onto target -> T maps src into tgt frame.
+        # The selected initializer registers source onto target; T maps src into tgt frame.
         gs_src = points_to_gaussians(src, device)
         gs_tgt = points_to_gaussians(tgt, device)
         if device.startswith("cuda"):
@@ -416,6 +470,14 @@ def main():
             "source": int(p["source"]),
             "target": int(p["target"]),
             "overlap": float(p["overlap"]),
+            "ground_truth_source_to_target": T_gt.tolist(),
+            "inputs": {
+                "source_file_sha256": sha256_file(p["source_path"]),
+                "target_file_sha256": sha256_file(p["target_path"]),
+                "source_float32_sha256": point_digest(src),
+                "target_float32_sha256": point_digest(tgt),
+                "source_points": len(src), "target_points": len(tgt),
+            },
             "splatreg": {
                 "rre_deg": sr["rre"][-1],
                 "rte_m": sr["rte"][-1],
@@ -425,6 +487,17 @@ def main():
                 "confidence": float(sr_info.get("confidence", 0.0)),
             },
         }
+
+        if args.matched_controls:
+            coarse, refined, matched_voxel = matched_open3d_controls(src, tgt)
+            record["matched_stage_controls"] = {"voxel_m": matched_voxel, "rng_seed": 42}
+            for name, transform in (("coarse", coarse), ("raw_point_to_plane", refined)):
+                rmse = correspondence_rmse(src, tgt, T_gt, transform, args.corr_band)
+                record["matched_stage_controls"][name] = {
+                    "rre_deg": rot_err_deg(T_gt[:3, :3], transform[:3, :3]),
+                    "rte_m": float(np.linalg.norm(T_gt[:3, 3] - transform[:3, 3])),
+                    "corr_rmse_m": rmse, "success": rmse < args.rmse_thresh,
+                }
 
         if has_o3d:
             t0 = time.perf_counter()
@@ -512,10 +585,27 @@ def main():
     if args.output_json:
         output = Path(args.output_json)
         output.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            open3d_version = importlib.metadata.version("open3d")
+        except importlib.metadata.PackageNotFoundError:
+            open3d_version = None
         artifact = {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "protocol": "bounded-3dmatch-diagnostic",
             "transform_convention": "gt.log matrix maps second/header source into first/header target",
+            "provenance": {
+                "python": platform.python_version(), "torch": torch.__version__,
+                "numpy": np.__version__,
+                "gt_log_sha256": sha256_file(Path(args.gt_log)) if args.gt_log else None,
+                "source_sha256": {
+                    path.relative_to(Path(_REPO_ROOT)).as_posix():
+                    hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+                    for path in sorted(Path(_REPO_ROOT, "splatreg").rglob("*.py"))
+                    + [Path(__file__).resolve()]
+                },
+                "open3d_rng_seed": 42,
+                "seed_scope": "pair sampling seed; Open3D control RNG separately reset to 42",
+            },
             "config": {
                 "data_root": str(Path(args.data_root).resolve()),
                 "gt_log": str(Path(args.gt_log).resolve()) if args.gt_log else None,
@@ -527,10 +617,26 @@ def main():
                 "quality": args.quality,
                 "max_iters": args.max_iters,
                 "basin_sweep": not args.no_basin_sweep,
+                "init": args.init,
+                "initializer_path": "feature_align" if args.no_basin_sweep else "register",
+                "library_versions": {"open3d": open3d_version, "scipy": scipy.__version__},
+                "threads": {
+                    "torch_intraop": torch.get_num_threads(),
+                    "torch_interop": torch.get_num_interop_threads(),
+                    "scipy_ckdtree_workers": -1,
+                    "environment": {
+                        name: os.environ.get(name)
+                        for name in (
+                            "OMP_NUM_THREADS", "OMP_DYNAMIC", "MKL_NUM_THREADS",
+                            "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS",
+                        )
+                    },
+                },
                 "min_overlap": args.min_overlap,
                 "corr_band_m": args.corr_band,
                 "rmse_threshold_m": args.rmse_thresh,
                 "device": device,
+                "matched_controls": args.matched_controls,
             },
             "summaries": summaries,
             "pairs": pair_records,
